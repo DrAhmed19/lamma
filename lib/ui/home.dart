@@ -58,7 +58,11 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
         children: [
           const Positioned.fill(child: LammaBackground()),
           SafeArea(
-            child: CustomScrollView(
+            // على الشاشات الكبيرة (ايباد، لابتوب) المحتوى يبقى بالنص بعرض مريح
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 980),
+                child: CustomScrollView(
               physics: const BouncingScrollPhysics(),
               slivers: [
                 SliverToBoxAdapter(child: _header()),
@@ -94,6 +98,8 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                   ),
                 ),
               ],
+            ),
+              ),
             ),
           ),
         ],

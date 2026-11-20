@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -80,7 +81,7 @@ class _OnlineScreenState extends State<OnlineScreen> {
           const Positioned.fill(child: LammaBackground()),
           SafeArea(
             child: ListView(
-              padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+              padding: EdgeInsets.fromLTRB(sidePad(context), 8, sidePad(context), 24),
               children: [
                 Row(
                   children: [
@@ -360,7 +361,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
     final canStart = chosen != null && onCount >= chosen.minPlayers && onCount <= chosen.maxPlayers;
 
     return ListView(
-      padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+      padding: EdgeInsets.fromLTRB(sidePad(context), 8, sidePad(context), 24),
       children: [
         Row(
           children: [
@@ -688,3 +689,7 @@ class NetBanner extends StatelessWidget {
     );
   }
 }
+
+/// هامش جانبي: على الشاشات الكبيرة المحتوى يبقى بعرض مريح بالنص
+double sidePad(BuildContext context, {double base = 20, double maxWidth = 560}) =>
+    math.max(base, (MediaQuery.sizeOf(context).width - maxWidth) / 2);

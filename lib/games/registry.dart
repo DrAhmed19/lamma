@@ -57,6 +57,7 @@ final games = <GameInfo>[
     colors: const [Color(0xFF2EB8E6), Color(0xFF0B4566)],
     icon: PigeonIcon.new,
     build: (n, crazy) => PigeonGame(players: n, crazy: crazy),
+    online: (room) => PigeonGame(players: room.seats.length, crazy: room.crazy, room: room),
   ),
   GameInfo(
     id: 'hockey',
@@ -68,6 +69,7 @@ final games = <GameInfo>[
     colors: const [Color(0xFF1E6BFF), Color(0xFF0B2A6B)],
     icon: HockeyIcon.new,
     build: (n, _) => const HockeyGame(),
+    online: (room) => HockeyGame(room: room),
   ),
   GameInfo(
     id: 'reaction',
@@ -79,6 +81,7 @@ final games = <GameInfo>[
     colors: const [Color(0xFF16B46A), Color(0xFF0A4A33)],
     icon: ReactionIcon.new,
     build: (n, _) => ReactionGame(players: n),
+    online: (room) => ReactionGame(players: room.seats.length, room: room),
   ),
   GameInfo(
     id: 'tug',

@@ -7,16 +7,22 @@ import '../core/draw.dart';
 import '../core/fx.dart';
 import '../core/loop.dart';
 import '../core/sfx.dart';
+import '../logic/pigeon_logic.dart';
+import '../net/room.dart';
+import '../net/session.dart';
 import '../ui/kit.dart';
+import '../ui/online.dart';
 import '../ui/theme.dart';
 
 /// الحمامة: كل لاعب عنده مصيادة بزاويته، يسحب ويعوف حتى يرمي حجارة على الحمامة.
 /// عادي: حمامة وحدة وأول واحد يوصل 10.
 /// مجنون: دقيقة وحدة، ذهبية وغراب وأسراب وصناديق قوى وكومبو.
+/// القواعد بـ PigeonModel (نفسها بالسيرفر). هنا بس الرسم واللمس والمؤثرات.
 class PigeonGame extends StatefulWidget {
-  const PigeonGame({super.key, required this.players, this.crazy = false});
+  const PigeonGame({super.key, required this.players, this.crazy = false, this.room});
   final int players;
   final bool crazy;
+  final RoomConn? room;
 
   @override
   State<PigeonGame> createState() => _PigeonState();
@@ -26,47 +32,28 @@ enum BirdKind { pigeon, gold, crow }
 
 enum PowerKind { fire, triple, freeze }
 
+/// طير بإحداثيات الشاشة (نسخة للعرض من حالة الموديل)
 class _Bird {
-  _Bird(this.kind, this.pos, this.vel, this.target, this.seed, {this.small = false});
+  _Bird(this.kind, this.small, this.pos, this.heading, this.spin, this.hit, this.hitAt, this.alt, this.flap, this.scale);
   final BirdKind kind;
-  final bool small;
-  Offset pos, vel, target;
-  final double seed;
-  double flap = 0;
-  double heading = 0;
-  double retargetAt = 0;
-  double leaveAt = double.infinity;
-  double glideUntil = 0;
-  double nextGlideAt = 0;
-  bool leaving = false;
-
-  /// يعبر الشاشة بخط وما يلف (السرب)
-  bool passer = false;
-  bool hit = false;
-  double hitAt = 0;
-  double altAtHit = 0;
-  double spin = 0;
+  final bool small, hit;
+  final Offset pos;
+  final double heading, spin, hitAt, alt, flap, scale;
 }
 
 class _Stone {
-  _Stone(this.pos, this.vel, this.owner, this.range, this.group, {this.fire = false});
-  Offset pos, vel;
+  _Stone(this.pos, this.vel, this.owner, this.dist, this.range, this.fire);
+  final Offset pos, vel;
   final int owner;
-  final double range;
-  final int group;
+  final double dist, range;
   final bool fire;
-  double dist = 0;
-  bool dead = false;
-  bool hitSomething = false;
-  final hits = <_Bird>{};
 }
 
 class _Crate {
-  _Crate(this.pos, this.vel, this.kind, this.born);
-  Offset pos, vel;
+  _Crate(this.pos, this.kind, this.born);
+  final Offset pos;
   final PowerKind kind;
   final double born;
-  bool dead = false;
 }
 
 /// ريش وغبار وشرار
@@ -116,43 +103,54 @@ class _Far {
 }
 
 class _PigeonState extends LoopState<PigeonGame> {
-  static const target = 10;
-  static const roundTime = 60.0;
-  static const reload = 0.42;
+  static const target = PigeonModel.target;
+  static const roundTime = PigeonModel.roundTime;
+  static const reload = PigeonModel.reload;
   final _rnd = math.Random();
 
-  bool get crazy => widget.crazy;
-  GamePhase phase = GamePhase.countdown;
-  late List<int> score = List.filled(n, 0);
-  late List<int> combo = List.filled(n, 0);
-  late List<PowerKind?> power = List.filled(n, null);
-  late List<int> powerShots = List.filled(n, 0);
-  late List<double> readyAt = List.filled(n, 0);
-  late List<double> shotAt = List.filled(n, -10);
-  late List<double> scoredAt = List.filled(n, -10);
-  late List<double> frozenUntil = List.filled(n, 0);
-  late List<Offset?> aimStart = List.filled(n, null);
-  late List<Offset> aimCur = List.filled(n, Offset.zero);
-  final Map<int, int> owners = {};
+  Session<PigeonModel>? _session;
+  Session<PigeonModel> get session => _session!;
+  bool get online => widget.room != null;
+  bool get ready => _session != null && (_session is! OnlineSession || (_session as OnlineSession).ready);
+  PigeonModel get m => session.model;
 
-  final birds = <_Bird>[];
-  final stones = <_Stone>[];
-  final crates = <_Crate>[];
+  bool get crazy => widget.crazy;
+  int get n => widget.players;
+
+  /// أونلاين: اللي مقعده فوق تنقلب الشاشة حتى يشوف نفسه تحت
+  bool get flipped => online && ready && session.me >= 0 && m.isTop(session.me);
+
+  // ---- حالة اللعبة (من الموديل) للرسام
+  double get gt => m.time;
+  List<int> get score => m.score;
+  List<int> get combo => m.combo;
+  List<PowerKind?> get power => [for (final v in m.power) v < 0 ? null : PowerKind.values[v]];
+  List<int> get powerShots => m.powerShots;
+  List<double> get readyAt => m.readyAt;
+  List<double> get shotAt => m.shotAt;
+  List<double> get scoredAt => m.scoredAt;
+  List<double> get frozenUntil => m.frozenUntil;
+  double get elapsed => m.elapsed;
+  bool frozen(int p) => m.time < m.frozenUntil[p];
+  GamePhase get phase => !ready || m.counting ? GamePhase.countdown : (m.over ? GamePhase.over : GamePhase.play);
+
+  // ---- منظر (إحداثيات الشاشة)
+  List<_Bird> birds = [];
+  List<_Stone> stones = [];
+  List<_Crate> crates = [];
   final bits = <_Bit>[];
   final pops = <_Pop>[];
   final clouds = <_Cloud>[];
   final far = <_Far>[];
-  final groupHit = <int>{};
-  bool firstPigeon = true;
-  double playStart = 0, overAt = 0;
-  double respawnAt = 0.3, nextCrowAt = 0, nextFlockAt = 0, nextCrateAt = 0;
-  double nextFarAt = 3, nextCooAt = 2, shake = 0;
-  int winner = -1;
+  double nextFarAt = 3, shake = 0;
   int round = 0;
-  int shotSeq = 0;
-  int lastTick = -1;
   Size size = Size.zero;
   double dpr = 1;
+
+  // ---- السحب
+  List<Offset?> aimStart = List.filled(4, null);
+  List<Offset> aimCur = List.filled(4, Offset.zero);
+  final Map<int, int> owners = {};
 
   /// السطوح والنخل ما تتغير، فنرسمها مرة وحدة كصورة ونعيد استعمالها كل إطار
   ui.Image? roofImg, palmImg;
@@ -160,15 +158,22 @@ class _PigeonState extends LoopState<PigeonGame> {
   List<_Seat>? _seatCache;
   Size _seatSize = Size.zero;
 
+  PigeonModel? _prevSeen;
+  Map<int, PBird> _pb = {};
+  Map<int, PStone> _ps = {};
+  Map<int, PCrate> _pc = {};
+
   @override
   void initState() {
     super.initState();
+    if (widget.room != null) _session = OnlineSession<PigeonModel>(widget.room!);
     Sfx.preload(const ['snap', 'stretch', 'hit', 'gold', 'crow', 'land', 'clack', 'power', 'freeze', 'combo', 'coo', 'flap', 'whoosh', 'tick', 'pop', 'win']);
     Music.play(crazy ? 'music_crazy' : 'music_calm', volume: crazy ? 0.42 : 0.32);
   }
 
   @override
   void dispose() {
+    _session?.dispose();
     Music.stop();
     roofImg?.dispose();
     palmImg?.dispose();
@@ -183,151 +188,47 @@ class _PigeonState extends LoopState<PigeonGame> {
     if (mounted && phase != GamePhase.over) Music.resume();
   }
 
-  int get n => widget.players;
-  int get total => score.fold(0, (a, b) => a + b);
-  double get k => (math.min(size.width, size.height) / 400).clamp(0.8, 1.6).toDouble();
+  /// مقياس الرسم حسب الشاشة (يكبر ويا الايباد واللابتوب)
+  double get k => (math.min(size.width, size.height) / 400).clamp(0.8, 2.4).toDouble();
   double get maxPull => math.min(size.width, size.height) * 0.26;
   double get skyTop => size.height * 0.22;
   double get skyBottom => size.height * 0.78;
-
-  double get elapsed {
-    if (phase == GamePhase.countdown) return 0;
-    final now = phase == GamePhase.over ? overAt : time;
-    return math.min(roundTime, now - playStart);
-  }
-
-  /// من 0 (عصر) لـ 1 (غروب). بس بالمجنون، وتمشي ويا الوقت بنعومة.
-  /// (بالعادي ثابتة، لأن ربطها بالنقاط يخلي الإضاءة تتغير فجأة ويا كل ضربة)
   double get progress => crazy ? clamp01(elapsed / roundTime) : 0;
 
-  double padOf(Size s) => math.min(80.0, s.height * 0.1);
+  // ---- من إحداثيات العالم لإحداثيات الشاشة
+  double get _sx => size.width / m.worldW;
+  double get _sy => size.height / m.worldH;
+  Offset mp(double x, double y) {
+    final fx = flipped ? m.worldW - x : x, fy = flipped ? m.worldH - y : y;
+    return Offset(fx * _sx, fy * _sy);
+  }
+
+  Offset mv(double vx, double vy) => Offset((flipped ? -vx : vx) * _sx, (flipped ? -vy : vy) * _sy);
+
+  double alt(_Bird b) => b.alt;
+  double birdScale(_Bird b) => b.scale;
+  double flapOf(_Bird b) => b.flap;
 
   List<_Seat> seats(Size s) {
     if (_seatCache != null && _seatSize == s) return _seatCache!;
     _seatSize = s;
-    return _seatCache = _buildSeats(s);
+    return _seatCache = [for (var p = 0; p < n; p++) _seatOf(p)];
   }
 
-  List<_Seat> _buildSeats(Size s) {
-    final w = s.width, h = s.height;
-    final pad = padOf(s);
-    if (n == 2) {
-      return [
-        _Seat(Offset(w / 2, h - pad), Rect.fromLTWH(0, h / 2, w, h / 2), false),
-        _Seat(Offset(w / 2, pad), Rect.fromLTWH(0, 0, w, h / 2), true),
-      ];
-    }
-    final q = [
-      _Seat(Offset(w * 0.7, h - pad), Rect.fromLTWH(w / 2, h / 2, w / 2, h / 2), false),
-      _Seat(Offset(w * 0.3, pad), Rect.fromLTWH(0, 0, w / 2, h / 2), true),
-      _Seat(Offset(w * 0.3, h - pad), Rect.fromLTWH(0, h / 2, w / 2, h / 2), false),
-      _Seat(Offset(w * 0.7, pad), Rect.fromLTWH(w / 2, 0, w / 2, h / 2), true),
-    ];
-    return q.sublist(0, n);
+  _Seat _seatOf(int p) {
+    final a = m.anchor(p);
+    final z = m.zone(p);
+    final c1 = mp(z.$1, z.$2), c2 = mp(z.$1 + z.$3, z.$2 + z.$4);
+    return _Seat(mp(a.$1, a.$2), Rect.fromPoints(c1, c2), m.isTop(p) != flipped);
   }
 
   /// الزاوية الفاضية لما يكونون 3 (بيها برج حمام)
-  _Seat get emptySeat {
-    final w = size.width, h = size.height;
-    return _Seat(Offset(w * 0.7, padOf(size)), Rect.fromLTWH(w / 2, 0, w / 2, h / 2), true);
-  }
+  _Seat get emptySeat => _seatOf(3);
 
   @override
   void restart() {
-    setState(() {
-      phase = GamePhase.countdown;
-      score = List.filled(n, 0);
-      combo = List.filled(n, 0);
-      power = List.filled(n, null);
-      powerShots = List.filled(n, 0);
-      readyAt = List.filled(n, 0);
-      shotAt = List.filled(n, -10);
-      scoredAt = List.filled(n, -10);
-      frozenUntil = List.filled(n, 0);
-      aimStart = List.filled(n, null);
-      owners.clear();
-      birds.clear();
-      stones.clear();
-      crates.clear();
-      bits.clear();
-      pops.clear();
-      groupHit.clear();
-      firstPigeon = true;
-      respawnAt = time + 0.3;
-      shake = 0;
-      winner = -1;
-      lastTick = -1;
-      round++;
-    });
-  }
-
-  // ------------------------------------------------------------ الطيور
-
-  Offset _randomTarget() {
-    final w = size.width, m = 44 * k;
-    return Offset(m + _rnd.nextDouble() * (w - 2 * m), skyTop + _rnd.nextDouble() * (skyBottom - skyTop));
-  }
-
-  double _speed(_Bird b) {
-    final grow = crazy ? elapsed * 2.2 + total * 4 : total * 10.0;
-    var base = math.min(130 + grow, 300) * k;
-    if (b.small) base *= 1.75;
-    switch (b.kind) {
-      case BirdKind.gold:
-        return base * 1.35;
-      case BirdKind.crow:
-        return base * 1.05;
-      case BirdKind.pigeon:
-        return base;
-    }
-  }
-
-  /// الارتفاع من 0 (واطي) لـ 1 (عالي)
-  double alt(_Bird b) {
-    if (b.hit) return math.max(0, b.altAtHit - (time - b.hitAt) * 1.4);
-    return 0.5 + 0.5 * math.sin(time * 0.8 + b.seed);
-  }
-
-  double birdScale(_Bird b) => 0.8 + 0.34 * alt(b);
-
-  double hitRadius(_Bird b) => birdRadius(b.kind, k) * (b.small ? 0.7 : 1) * birdScale(b);
-
-  double flapOf(_Bird b) {
-    if (!b.hit && time < b.glideUntil) return 0.95;
-    return 0.5 + 0.5 * math.sin(b.flap);
-  }
-
-  _Bird _spawn(BirdKind kind, {bool small = false, Offset? from, Offset? to}) {
-    final left = _rnd.nextBool();
-    final pos = from ?? Offset(left ? -40 * k : size.width + 40 * k, skyTop + _rnd.nextDouble() * (skyBottom - skyTop));
-    final t = to ?? _randomTarget();
-    final b = _Bird(kind, pos, Offset.zero, t, _rnd.nextDouble() * 10, small: small);
-    b.vel = (t - pos) / (t - pos).distance * _speed(b);
-    b.heading = math.atan2(b.vel.dy, b.vel.dx);
-    b.retargetAt = time + 2 + _rnd.nextDouble() * 1.5;
-    b.nextGlideAt = time + 1.5 + _rnd.nextDouble() * 2;
-    birds.add(b);
-    return b;
-  }
-
-  void _spawnFlock() {
-    final fromLeft = _rnd.nextBool();
-    final y = skyTop + (0.2 + _rnd.nextDouble() * 0.6) * (skyBottom - skyTop);
-    final w = size.width;
-    for (var i = 0; i < 4; i++) {
-      final from = Offset(fromLeft ? -40 * k - i * 34 * k : w + 40 * k + i * 34 * k, y + (i.isEven ? -1 : 1) * i * 16 * k);
-      final to = Offset(fromLeft ? w + 200 * k : -200 * k, from.dy + (_rnd.nextDouble() - 0.5) * 120 * k);
-      final b = _spawn(BirdKind.pigeon, small: true, from: from, to: to);
-      b.passer = true;
-      b.leaving = true;
-    }
-  }
-
-  void _spawnCrate() {
-    final w = size.width;
-    final pos = Offset(60 * k + _rnd.nextDouble() * (w - 120 * k), skyTop + _rnd.nextDouble() * (skyBottom - skyTop));
-    final a = _rnd.nextDouble() * math.pi * 2;
-    crates.add(_Crate(pos, Offset(math.cos(a), math.sin(a)) * 24 * k, PowerKind.values[_rnd.nextInt(3)], time));
+    if (online && !m.over) return;
+    session.again();
   }
 
   void _initScene() {
@@ -355,9 +256,11 @@ class _PigeonState extends LoopState<PigeonGame> {
 
   @override
   void update(double dt) {
-    if (size.isEmpty) return;
+    if (size.isEmpty || !ready) return;
     final w = size.width, h = size.height;
     if (clouds.isEmpty) _initScene();
+    session.update(dt);
+    _events();
 
     for (final c in clouds) {
       c.pos += Offset(c.speed * dt, 0);
@@ -376,59 +279,6 @@ class _PigeonState extends LoopState<PigeonGame> {
     far.removeWhere((f) => f.pos.dx > w + 30);
     shake = math.max(0, shake - dt * 28);
 
-    if (phase != GamePhase.over) {
-      final hasMain = birds.any((b) => b.kind != BirdKind.crow && !b.small);
-      if (!hasMain && time >= respawnAt) {
-        final gold = crazy && !firstPigeon && _rnd.nextDouble() < 0.2;
-        firstPigeon = false;
-        _spawn(gold ? BirdKind.gold : BirdKind.pigeon);
-        Sfx.play('flap', volume: 0.55);
-      }
-      if (time >= nextCooAt) {
-        if (birds.any((b) => !b.hit && b.kind != BirdKind.crow)) Sfx.play('coo', volume: 0.35);
-        nextCooAt = time + 6 + _rnd.nextDouble() * 6;
-      }
-    }
-
-    if (phase == GamePhase.play && crazy) {
-      if (elapsed >= roundTime) {
-        _endByTime();
-        return;
-      }
-      final left = (roundTime - elapsed).ceil();
-      if (left <= 10 && left != lastTick) {
-        lastTick = left;
-        Sfx.play('tick', volume: 0.7);
-      }
-      if (total >= 2 && time >= nextCrowAt && !birds.any((b) => b.kind == BirdKind.crow)) {
-        final c = _spawn(BirdKind.crow);
-        c.leaveAt = time + 5 + _rnd.nextDouble() * 2.5;
-        nextCrowAt = time + 8 + _rnd.nextDouble() * 6;
-      }
-      if (time >= nextFlockAt) {
-        _spawnFlock();
-        Sfx.play('whoosh', volume: 0.7);
-        nextFlockAt = time + 12 + _rnd.nextDouble() * 7;
-      }
-      if (time >= nextCrateAt) {
-        if (crates.isEmpty) {
-          _spawnCrate();
-          Sfx.play('pop', volume: 0.7);
-        }
-        nextCrateAt = time + 9 + _rnd.nextDouble() * 5;
-      }
-    }
-
-    _updateBirds(dt);
-    _updateCrates(dt);
-    if (phase == GamePhase.play) {
-      _updateStones(dt);
-      stones.removeWhere((s) => s.dead);
-    } else {
-      // بعد الفوز ما نخلّي حجار واگفة بالجو
-      stones.clear();
-    }
-
     for (final p in bits) {
       p.age += dt;
       p.pos += p.vel * dt;
@@ -437,138 +287,62 @@ class _PigeonState extends LoopState<PigeonGame> {
     }
     bits.removeWhere((p) => p.age > p.life);
     pops.removeWhere((p) => time - p.born > 1.2);
-  }
 
-  void _updateBirds(double dt) {
-    final w = size.width;
-    for (final b in birds) {
-      if (b.hit) {
-        b.flap += dt * 3;
-        b.spin += dt * 9;
-        b.pos += b.vel * dt;
-        b.vel = b.vel * (1 - math.min(1.0, dt * 3));
-        continue;
+    // السحب انلغى (تجمّدت، أو خلصت اللعبة)
+    for (var i = 0; i < n; i++) {
+      if (aimStart[i] != null && (frozen(i) || m.over)) {
+        aimStart[i] = null;
+        owners.removeWhere((_, v) => v == i);
       }
-      final gliding = time < b.glideUntil;
-      if (!gliding && time >= b.nextGlideAt && !b.passer) {
-        b.glideUntil = time + 0.6 + _rnd.nextDouble() * 0.7;
-        b.nextGlideAt = b.glideUntil + 1.8 + _rnd.nextDouble() * 2.5;
-      }
-      final sp = _speed(b) * (gliding ? 0.85 : 1);
-      if (!gliding) b.flap += dt * (12 + sp / (40 * k));
-
-      if (b.kind == BirdKind.crow && !b.leaving && time >= b.leaveAt) {
-        b.leaving = true;
-        b.target = Offset(b.pos.dx < w / 2 ? -140 * k : w + 140 * k, b.pos.dy);
-      }
-      if (!b.leaving && ((b.target - b.pos).distance < 30 * k || time >= b.retargetAt)) {
-        b.target = _randomTarget();
-        b.retargetAt = time + 1.3 + _rnd.nextDouble() * 1.8;
-      }
-      final to = b.target - b.pos;
-      final d = to.distance;
-      final desired = d > 0 ? to / d * sp : b.vel;
-      b.vel = Offset.lerp(b.vel, desired, clamp01(dt * (b.passer ? 4 : 2.2)))!;
-      final v = b.vel.distance;
-      final perp = v > 0 ? Offset(-b.vel.dy, b.vel.dx) / v : Offset.zero;
-      final wob = b.passer ? 14 : 42;
-      b.pos += b.vel * dt + perp * (math.sin(time * 5 + b.seed) * wob * k * dt);
-      b.heading = math.atan2(b.vel.dy, b.vel.dx);
     }
-    birds.removeWhere((b) =>
-        (b.hit && time - b.hitAt > 0.8) ||
-        (b.leaving && (b.pos.dx < -160 * k || b.pos.dx > w + 160 * k)));
+    _buildViews();
   }
 
-  void _updateCrates(double dt) {
-    final w = size.width;
-    for (final c in crates) {
-      c.pos += c.vel * dt;
-      if (c.pos.dx < 30 * k || c.pos.dx > w - 30 * k) c.vel = Offset(-c.vel.dx, c.vel.dy);
-      if (c.pos.dy < skyTop || c.pos.dy > skyBottom) c.vel = Offset(c.vel.dx, -c.vel.dy);
-      if (time - c.born > 7.5) c.dead = true;
-    }
-    crates.removeWhere((c) => c.dead);
-  }
-
-  void _updateStones(double dt) {
-    final w = size.width, h = size.height;
-    final sr = 6 * k;
-    const steps = 3;
-    for (final s in stones) {
-      final sp = s.vel.distance;
-      for (var i = 0; i < steps && !s.dead; i++) {
-        s.pos += s.vel * (dt / steps);
-        s.dist += sp * dt / steps;
-        if (s.dist >= s.range) {
-          _land(s);
-          break;
-        }
-        for (final c in crates) {
-          if (!c.dead && (s.pos - c.pos).distance < 18 * k + sr) {
-            _takeCrate(c, s.owner);
-            s.hitSomething = true;
-            groupHit.add(s.group);
-            // الحجارة العادية تنكسر بالصندوق، الناريّة تكمل
-            if (!s.fire) s.dead = true;
+  void _events() {
+    for (final e in session.takeEvents()) {
+      switch (e['e']) {
+        case 'spawn':
+          Sfx.play('flap', volume: 0.55);
+        case 'coo':
+          Sfx.play('coo', volume: 0.35);
+        case 'tick':
+          Sfx.play('tick', volume: 0.7);
+        case 'flock':
+          Sfx.play('whoosh', volume: 0.7);
+        case 'crate':
+          Sfx.play('pop', volume: 0.7);
+        case 'land':
+          _burst(mp((e['x'] as num).toDouble(), (e['y'] as num).toDouble()), 6, const Color(0xFFD9C29A), round: true, speed: 70);
+          Sfx.play('land', volume: 0.5);
+        case 'clack':
+          _burst(mp((e['x'] as num).toDouble(), (e['y'] as num).toDouble()), 10, const Color(0xFFFFF0B3), round: true, speed: 160);
+          Sfx.play('clack');
+          Fx.hit();
+        case 'shot':
+          if (!online || e['p'] == session.me) Fx.hit();
+          Sfx.play('snap', volume: 0.8);
+        case 'hit':
+          _onHit(e);
+        case 'crate_taken':
+          _onCrate(e);
+        case 'win':
+          Fx.big();
+          Music.stop();
+          Sfx.play('win');
+          for (var i = 0; i < 4; i++) {
+            aimStart[i] = null;
           }
-        }
-        if (s.dead) break;
-        for (final b in birds) {
-          if (b.hit || s.hits.contains(b)) continue;
-          if ((s.pos - b.pos).distance < hitRadius(b) + sr) {
-            s.hits.add(b);
-            s.hitSomething = true;
-            groupHit.add(s.group);
-            _hitBird(b, s);
-            if (!s.fire) {
-              s.dead = true;
-              break;
-            }
-          }
-        }
-        if (phase != GamePhase.play) return;
-      }
-      if (!s.dead && (s.pos.dx < -40 || s.pos.dx > w + 40 || s.pos.dy < -40 || s.pos.dy > h + 40)) {
-        s.dead = true;
+          owners.clear();
+          setState(() {});
+        case 'again':
+          bits.clear();
+          pops.clear();
+          shake = 0;
+          round++;
+          Music.play(crazy ? 'music_crazy' : 'music_calm', volume: crazy ? 0.42 : 0.32);
+          setState(() {});
       }
     }
-
-    // بالمجنون الحجار تتصادم بالجو
-    if (crazy) {
-      for (var i = 0; i < stones.length; i++) {
-        final a = stones[i];
-        if (a.dead) continue;
-        for (var j = i + 1; j < stones.length; j++) {
-          final b = stones[j];
-          if (b.dead || a.owner == b.owner) continue;
-          if ((a.pos - b.pos).distance < sr * 2.4) {
-            a.dead = b.dead = true;
-            final m = (a.pos + b.pos) / 2;
-            _burst(m, 10, const Color(0xFFFFF0B3), round: true, speed: 160);
-            Sfx.play('clack');
-            Fx.hit();
-            break;
-          }
-        }
-      }
-    }
-
-    // رمية ما صابت شي = الكومبو يرجع صفر
-    for (final s in stones) {
-      if (!s.dead) continue;
-      final groupAlive = stones.any((o) => !o.dead && o.group == s.group);
-      if (!groupAlive) {
-        if (!groupHit.contains(s.group)) combo[s.owner] = 0;
-        groupHit.remove(s.group);
-      }
-    }
-  }
-
-  void _land(_Stone s) {
-    s.dead = true;
-    _burst(s.pos, 6, const Color(0xFFD9C29A), round: true, speed: 70);
-    Sfx.play('land', volume: 0.5);
   }
 
   void _burst(Offset at, int count, Color color, {bool round = false, double speed = 200}) {
@@ -588,38 +362,25 @@ class _PigeonState extends LoopState<PigeonGame> {
     }
   }
 
-  void _hitBird(_Bird b, _Stone s) {
-    final p = s.owner;
-    b.altAtHit = alt(b);
-    b.hit = true;
-    b.hitAt = time;
-    b.vel = b.vel * 0.25 + s.vel * 0.1;
+  void _onHit(Map<String, dynamic> e) {
+    final p = e['p'] as int, kind = BirdKind.values[e['k'] as int];
+    final pos = mp((e['x'] as num).toDouble(), (e['y'] as num).toDouble());
+    final pts = e['pts'] as int;
     final flip = seats(size)[p].flip;
-    final pal = birdPalette(b.kind);
-
-    if (b.kind == BirdKind.crow) {
-      score[p] = math.max(0, score[p] - 1);
-      combo[p] = 0;
-      pops.add(_Pop(b.pos, '-1', const Color(0xFFFF4D6A), flip, time));
+    final pal = birdPalette(kind);
+    if (kind == BirdKind.crow) {
+      pops.add(_Pop(pos, '-1', const Color(0xFFFF4D6A), flip, time));
       shake = 7;
       Fx.mid();
       Sfx.play('crow');
     } else {
-      final pts = b.kind == BirdKind.gold ? 2 : 1;
-      score[p] += pts;
-      scoredAt[p] = time;
-      if (!b.small) respawnAt = time + 0.9;
-      pops.add(_Pop(b.pos, '+$pts', b.kind == BirdKind.gold ? const Color(0xFFFFD34D) : Colors.white, flip, time));
-      if (crazy) {
-        combo[p]++;
-        if (combo[p] % 3 == 0) {
-          score[p]++;
-          pops.add(_Pop(b.pos + Offset(0, (flip ? 1 : -1) * 34 * k), 'كومبو! +1', const Color(0xFFFF9F1C), flip, time + 0.08, big: true));
-          Sfx.play('combo');
-        }
+      pops.add(_Pop(pos, '+$pts', kind == BirdKind.gold ? const Color(0xFFFFD34D) : Colors.white, flip, time));
+      if (e['bonus'] == true) {
+        pops.add(_Pop(pos + Offset(0, (flip ? 1 : -1) * 34 * k), 'كومبو! +1', const Color(0xFFFF9F1C), flip, time + 0.08, big: true));
+        Sfx.play('combo');
       }
-      shake = b.kind == BirdKind.gold ? 10 : 6;
-      if (b.kind == BirdKind.gold) {
+      shake = kind == BirdKind.gold ? 10 : 6;
+      if (kind == BirdKind.gold) {
         Fx.big();
         Sfx.play('gold');
       } else {
@@ -627,67 +388,76 @@ class _PigeonState extends LoopState<PigeonGame> {
         Sfx.play('hit');
       }
     }
-
-    final count = b.kind == BirdKind.gold ? 22 : 15;
+    final count = kind == BirdKind.gold ? 22 : 15;
     for (var i = 0; i < count; i++) {
       final a = _rnd.nextDouble() * math.pi * 2;
       final sp = (60 + _rnd.nextDouble() * 200) * k;
       final col = i.isEven ? pal.wing : (i % 3 == 0 ? Colors.white : pal.body);
-      bits.add(_Bit(b.pos, Offset(math.cos(a), math.sin(a)) * sp, col, 0.8 + _rnd.nextDouble() * 0.8,
+      bits.add(_Bit(pos, Offset(math.cos(a), math.sin(a)) * sp, col, 0.8 + _rnd.nextDouble() * 0.8,
           (5 + _rnd.nextDouble() * 6) * k, _rnd.nextDouble() * math.pi, (_rnd.nextDouble() - 0.5) * 10));
     }
-
-    if (!crazy && score[p] >= target) _finish(p);
   }
 
-  void _takeCrate(_Crate c, int p) {
-    c.dead = true;
+  void _onCrate(Map<String, dynamic> e) {
+    final p = e['p'] as int;
+    final pos = mp((e['x'] as num).toDouble(), (e['y'] as num).toDouble());
     final flip = seats(size)[p].flip;
     Fx.mid();
-    _burst(c.pos, 12, const Color(0xFFC98B4E), speed: 180);
-    switch (c.kind) {
+    _burst(pos, 12, const Color(0xFFC98B4E), speed: 180);
+    switch (PowerKind.values[e['k'] as int]) {
       case PowerKind.fire:
-        power[p] = PowerKind.fire;
-        powerShots[p] = 3;
-        pops.add(_Pop(c.pos, 'نار!', const Color(0xFFFF7A1A), flip, time, big: true));
+        pops.add(_Pop(pos, 'نار!', const Color(0xFFFF7A1A), flip, time, big: true));
         Sfx.play('power');
       case PowerKind.triple:
-        power[p] = PowerKind.triple;
-        powerShots[p] = 3;
-        pops.add(_Pop(c.pos, 'ثلاثية!', const Color(0xFFFFD34D), flip, time, big: true));
+        pops.add(_Pop(pos, 'ثلاثية!', const Color(0xFFFFD34D), flip, time, big: true));
         Sfx.play('power');
       case PowerKind.freeze:
-        pops.add(_Pop(c.pos, 'تجميد!', const Color(0xFF8FE3FF), flip, time, big: true));
+        pops.add(_Pop(pos, 'تجميد!', const Color(0xFF8FE3FF), flip, time, big: true));
         Sfx.play('freeze');
         final ss = seats(size);
         for (var i = 0; i < n; i++) {
-          if (i == p) continue;
-          frozenUntil[i] = time + 3;
-          readyAt[i] = math.max(readyAt[i], time + 3);
-          aimStart[i] = null;
-          owners.removeWhere((_, v) => v == i);
-          _burst(ss[i].anchor, 12, const Color(0xFFCFF4FF), round: true, speed: 120);
+          if (i != p) _burst(ss[i].anchor, 12, const Color(0xFFCFF4FF), round: true, speed: 120);
         }
     }
   }
 
-  void _finish(int w) {
-    winner = w;
-    overAt = time;
-    for (var i = 0; i < n; i++) {
-      aimStart[i] = null;
+  /// يحوّل حالة الموديل لأشياء بإحداثيات الشاشة (ويسلّس الحركة بين حالتين أونلاين)
+  void _buildViews() {
+    final pm = session.prev;
+    final bl = session.blend;
+    if (!identical(pm, _prevSeen)) {
+      _prevSeen = pm;
+      _pb = {if (pm != null) for (final b in pm.birds) b.id: b};
+      _ps = {if (pm != null) for (final s in pm.stones) s.id: s};
+      _pc = {if (pm != null) for (final c in pm.crates) c.id: c};
     }
-    owners.clear();
-    Fx.big();
-    Music.stop();
-    Sfx.play('win');
-    setState(() => phase = GamePhase.over);
-  }
-
-  void _endByTime() {
-    final best = score.reduce(math.max);
-    final tops = [for (var i = 0; i < n; i++) if (score[i] == best) i];
-    _finish(tops.length == 1 ? tops.first : -1);
+    double l(double a, double b) => a + (b - a) * bl;
+    birds = [
+      for (final b in m.birds)
+        () {
+          final o = _pb[b.id];
+          final x = o == null ? b.x : l(o.x, b.x), y = o == null ? b.y : l(o.y, b.y);
+          final hv = mv(math.cos(b.heading), math.sin(b.heading));
+          return _Bird(BirdKind.values[b.kind], b.small, mp(x, y), math.atan2(hv.dy, hv.dx), b.spin, b.hit, b.hitAt,
+              m.alt(b), m.flapOf(b), m.birdScale(b));
+        }()
+    ];
+    stones = [
+      for (final s in m.stones)
+        () {
+          final o = _ps[s.id];
+          final x = o == null ? s.x : l(o.x, s.x), y = o == null ? s.y : l(o.y, s.y);
+          return _Stone(mp(x, y), mv(s.vx, s.vy), s.owner, s.dist, s.range, s.fire);
+        }()
+    ];
+    crates = [
+      for (final c in m.crates)
+        () {
+          final o = _pc[c.id];
+          final x = o == null ? c.x : l(o.x, c.x), y = o == null ? c.y : l(o.y, c.y);
+          return _Crate(mp(x, y), PowerKind.values[c.kind], c.born);
+        }()
+    ];
   }
 
   // ------------------------------------------------------------ اللمس
@@ -696,23 +466,22 @@ class _PigeonState extends LoopState<PigeonGame> {
     final st = aimStart[p];
     if (st == null) return Offset.zero;
     var d = aimCur[p] - st;
-    final m = maxPull;
-    if (d.distance > m) d = d / d.distance * m;
+    final mx = maxPull;
+    if (d.distance > mx) d = d / d.distance * mx;
     return d;
   }
 
-  bool frozen(int p) => time < frozenUntil[p];
-
   void _down(PointerDownEvent e) {
-    if (phase != GamePhase.play || paused) return;
+    if (!ready || phase != GamePhase.play || paused) return;
     final ss = seats(size);
     for (var i = 0; i < ss.length; i++) {
+      if (online && i != session.me) continue;
       if (aimStart[i] == null && !frozen(i) && ss[i].zone.contains(e.localPosition)) {
         owners[e.pointer] = i;
         aimStart[i] = e.localPosition;
         aimCur[i] = e.localPosition;
         Fx.tap();
-        if (time >= readyAt[i]) Sfx.play('stretch', volume: 0.6);
+        if (m.time >= m.readyAt[i]) Sfx.play('stretch', volume: 0.6);
         return;
       }
     }
@@ -728,32 +497,20 @@ class _PigeonState extends LoopState<PigeonGame> {
     if (p == null) return;
     final pl = pull(p);
     aimStart[p] = null;
-    if (cancel || phase != GamePhase.play || paused || time < readyAt[p] || frozen(p)) return;
+    if (cancel || !ready || phase != GamePhase.play || paused || m.time < m.readyAt[p] || frozen(p)) return;
     final len = pl.distance;
     if (len < 14) return;
     final dir = -pl / len;
     final seat = seats(size)[p];
     if (dir.dx * seat.facing.dx + dir.dy * seat.facing.dy < 0.15) return;
-    // السرعة والمدى نسبة لطول الشاشة: السحبة الضعيفة توصل نص الشاشة،
-    // والقوية تعبرها. وكل الرميات تاخذ تقريباً نفس الوقت بالجو (~0.8 ثانية).
-    final pw = len / maxPull;
-    final speed = size.height * (0.6 + 0.9 * pw);
-    final range = size.height * (0.5 + 0.75 * pw);
-    final group = shotSeq++;
-    final kind = power[p];
-    final angles = kind == PowerKind.triple ? const [-0.2, 0.0, 0.2] : const [0.0];
-    for (final a in angles) {
-      final d = Offset(dir.dx * math.cos(a) - dir.dy * math.sin(a), dir.dx * math.sin(a) + dir.dy * math.cos(a));
-      stones.add(_Stone(seat.anchor + d * (24 * k), d * speed, p, range, group, fire: kind == PowerKind.fire));
-    }
-    if (kind != null) {
-      powerShots[p]--;
-      if (powerShots[p] <= 0) power[p] = null;
-    }
-    readyAt[p] = time + reload;
-    shotAt[p] = time;
-    Fx.hit();
-    Sfx.play('snap', volume: 0.8);
+    // الاتجاه من الشاشة للعالم (نعكس القلب ونرجّع المقياس)
+    final dx = (flipped ? -dir.dx : dir.dx) / _sx, dy = (flipped ? -dir.dy : dir.dy) / _sy;
+    session.input(p, {
+      'm': 'shot',
+      'dx': double.parse(dx.toStringAsFixed(5)),
+      'dy': double.parse(dy.toStringAsFixed(5)),
+      'pw': double.parse((len / maxPull).clamp(0.0, 1.0).toStringAsFixed(3)),
+    });
   }
 
   @override
@@ -763,6 +520,18 @@ class _PigeonState extends LoopState<PigeonGame> {
       child: LayoutBuilder(builder: (context, box) {
         size = box.biggest;
         dpr = MediaQuery.devicePixelRatioOf(context);
+        if (_session == null && size.width > 0 && size.height > 0) {
+          // على نفس الجهاز: العالم بنفس نسبة الشاشة، حتى ما يتأثر شكل اللعب
+          final kk = k;
+          _session = LocalSession(PigeonModel(
+            players: widget.players,
+            crazy: widget.crazy,
+            seed: DateTime.now().microsecondsSinceEpoch,
+            worldW: size.width / kk,
+            worldH: size.height / kk,
+          ));
+        }
+        if (!ready) return const NetWaiting();
         return Stack(
           children: [
             Positioned.fill(
@@ -775,32 +544,26 @@ class _PigeonState extends LoopState<PigeonGame> {
                 child: CustomPaint(painter: _PigeonPainter(this)),
               ),
             ),
-            if (phase == GamePhase.countdown)
+            if (m.counting)
               Positioned.fill(
                 child: Countdown(
-                  key: ValueKey(round),
-                  paused: paused,
-                  dual: true,
-                  onDone: () => setState(() {
-                    phase = GamePhase.play;
-                    playStart = time;
-                    nextCrowAt = time + 7;
-                    nextFlockAt = time + 10;
-                    nextCrateAt = time + 5;
-                  }),
+                  key: ValueKey('${m.startAt}'),
+                  paused: paused && !online,
+                  dual: !online,
+                  onDone: () {},
                 ),
               ),
-            if (phase == GamePhase.over)
+            if (online) NetBanner(session: session, players: n),
+            if (m.over)
               Positioned.fill(
                 child: ResultOverlay(
-                  winner: winner,
-                  scores: score,
-                  dual: true,
+                  winner: m.winner,
+                  scores: m.score,
+                  dual: !online,
                   subtitle: crazy ? 'خلص الوقت!' : null,
-                  onAgain: () {
-                    Music.play(crazy ? 'music_crazy' : 'music_calm', volume: crazy ? 0.42 : 0.32);
-                    restart();
-                  },
+                  menuLabel: online ? 'الغرفة' : null,
+                  onMenu: roomMenu(context, session),
+                  onAgain: restart,
                 ),
               ),
           ],
@@ -1003,7 +766,7 @@ class _PigeonPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final w = size.width, h = size.height;
-    if (w <= 0 || h <= 0) return;
+    if (w <= 0 || h <= 0 || !s.ready) return;
     final k = s.k;
 
     canvas.save();
@@ -1413,7 +1176,7 @@ class _PigeonPainter extends CustomPainter {
   /// لوحة النقاط على حايط الطابوگ
   void _plaque(Canvas canvas, Offset c, int i, double k) {
     final col = C.players[i];
-    final since = s.time - s.scoredAt[i];
+    final since = s.gt - s.scoredAt[i];
     final bump = since < 0.35 ? 1 + 0.22 * math.sin(since / 0.35 * math.pi) : 1.0;
     canvas.save();
     canvas.translate(c.dx, c.dy);
@@ -1455,7 +1218,7 @@ class _PigeonPainter extends CustomPainter {
     final r = birdRadius(b.kind, k) * (b.small ? 0.7 : 1);
     final al = s.alt(b);
     var op = 1.0;
-    if (b.hit) op = 1 - clamp01((s.time - b.hitAt) / 0.8);
+    if (b.hit) op = 1 - clamp01((s.gt - b.hitAt) / 0.8);
     final off = (6 + 22 * al) * k;
     canvas.save();
     canvas.translate(b.pos.dx + off * 0.6, b.pos.dy + off);
@@ -1472,10 +1235,10 @@ class _PigeonPainter extends CustomPainter {
     final r = birdRadius(b.kind, k) * (b.small ? 0.7 : 1);
     var op = 1.0, sc = s.birdScale(b), flash = 0.0;
     if (b.hit) {
-      final t = clamp01((s.time - b.hitAt) / 0.8);
+      final t = clamp01((s.gt - b.hitAt) / 0.8);
       op = 1 - t * t;
       sc *= 1 - 0.4 * t;
-      flash = clamp01(1 - (s.time - b.hitAt) / 0.14) * 0.85;
+      flash = clamp01(1 - (s.gt - b.hitAt) / 0.14) * 0.85;
     }
     canvas.save();
     canvas.translate(b.pos.dx, b.pos.dy);
@@ -1533,7 +1296,7 @@ class _PigeonPainter extends CustomPainter {
   // ------------------------------------------------------------ الصناديق
 
   void _crate(Canvas canvas, _Crate c, double k) {
-    final age = s.time - c.born;
+    final age = s.gt - c.born;
     if (age > 6 && (age * 8).floor().isEven) return; // يرمش قبل لا يختفي
     final bob = 1 + 0.06 * math.sin(s.time * 4 + c.born);
     final pop = age < 0.3 ? easeOutBack(age / 0.3) : 1.0;
@@ -1705,8 +1468,8 @@ class _PigeonPainter extends CustomPainter {
     var pl = s.pull(i);
     final power = pl.distance / s.maxPull;
     if (seat.flip) pl = -pl;
-    final ready = s.time >= s.readyAt[i] && !s.frozen(i);
-    final since = s.time - s.shotAt[i];
+    final ready = s.gt >= s.readyAt[i] && !s.frozen(i);
+    final since = s.gt - s.shotAt[i];
     final iced = s.frozen(i);
 
     _local(canvas, seat, () {
@@ -1803,8 +1566,8 @@ class _PigeonPainter extends CustomPainter {
       }
 
       // تعبئة الحجارة
-      if (!s.frozen(i) && s.time < s.readyAt[i]) {
-        final f = 1 - (s.readyAt[i] - s.time) / _PigeonState.reload;
+      if (!s.frozen(i) && s.gt < s.readyAt[i]) {
+        final f = 1 - (s.readyAt[i] - s.gt) / _PigeonState.reload;
         canvas.drawArc(
           Rect.fromCircle(center: Offset(0, 2 * k), radius: 44 * k),
           -math.pi / 2,
@@ -1820,7 +1583,7 @@ class _PigeonPainter extends CustomPainter {
 
       // تجميد
       if (iced) {
-        final left = s.frozenUntil[i] - s.time;
+        final left = s.frozenUntil[i] - s.gt;
         canvas.drawCircle(Offset(0, -4 * k), 42 * k, Paint()..color = alpha(const Color(0xFFBFEFFF), 0.45));
         canvas.drawCircle(
           Offset(0, -4 * k),

@@ -76,7 +76,7 @@ class LocalSession<M extends GameModel> extends Session<M> {
 
   @override
   void update(double dt) {
-    final hz = model.tickHz;
+    final hz = model.localHz;
     if (hz <= 0) return;
     // تكّات ثابتة (نفس السيرفر) حتى اللعب يصير نفسه بالضبط
     _acc += math.min(dt, 0.1);

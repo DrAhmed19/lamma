@@ -5,19 +5,22 @@ import 'package:flutter/material.dart';
 import '../core/draw.dart';
 import '../core/fx.dart';
 import '../core/loop.dart';
+import '../logic/reaction_logic.dart';
+import '../net/room.dart';
+import '../net/session.dart';
 import '../ui/kit.dart';
+import '../ui/online.dart';
 import '../ui/theme.dart';
 
-/// أسرع إصبع: 2-4 لاعبين.
+/// أسرع إصبع: 2-4 لاعبين. القواعد بـ ReactionModel (نفسها بالسيرفر).
 class ReactionGame extends StatefulWidget {
-  const ReactionGame({super.key, required this.players});
+  const ReactionGame({super.key, required this.players, this.room});
   final int players;
+  final RoomConn? room;
 
   @override
   State<ReactionGame> createState() => _ReactionState();
 }
-
-enum _R { waiting, decoy, go, roundEnd }
 
 class _Zone {
   const _Zone(this.rect, this.flip);
@@ -26,133 +29,107 @@ class _Zone {
 }
 
 class _ReactionState extends LoopState<ReactionGame> {
-  static const target = 5;
-  final _rnd = math.Random();
+  late final Session<ReactionModel> session = widget.room != null
+      ? OnlineSession<ReactionModel>(widget.room!)
+      : LocalSession(ReactionModel(players: widget.players, crazy: false, seed: DateTime.now().microsecondsSinceEpoch));
 
-  GamePhase phase = GamePhase.countdown;
-  _R rs = _R.waiting;
-  late List<int> score = List.filled(widget.players, 0);
-  late List<bool> fouled = List.filled(widget.players, false);
-  double goAt = 0, nextAt = 0, decoyAt = -1, decoyEnd = 0, roundEndAt = 0, foulAt = 0;
-  int roundWinner = -1;
-  int reactionMs = 0;
-  bool wonByFoul = false;
-  int winner = -1;
-  int round = 0;
+  ReactionModel get m => session.model;
+  bool get ready => session is! OnlineSession || (session as OnlineSession).ready;
+  bool get online => session.online;
+
   Size size = Size.zero;
+  double endAt = 0;
+  bool showOver = false;
 
-  int get n => widget.players;
+  int get n => ready ? m.players : widget.players;
+
+  // الرسام يقرا هذني
+  GamePhase get phase => !ready || m.counting ? GamePhase.countdown : (showOver ? GamePhase.over : GamePhase.play);
+  int get rs => m.rs;
+  List<int> get score => m.score;
+  List<bool> get fouled => m.fouled;
+  int get roundWinner => m.roundWinner;
+  int get reactionMs => m.reactionMs;
+  bool get wonByFoul => m.wonByFoul;
+  double get goAt => m.goAt;
+  double get gt => m.time;
+
+  /// أي لاعب بأي مربع. أونلاين: آني دائماً بالمربع الأول (تحت) وكل شي مو مقلوب.
+  List<int> get order {
+    if (!online || session.me < 0) return [for (var i = 0; i < n; i++) i];
+    final me = session.me;
+    return [me, for (var i = 0; i < n; i++) if (i != me) i];
+  }
+
+  String nameOfPlayer(int p) => online ? session.nameOf(p) : C.playerNames[p];
 
   List<_Zone> zones(Size s) {
     final w = s.width, h = s.height;
+    final fl = !online;
     if (n == 2) {
       return [
         _Zone(Rect.fromLTWH(0, h / 2, w, h / 2), false),
-        _Zone(Rect.fromLTWH(0, 0, w, h / 2), true),
+        _Zone(Rect.fromLTWH(0, 0, w, h / 2), fl),
       ];
     }
     final q = [
       _Zone(Rect.fromLTWH(w / 2, h / 2, w / 2, h / 2), false),
-      _Zone(Rect.fromLTWH(0, 0, w / 2, h / 2), true),
+      _Zone(Rect.fromLTWH(0, 0, w / 2, h / 2), fl),
       _Zone(Rect.fromLTWH(0, h / 2, w / 2, h / 2), false),
-      _Zone(Rect.fromLTWH(w / 2, 0, w / 2, h / 2), true),
+      _Zone(Rect.fromLTWH(w / 2, 0, w / 2, h / 2), fl),
     ];
     return q.sublist(0, n);
   }
 
   @override
-  void restart() {
-    setState(() {
-      phase = GamePhase.countdown;
-      score = List.filled(n, 0);
-      fouled = List.filled(n, false);
-      rs = _R.waiting;
-      goAt = 0;
-      nextAt = 0;
-      decoyAt = -1;
-      decoyEnd = 0;
-      roundEndAt = 0;
-      foulAt = 0;
-      roundWinner = -1;
-      reactionMs = 0;
-      wonByFoul = false;
-      winner = -1;
-      round++;
-    });
+  void dispose() {
+    session.dispose();
+    super.dispose();
   }
 
-  void _startRound() {
-    fouled = List.filled(n, false);
-    roundWinner = -1;
-    wonByFoul = false;
-    rs = _R.waiting;
-    final wait = 1.6 + _rnd.nextDouble() * 2.8;
-    nextAt = time + wait;
-    decoyAt = _rnd.nextDouble() < 0.35 ? time + wait * (0.35 + _rnd.nextDouble() * 0.3) : -1;
+  @override
+  void restart() {
+    if (online && !m.over) return;
+    session.again();
   }
 
   @override
   void update(double dt) {
-    if (phase != GamePhase.play) return;
-    switch (rs) {
-      case _R.waiting:
-        if (decoyAt > 0 && time >= decoyAt) {
-          rs = _R.decoy;
-          decoyEnd = time + 0.5;
-          decoyAt = -1;
-        } else if (time >= nextAt) {
-          rs = _R.go;
-          goAt = time;
+    session.update(dt);
+    for (final e in session.takeEvents()) {
+      switch (e['e']) {
+        case 'go':
           Fx.hit();
-        }
-      case _R.decoy:
-        if (time >= decoyEnd) {
-          rs = _R.waiting;
-          if (time >= nextAt) nextAt = time + 0.6 + _rnd.nextDouble();
-        }
-      case _R.go:
-        break;
-      case _R.roundEnd:
-        if (time >= roundEndAt) {
-          final best = score.reduce(math.max);
-          if (best >= target) {
-            winner = score.indexOf(best);
-            Fx.big();
-            setState(() => phase = GamePhase.over);
-          } else {
-            _startRound();
-          }
-        }
+        case 'tap':
+          Fx.mid();
+        case 'foul':
+          Fx.hit();
+        case 'win':
+          endAt = time;
+          Fx.big();
+        case 'again':
+          showOver = false;
+          setState(() {});
+      }
     }
-  }
-
-  void _endRound(int p, {bool byFoul = false}) {
-    roundWinner = p;
-    wonByFoul = byFoul;
-    score[p]++;
-    rs = _R.roundEnd;
-    roundEndAt = time + 1.5;
+    if (!ready) return;
+    final shouldShow = m.over && time - endAt > 0.6;
+    if (shouldShow != showOver) setState(() => showOver = shouldShow);
   }
 
   void _down(PointerDownEvent e) {
-    if (phase != GamePhase.play || paused) return;
+    if (!ready || m.counting || m.over || paused) return;
+    if (online) {
+      if (session.me >= 0) session.input(session.me, {'m': 'tap'});
+      return;
+    }
     final zs = zones(size);
     var p = -1;
     for (var i = 0; i < zs.length; i++) {
       if (zs[i].rect.contains(e.localPosition)) p = i;
     }
-    if (p < 0 || fouled[p]) return;
-    if (rs == _R.go) {
-      reactionMs = ((time - goAt) * 1000).round();
-      Fx.mid();
-      _endRound(p);
-    } else if (rs == _R.waiting || rs == _R.decoy) {
-      fouled[p] = true;
-      foulAt = time;
-      Fx.hit();
-      final left = [for (var i = 0; i < n; i++) if (!fouled[i]) i];
-      if (left.length == 1) _endRound(left.first, byFoul: true);
-    }
+    if (p < 0) return;
+    session.input(p, {'m': 'tap'});
   }
 
   @override
@@ -161,6 +138,7 @@ class _ReactionState extends LoopState<ReactionGame> {
       onPause: openPause,
       child: LayoutBuilder(builder: (context, box) {
         size = box.biggest;
+        if (!ready) return const NetWaiting();
         return Stack(
           children: [
             Positioned.fill(
@@ -170,24 +148,24 @@ class _ReactionState extends LoopState<ReactionGame> {
                 child: CustomPaint(painter: _ReactionPainter(this)),
               ),
             ),
-            if (phase == GamePhase.countdown)
+            if (m.counting)
               Positioned.fill(
                 child: Countdown(
-                  key: ValueKey(round),
-                  paused: paused,
-                  dual: true,
-                  onDone: () => setState(() {
-                    phase = GamePhase.play;
-                    _startRound();
-                  }),
+                  key: ValueKey('${m.startAt}'),
+                  paused: paused && !online,
+                  dual: !online,
+                  onDone: () {},
                 ),
               ),
-            if (phase == GamePhase.over)
+            if (online) NetBanner(session: session, players: n),
+            if (showOver)
               Positioned.fill(
                 child: ResultOverlay(
-                  winner: winner,
-                  scores: score,
-                  dual: true,
+                  winner: m.winner,
+                  scores: m.score,
+                  dual: !online,
+                  menuLabel: online ? 'الغرفة' : null,
+                  onMenu: roomMenu(context, session),
                   onAgain: restart,
                 ),
               ),
@@ -210,10 +188,12 @@ class _ReactionPainter extends CustomPainter {
 
     canvas.drawRect(Offset.zero & size, Paint()..color = C.bg);
 
-    for (var i = 0; i < zs.length; i++) {
-      final z = zs[i];
+    final ord = s.order;
+    for (var zi = 0; zi < zs.length; zi++) {
+      final z = zs[zi];
+      final i = ord[zi];
       final col = C.players[i];
-      final isWin = s.rs == _R.roundEnd && s.roundWinner == i;
+      final isWin = s.rs == ReactionModel.roundEnd && s.roundWinner == i;
       final r = z.rect.deflate(5);
       final rr = RRect.fromRectAndRadius(r, const Radius.circular(26));
       var fill = darken(col, 0.68);
@@ -222,7 +202,7 @@ class _ReactionPainter extends CustomPainter {
         fill = Color.lerp(darken(col, 0.2), col, k)!;
       } else if (s.fouled[i]) {
         fill = darken(col, 0.85);
-      } else if (s.rs == _R.go) {
+      } else if (s.rs == ReactionModel.go) {
         fill = darken(col, 0.45);
       }
       canvas.drawRRect(
@@ -251,7 +231,7 @@ class _ReactionPainter extends CustomPainter {
       final small = n4(s.n);
 
       // النقاط
-      const dotsCount = _ReactionState.target;
+      const dotsCount = ReactionModel.target;
       final dr = small ? 7.0 : 9.0;
       final gap = dr * 3.0;
       final startX = -gap * (dotsCount - 1) / 2;
@@ -276,11 +256,11 @@ class _ReactionPainter extends CustomPainter {
           label = s.wonByFoul ? 'فزت!' : 'فزت!\n${s.reactionMs} ms';
           lc = Colors.white;
           ls = small ? 34.0 : 46.0;
-        } else if (s.rs == _R.go) {
+        } else if (s.rs == ReactionModel.go) {
           label = 'اضغط!';
           lc = Colors.white;
           ls = small ? 38.0 : 52.0;
-        } else if (s.rs == _R.waiting || s.rs == _R.decoy) {
+        } else if (s.rs == ReactionModel.waiting || s.rs == ReactionModel.decoy) {
           label = 'انتظر...';
           lc = alpha(Colors.white, 0.55);
         }
@@ -288,7 +268,7 @@ class _ReactionPainter extends CustomPainter {
       if (label.isNotEmpty) {
         paintText(canvas, label, Offset(0, half * 0.12), size: ls, color: lc, maxWidth: r.width - 20);
       }
-      paintText(canvas, C.playerNames[i], Offset(0, -half + (small ? 26 : 34)), size: small ? 16.0 : 20.0, family: kFont, weight: FontWeight.w800, color: alpha(col, 0.9));
+      paintText(canvas, s.nameOfPlayer(i), Offset(0, -half + (small ? 26 : 34)), size: small ? 16.0 : 20.0, family: kFont, weight: FontWeight.w800, color: alpha(col, 0.9));
       canvas.restore();
     }
 
@@ -304,19 +284,19 @@ class _ReactionPainter extends CustomPainter {
     final R = math.min(w, h) * 0.13;
     Color sig = const Color(0xFF3A4166);
     switch (s.rs) {
-      case _R.go:
+      case ReactionModel.go:
         sig = C.go;
-      case _R.decoy:
+      case ReactionModel.decoy:
         sig = const Color(0xFFFF8A1F);
-      case _R.roundEnd:
+      case ReactionModel.roundEnd:
         sig = s.roundWinner >= 0 ? C.players[s.roundWinner] : Colors.white;
-      case _R.waiting:
+      case ReactionModel.waiting:
         sig = const Color(0xFF3A4166);
     }
     if (!playing) sig = const Color(0xFF3A4166);
-    final active = playing && (s.rs == _R.go || s.rs == _R.decoy);
+    final active = playing && (s.rs == ReactionModel.go || s.rs == ReactionModel.decoy);
     if (active) {
-      final t = s.rs == _R.go ? (s.time - s.goAt) : 0.2;
+      final t = s.rs == ReactionModel.go ? (s.gt - s.goAt) : 0.2;
       for (var k = 0; k < 3; k++) {
         final tt = ((t * 1.6) + k / 3) % 1.0;
         canvas.drawCircle(
@@ -329,7 +309,7 @@ class _ReactionPainter extends CustomPainter {
         );
       }
       canvas.drawCircle(c, R * 1.5, Paint()..color = alpha(sig, 0.5)..maskFilter = MaskFilter.blur(BlurStyle.normal, R * 0.6));
-    } else if (playing && s.rs == _R.waiting) {
+    } else if (playing && s.rs == ReactionModel.waiting) {
       final k = 0.5 + 0.5 * math.sin(s.time * 3);
       canvas.drawCircle(c, R * (1.08 + 0.05 * k), Paint()..style = PaintingStyle.stroke..strokeWidth = 3..color = alpha(const Color(0xFFFF4D6A), 0.35 + 0.3 * k));
     }
@@ -344,9 +324,9 @@ class _ReactionPainter extends CustomPainter {
           stops: const [0, 0.6, 1],
         ).createShader(Rect.fromCircle(center: c, radius: R)),
     );
-    if (playing && s.rs == _R.decoy) {
+    if (playing && s.rs == ReactionModel.decoy) {
       paintText(canvas, '!', c, size: R * 1.1, color: Colors.white);
-    } else if (playing && s.rs == _R.go) {
+    } else if (playing && s.rs == ReactionModel.go) {
       final b = R * 0.55;
       final bolt = Path()
         ..moveTo(c.dx + b * 0.15, c.dy - b)
