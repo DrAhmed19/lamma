@@ -14,6 +14,9 @@ import '../logic/models.dart';
 const kServer = String.fromEnvironment('SERVER', defaultValue: '');
 bool get onlineAvailable => kServer.isNotEmpty;
 
+/// رابط نسخة الويب (حتى الدعوة من التطبيق تفتح للآيفون هم)
+const kWebUrl = String.fromEnvironment('WEB', defaultValue: 'https://lamma-dk0.pages.dev');
+
 /// اسم اللاعب (يتذكره طول ما التطبيق مفتوح)
 String playerName = '';
 

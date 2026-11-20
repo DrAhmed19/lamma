@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../games/registry.dart';
 import '../net/room.dart';
@@ -355,8 +356,39 @@ class _LobbyScreenState extends State<LobbyScreen> {
     return 'هاي اللعبة لـ ${g.maxPlayers} لاعبين بس';
   }
 
+  /// رابط الدعوة يفتح الويب ويحط الكود (يشتغل للآيفون والأندرويد)
+  String get _link => '${kIsWeb ? Uri.base.origin : kWebUrl}/?room=${room.code}';
+  String get _invite => 'تعال العب وياي بلمّة 🎮\nكود الغرفة: ${room.code}\n$_link';
+
+  void _toast(String text) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: C.surface2,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14), side: const BorderSide(color: C.line)),
+        content: Text(text, style: body(15, weight: FontWeight.w700, color: Colors.white)),
+      ));
+  }
+
+  Future<void> _copy() async {
+    try {
+      await Clipboard.setData(ClipboardData(text: _link));
+      _toast('نسخت الرابط');
+    } catch (_) {
+      _toast('ما گدرت أنسخ. الكود: ${room.code}');
+    }
+  }
+
+  Future<void> _share() async {
+    try {
+      await SharePlus.instance.share(ShareParams(text: _invite));
+    } catch (_) {
+      await _copy();
+    }
+  }
+
   Widget _codeCard() {
-    final link = kIsWeb ? '${Uri.base.origin}/?room=${room.code}' : null;
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
@@ -368,25 +400,37 @@ class _LobbyScreenState extends State<LobbyScreen> {
         children: [
           Text('كود الغرفة', style: body(14, color: C.muted)),
           Text(room.code, style: display(54, color: Colors.white).copyWith(letterSpacing: 10)),
-          const SizedBox(height: 6),
-          Pressable(
-            onTap: () {
-              Clipboard.setData(ClipboardData(text: link ?? room.code));
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text(link != null ? 'نسخت الرابط' : 'نسخت الكود', style: body(15))),
-              );
-            },
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.copy_rounded, size: 18, color: C.accent),
-                const SizedBox(width: 6),
-                Text(link != null ? 'انسخ رابط الدعوة' : 'انسخ الكود',
-                    style: body(15, weight: FontWeight.w700, color: C.accent)),
-              ],
-            ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(child: _cardButton(Icons.share_rounded, 'شارك الدعوة', _share, filled: true)),
+              const SizedBox(width: 8),
+              Expanded(child: _cardButton(Icons.copy_rounded, 'انسخ الرابط', _copy)),
+            ],
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _cardButton(IconData icon, String label, VoidCallback onTap, {bool filled = false}) {
+    return Pressable(
+      onTap: onTap,
+      child: Container(
+        height: 46,
+        decoration: BoxDecoration(
+          color: filled ? alpha(C.accent, 0.28) : alpha(Colors.white, 0.05),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: filled ? alpha(C.accent, 0.8) : C.line),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, size: 18, color: Colors.white),
+            const SizedBox(width: 6),
+            Text(label, style: body(15, weight: FontWeight.w700)),
+          ],
+        ),
       ),
     );
   }
