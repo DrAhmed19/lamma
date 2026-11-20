@@ -1,0 +1,93 @@
+import 'package:flutter/material.dart';
+
+import '../ui/icons.dart';
+import 'connect4.dart';
+import 'hockey.dart';
+import 'reaction.dart';
+import 'tug.dart';
+import 'xo.dart';
+
+class GameInfo {
+  const GameInfo({
+    required this.id,
+    required this.title,
+    required this.tagline,
+    required this.howTo,
+    required this.minPlayers,
+    required this.maxPlayers,
+    required this.colors,
+    required this.icon,
+    required this.build,
+  });
+
+  final String id;
+  final String title;
+  final String tagline;
+  final String howTo;
+  final int minPlayers;
+  final int maxPlayers;
+  final List<Color> colors;
+  final CustomPainter Function() icon;
+  final Widget Function(int players) build;
+
+  String get playersLabel =>
+      minPlayers == maxPlayers ? '$minPlayers لاعبين' : '$minPlayers - $maxPlayers لاعبين';
+}
+
+final games = <GameInfo>[
+  GameInfo(
+    id: 'hockey',
+    title: 'هوكي',
+    tagline: 'دافع عن هدفك وسجّل',
+    howTo: 'كل واحد يحرك مضربه بإصبعه بنصّه من الشاشة. ضرب القرص لهدف خصمك. أول واحد يوصل 7 أهداف يفوز.',
+    minPlayers: 2,
+    maxPlayers: 2,
+    colors: const [Color(0xFF1E6BFF), Color(0xFF0B2A6B)],
+    icon: HockeyIcon.new,
+    build: (n) => const HockeyGame(),
+  ),
+  GameInfo(
+    id: 'reaction',
+    title: 'أسرع إصبع',
+    tagline: 'لا تضغط قبل الأخضر!',
+    howTo: 'انتظر لما الدائرة بالنص تصير خضراء، وبعدها اضغط على منطقتك بأسرع ما يمكن. إذا ضغطت قبلها تنطرد من الجولة. انتبه للبرتقالي، هو خدعة! أول واحد يوصل 5 نقاط يفوز.',
+    minPlayers: 2,
+    maxPlayers: 4,
+    colors: const [Color(0xFF16B46A), Color(0xFF0A4A33)],
+    icon: ReactionIcon.new,
+    build: (n) => ReactionGame(players: n),
+  ),
+  GameInfo(
+    id: 'tug',
+    title: 'شد الحبل',
+    tagline: 'اضغط أسرع من خصمك',
+    howTo: 'كل واحد يضغط على نصّه من الشاشة بأسرع ما يگدر. كل ضغطة تسحب الحبل صوبك. اللي يوصل الحبل لخطه يفوز.',
+    minPlayers: 2,
+    maxPlayers: 2,
+    colors: const [Color(0xFFFF5A5F), Color(0xFF7A1630)],
+    icon: TugIcon.new,
+    build: (n) => const TugGame(),
+  ),
+  GameInfo(
+    id: 'connect4',
+    title: 'أربعة بالصف',
+    tagline: 'رتّب أربعة قبل خصمك',
+    howTo: 'بالدور، اختار عمود حتى تنزل قطعتك. أول واحد يصفّ أربع قطع بخط واحد (عمودي، أفقي أو مايل) يفوز.',
+    minPlayers: 2,
+    maxPlayers: 2,
+    colors: const [Color(0xFFFFB627), Color(0xFF7A4A06)],
+    icon: Connect4Icon.new,
+    build: (n) => const Connect4Game(),
+  ),
+  GameInfo(
+    id: 'xo',
+    title: 'إكس أو',
+    tagline: 'الكلاسيكية الأصلية',
+    howTo: 'بالدور، كل واحد يحط علامته. أول واحد يصفّ ثلاثة بخط واحد يفوز.',
+    minPlayers: 2,
+    maxPlayers: 2,
+    colors: const [Color(0xFF8B6CFF), Color(0xFF34207A)],
+    icon: XoIcon.new,
+    build: (n) => const XoGame(),
+  ),
+];

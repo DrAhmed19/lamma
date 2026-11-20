@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#2A1E6E"/>
+      <stop offset="0.55" stop-color="#151A3A"/>
+      <stop offset="1" stop-color="#090C18"/>
+    </linearGradient>
+    <radialGradient id="r" cx="0.35" cy="0.3" r="0.8"><stop offset="0" stop-color="#FF9AAB"/><stop offset="0.55" stop-color="#FF4D6A"/><stop offset="1" stop-color="#A62340"/></radialGradient>
+    <radialGradient id="b" cx="0.35" cy="0.3" r="0.8"><stop offset="0" stop-color="#9CC4FF"/><stop offset="0.55" stop-color="#3D8BFF"/><stop offset="1" stop-color="#1F4FA6"/></radialGradient>
+    <radialGradient id="g" cx="0.35" cy="0.3" r="0.8"><stop offset="0" stop-color="#8CF0BE"/><stop offset="0.55" stop-color="#22D37E"/><stop offset="1" stop-color="#108A50"/></radialGradient>
+    <radialGradient id="y" cx="0.35" cy="0.3" r="0.8"><stop offset="0" stop-color="#FFE29A"/><stop offset="0.55" stop-color="#FFB627"/><stop offset="1" stop-color="#B07400"/></radialGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="#8B6CFF" stop-opacity="0.55"/><stop offset="1" stop-color="#8B6CFF" stop-opacity="0"/></radialGradient>
+  </defs>
+  <rect width="1024" height="1024" fill="url(#bg)"/>
+  <circle cx="512" cy="512" r="420" fill="url(#glow)"/>
+  <circle cx="512" cy="300" r="150" fill="url(#r)"/>
+  <circle cx="724" cy="512" r="150" fill="url(#b)"/>
+  <circle cx="512" cy="724" r="150" fill="url(#g)"/>
+  <circle cx="300" cy="512" r="150" fill="url(#y)"/>
+  <circle cx="512" cy="512" r="70" fill="#FFFFFF"/>
+  <circle cx="468" cy="252" r="34" fill="#FFFFFF" fill-opacity="0.35"/>
+  <circle cx="680" cy="464" r="34" fill="#FFFFFF" fill-opacity="0.35"/>
+  <circle cx="468" cy="676" r="34" fill="#FFFFFF" fill-opacity="0.35"/>
+  <circle cx="256" cy="464" r="34" fill="#FFFFFF" fill-opacity="0.35"/>
+</svg>

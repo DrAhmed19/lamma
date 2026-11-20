@@ -1,0 +1,92 @@
+name: Build
+
+# الويب يتبنى ويتنشر مع كل تعديل.
+# الـ APK يتبنى بس إذا رسالة التعديل بيها [apk] أو تشغيل يدوي (توفير دقائق).
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      apk:
+        description: "Build APK"
+        type: boolean
+        default: true
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  web:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Prepare platforms
+        run: bash tools/prepare.sh
+
+      - name: Analyze
+        run: |
+          flutter pub get
+          flutter analyze --no-fatal-infos --no-fatal-warnings
+
+      - name: Build web
+        run: flutter build web --release
+
+      - name: Deploy to Cloudflare Pages
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          npx --yes wrangler@4 pages project create lamma --production-branch=main 2>&1 | tail -3 || true
+          npx --yes wrangler@4 pages deploy build/web --project-name=lamma --branch=main --commit-dirty=true
+
+  apk:
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[apk]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      # توقيع ثابت حتى كل نسخة تتحدث فوق القديمة
+      - name: Signing key
+        run: |
+          mkdir -p ~/.android
+          cp ci/debug.keystore ~/.android/debug.keystore
+
+      - name: Prepare platforms
+        run: bash tools/prepare.sh
+
+      - name: Build APK
+        run: |
+          flutter pub get
+          flutter build apk --release
+          cp build/app/outputs/flutter-apk/app-release.apk lamma.apk
+
+      - name: Publish APK
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: apk-latest
+          name: لمّة - آخر نسخة
+          body: "آخر نسخة APK من لمّة (${{ github.sha }})"
+          files: lamma.apk
+          prerelease: false
+          make_latest: true
