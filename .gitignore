@@ -7,3 +7,7 @@ build/
 *.iml
 .metadata
 pubspec.lock
+
+# تنولد بالبناء عبر tools/prepare.sh
+/android/
+/web/
