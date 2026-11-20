@@ -12,6 +12,8 @@ dependencies:
     sdk: flutter
   flutter_localizations:
     sdk: flutter
+  http: ^1.6.0
+  web_socket_channel: ^3.0.3
 
 flutter:
   uses-material-design: true

@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 
 import '../core/version.dart';
 import '../games/registry.dart';
+import '../net/room.dart';
 import 'background.dart';
 import 'icons.dart';
 import 'kit.dart';
+import 'online.dart';
 import 'theme.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -22,6 +24,13 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   void initState() {
     super.initState();
     _spin = AnimationController(vsync: this, duration: const Duration(seconds: 18))..repeat();
+    // رابط دعوة بالويب: ?room=ABCD يفتح الأونلاين ويحط الكود
+    final code = Uri.base.queryParameters['room'];
+    if (code != null && code.length == 4) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) Navigator.of(context).push(MaterialPageRoute(builder: (_) => OnlineScreen(code: code)));
+      });
+    }
   }
 
   @override
@@ -118,6 +127,25 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                 ),
                 Text('ألعاب جماعية للأهل والأصدقاء', style: body(15, color: C.muted)),
               ],
+            ),
+          ),
+          Pressable(
+            onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const OnlineScreen())),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+              decoration: BoxDecoration(
+                color: alpha(C.accent, 0.18),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: alpha(C.accent, 0.6)),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.public_rounded, color: Colors.white, size: 18),
+                  const SizedBox(width: 6),
+                  Text('أونلاين', style: body(15, weight: FontWeight.w800)),
+                ],
+              ),
             ),
           ),
         ],
@@ -448,7 +476,18 @@ class _GameSheetState extends State<_GameSheet> {
               children: [
                 Expanded(child: _ModeTile(icon: Icons.phone_android_rounded, label: 'نفس الجهاز', selected: true)),
                 const SizedBox(width: 8),
-                Expanded(child: _ModeTile(icon: Icons.wifi_rounded, label: 'أونلاين', soon: true)),
+                Expanded(
+                  child: g.online != null && onlineAvailable
+                      ? Pressable(
+                          onTap: () {
+                            final nav = Navigator.of(context);
+                            nav.pop();
+                            nav.push(MaterialPageRoute(builder: (_) => OnlineScreen(game: g)));
+                          },
+                          child: _ModeTile(icon: Icons.public_rounded, label: 'أونلاين'),
+                        )
+                      : _ModeTile(icon: Icons.public_rounded, label: 'أونلاين', soon: true),
+                ),
               ],
             ),
             const SizedBox(height: 18),

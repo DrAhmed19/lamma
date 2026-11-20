@@ -5,93 +5,94 @@ import 'package:flutter/material.dart';
 import '../core/draw.dart';
 import '../core/fx.dart';
 import '../core/loop.dart';
+import '../core/sfx.dart';
+import '../logic/xo_logic.dart';
+import '../net/room.dart';
+import '../net/session.dart';
 import '../ui/kit.dart';
+import '../ui/online.dart';
 import '../ui/theme.dart';
 
-/// إكس أو: لاعبين بالدور.
+/// إكس أو: لاعبين بالدور. القواعد بـ XoModel (نفسها بالسيرفر).
+/// room = أونلاين (كل واحد بتلفونه، والسيرفر يحسم).
 class XoGame extends StatefulWidget {
-  const XoGame({super.key});
+  const XoGame({super.key, this.room});
+  final RoomConn? room;
 
   @override
   State<XoGame> createState() => _XoState();
 }
 
 class _XoState extends LoopState<XoGame> {
-  static const lines = [
-    [0, 1, 2], [3, 4, 5], [6, 7, 8],
-    [0, 3, 6], [1, 4, 7], [2, 5, 8],
-    [0, 4, 8], [2, 4, 6],
-  ];
+  late final Session<XoModel> session = widget.room != null
+      ? OnlineSession<XoModel>(widget.room!)
+      : LocalSession(XoModel(players: 2, crazy: false, seed: DateTime.now().microsecondsSinceEpoch));
 
-  GamePhase phase = GamePhase.play;
-  List<int> board = List.filled(9, -1);
-  List<double> placedAt = List.filled(9, 0);
-  int turn = 0;
-  int starter = 0;
-  List<int>? winLine;
-  int winner = -1;
-  bool finished = false;
+  XoModel get m => session.model;
+  bool get ready => session is! OnlineSession || (session as OnlineSession).ready;
+
+  /// مؤثرات الرسم (تنحسب بالتطبيق من الأحداث)
+  List<double> placedAt = List.filled(9, -10);
   double endAt = 0;
-  final wins = [0, 0];
+  bool showOver = false;
   Rect boardRect = Rect.zero;
 
   @override
+  void dispose() {
+    session.dispose();
+    super.dispose();
+  }
+
+  @override
   void restart() {
-    setState(() {
-      starter = 1 - starter;
-      turn = starter;
-      board = List.filled(9, -1);
-      placedAt = List.filled(9, 0);
-      winLine = null;
-      winner = -1;
-      finished = false;
-      phase = GamePhase.play;
-    });
+    // على نفس الجهاز "من جديد" تبدي جولة جديدة. أونلاين بس بعد ما تخلص.
+    if (session.online && !m.over) return;
+    session.again();
   }
 
   @override
   void update(double dt) {
-    if (finished && phase == GamePhase.play && time - endAt > 1.1) {
-      setState(() => phase = GamePhase.over);
+    session.update(dt);
+    for (final e in session.takeEvents()) {
+      switch (e['e']) {
+        case 'put':
+          placedAt[e['i'] as int] = time;
+          Fx.hit();
+          Sfx.play('pop', volume: 0.6);
+        case 'win':
+          endAt = time;
+          Fx.big();
+          Sfx.play('win');
+        case 'draw':
+          endAt = time;
+          Fx.mid();
+        case 'again':
+          placedAt = List.filled(9, -10);
+          showOver = false;
+          setState(() {});
+      }
     }
+    if (!ready) return;
+    final shouldShow = m.over && time - endAt > 1.1;
+    if (shouldShow != showOver) setState(() => showOver = shouldShow);
   }
 
   void _down(PointerDownEvent e) {
-    if (finished || paused || phase != GamePhase.play) return;
+    if (!ready || m.over || paused) return;
     final p = e.localPosition;
     if (!boardRect.contains(p)) return;
     final cs = boardRect.width / 3;
     final col = ((p.dx - boardRect.left) / cs).floor().clamp(0, 2);
     final row = ((p.dy - boardRect.top) / cs).floor().clamp(0, 2);
     final i = row * 3 + col;
-    if (board[i] >= 0) return;
-    setState(() {
-      board[i] = turn;
-      placedAt[i] = time;
-    });
-    Fx.hit();
-    for (final l in lines) {
-      if (board[l[0]] == turn && board[l[1]] == turn && board[l[2]] == turn) {
-        winLine = l;
-        winner = turn;
-        wins[turn]++;
-        finished = true;
-        endAt = time;
-        Fx.big();
-        setState(() {});
-        return;
-      }
-    }
-    if (!board.contains(-1)) {
-      winner = -1;
-      finished = true;
-      endAt = time;
-      Fx.mid();
-      setState(() {});
-      return;
-    }
-    setState(() => turn = 1 - turn);
+    if (m.board[i] >= 0) return;
+    // أونلاين: بس بدوري. على نفس الجهاز: اللي دوره.
+    if (session.online && m.turn != session.me) return;
+    session.input(m.turn, {'m': 'put', 'i': i});
   }
+
+  /// منو تحت ومنو فوگ: أونلاين آني دائماً تحت
+  int get bottom => session.online ? math.max(0, session.me) : 0;
 
   @override
   Widget build(BuildContext context) {
@@ -101,6 +102,9 @@ class _XoState extends LoopState<XoGame> {
         final s = box.biggest;
         final side = math.min(s.width * 0.88, s.height * 0.52);
         boardRect = Rect.fromCenter(center: s.center(Offset.zero), width: side, height: side);
+        if (!ready) return const NetWaiting();
+        final top = 1 - bottom;
+        final online = session.online;
         return Stack(
           children: [
             Positioned.fill(
@@ -114,27 +118,33 @@ class _XoState extends LoopState<XoGame> {
               left: 0,
               right: 0,
               bottom: s.height * 0.07,
-              child: Center(child: TurnBadge(player: 0, active: !finished && turn == 0, score: wins[0])),
+              child: Center(child: _badge(bottom)),
             ),
             Positioned(
               left: 0,
               right: 0,
               top: s.height * 0.07,
-              child: Center(
-                child: RotatedBox(
-                  quarterTurns: 2,
-                  child: TurnBadge(player: 1, active: !finished && turn == 1, score: wins[1]),
-                ),
-              ),
+              // على نفس الجهاز الخصم مگابلك فننگلب، أونلاين كل واحد بتلفونه
+              child: Center(child: online ? _badge(top) : RotatedBox(quarterTurns: 2, child: _badge(top))),
             ),
-            if (phase == GamePhase.over)
+            if (online) NetBanner(session: session, players: 2),
+            if (showOver)
               Positioned.fill(
-                child: ResultOverlay(winner: winner, scores: wins, dual: true, onAgain: restart),
+                child: ResultOverlay(winner: m.winner, scores: m.wins, dual: !online, onAgain: restart),
               ),
           ],
         );
       }),
     );
+  }
+
+  Widget _badge(int p) {
+    final active = !m.over && m.turn == p;
+    String? label;
+    if (session.online) {
+      label = p == session.me ? (active ? 'دورك' : 'انت') : session.nameOf(p);
+    }
+    return TurnBadge(player: p, active: active, score: m.wins[p], label: label);
   }
 }
 
@@ -153,6 +163,8 @@ class _XoPainter extends CustomPainter {
           radius: 0.9,
         ).createShader(rect),
     );
+    if (!s.ready) return;
+    final m = s.m;
 
     final b = s.boardRect;
     final cs = b.width / 3;
@@ -172,13 +184,13 @@ class _XoPainter extends CustomPainter {
     Offset center(int i) => Offset(b.left + cs * (i % 3 + 0.5), b.top + cs * (i ~/ 3 + 0.5));
 
     for (var i = 0; i < 9; i++) {
-      final v = s.board[i];
+      final v = m.board[i];
       if (v < 0) continue;
       final t = clamp01((s.time - s.placedAt[i]) / 0.28);
       final c = center(i);
       final r = cs * 0.27;
       final col = C.players[v];
-      final dim = s.finished && s.winLine != null && !s.winLine!.contains(i);
+      final dim = m.over && m.winLine != null && !m.winLine!.contains(i);
       final color = dim ? alpha(col, 0.35) : col;
       final p = Paint()
         ..color = color
@@ -207,7 +219,7 @@ class _XoPainter extends CustomPainter {
       }
     }
 
-    final wl = s.winLine;
+    final wl = m.winLine;
     if (wl != null) {
       final t = clamp01((s.time - s.endAt - 0.15) / 0.35);
       final a = center(wl[0]), z = center(wl[2]);

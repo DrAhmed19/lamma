@@ -15,5 +15,13 @@
   - الأصوات والموسيقى تنولد بالكود: `dart run tools/gen_sfx.dart` → `assets/sfx/`، وتشتغل عبر `lib/core/sfx.dart` (Sfx + Music).
   - الأداء: الأشياء الثابتة (سطوح، خلفيات) تنرسم مرة وحدة كصورة (`toImageSync`)، وتجنّب `MaskFilter.blur` باللي ينرسم كل إطار.
 - الخط: Tajawal للنصوص و Lalezar للعناوين (داخل assets/fonts).
-- القادم: اللعب أونلاين بغرف وكود (Cloudflare Workers + Durable Objects)، ثم الواي فاي المحلي للأندرويد.
+- الأونلاين (غرف بكود): السيرفر هو اللي يدير اللعبة ويحسم، والتطبيقات بس تعرض وتدز الحركات.
+  - قواعد كل لعبة بـ Dart صافي (بدون Flutter) بـ `lib/logic/` (تورث `GameModel`)، وتنضاف لـ `models.dart`.
+    نفس الكود يشتغل بالتطبيق (نفس الجهاز) وينبني JavaScript للسيرفر: `dart compile js -O2 -o server/src/logic.js server/dart/main.dart`.
+  - السيرفر `server/` (Worker + Durable Object لكل غرفة). محلياً: `cd server && npx wrangler dev`. CI يرفعه وينطي عنوانه للويب والـ APK (`--dart-define=SERVER`).
+  - بالتطبيق: `lib/net/room.dart` الاتصال، `lib/net/session.dart` (LocalSession / OnlineSession) الواجهة الوحدة للعبة، `lib/ui/online.dart` الغرفة.
+  - اللعبة تقرا من `session.model` وترسل `session.input(...)`، والمؤثرات من `session.takeEvents()`.
+  - اللي طلع، حتى صاحب الغرفة، اللعبة تكمل بدونه ويرجع يلحق. بلعبة لاعبين: إذا غاب دقيقة الثاني يفوز.
+  - صارن على الأساس: إكس أو، أربعة بالصف، شد الحبل. الباقي (الحمامة، الهوكي، أسرع إصبع) بعدهن.
+- القادم: نقل باقي الألعاب للأساس، ثم الواي فاي المحلي للأندرويد، ثم اللعب ويا الغرباء.
 - قاعدة الرفع: التعديلات تترفع على `main` مباشرة، بس نجمّع كم تعديل ونرفع لمّن صاحب المشروع يگول (كل رفعة تبني ويب و APK).

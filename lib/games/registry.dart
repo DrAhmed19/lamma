@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../net/room.dart';
 import '../ui/icons.dart';
 import 'connect4.dart';
 import 'hockey.dart';
@@ -20,6 +21,7 @@ class GameInfo {
     required this.icon,
     required this.build,
     this.crazyHowTo,
+    this.online,
   });
 
   final String id;
@@ -35,6 +37,9 @@ class GameInfo {
 
   /// شرح الوضع المجنون. إذا null اللعبة بس بوضع عادي.
   final String? crazyHowTo;
+
+  /// اللعب أونلاين (كل واحد بتلفونه). إذا null اللعبة بعدها ما تدعم الأونلاين.
+  final Widget Function(RoomConn room)? online;
 
   String get playersLabel =>
       minPlayers == maxPlayers ? '$minPlayers لاعبين' : '$minPlayers - $maxPlayers لاعبين';
@@ -85,6 +90,7 @@ final games = <GameInfo>[
     colors: const [Color(0xFFFF5A5F), Color(0xFF7A1630)],
     icon: TugIcon.new,
     build: (n, _) => const TugGame(),
+    online: (room) => TugGame(room: room),
   ),
   GameInfo(
     id: 'connect4',
@@ -96,6 +102,7 @@ final games = <GameInfo>[
     colors: const [Color(0xFFFFB627), Color(0xFF7A4A06)],
     icon: Connect4Icon.new,
     build: (n, _) => const Connect4Game(),
+    online: (room) => Connect4Game(room: room),
   ),
   GameInfo(
     id: 'xo',
@@ -107,5 +114,6 @@ final games = <GameInfo>[
     colors: const [Color(0xFF8B6CFF), Color(0xFF34207A)],
     icon: XoIcon.new,
     build: (n, _) => const XoGame(),
+    online: (room) => XoGame(room: room),
   ),
 ];

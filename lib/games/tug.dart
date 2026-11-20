@@ -5,12 +5,18 @@ import 'package:flutter/material.dart';
 import '../core/draw.dart';
 import '../core/fx.dart';
 import '../core/loop.dart';
+import '../core/sfx.dart';
+import '../logic/tug_logic.dart';
+import '../net/room.dart';
+import '../net/session.dart';
 import '../ui/kit.dart';
+import '../ui/online.dart';
 import '../ui/theme.dart';
 
 /// شد الحبل: لاعبين، كل واحد يضغط بنصّه.
 class TugGame extends StatefulWidget {
-  const TugGame({super.key});
+  const TugGame({super.key, this.room});
+  final RoomConn? room;
 
   @override
   State<TugGame> createState() => _TugState();
@@ -24,55 +30,81 @@ class _Ripple {
 }
 
 class _TugState extends LoopState<TugGame> {
-  static const _step = 0.045;
+  late final Session<TugModel> session = widget.room != null
+      ? OnlineSession<TugModel>(widget.room!)
+      : LocalSession(TugModel(players: 2, crazy: false, seed: DateTime.now().microsecondsSinceEpoch));
 
-  GamePhase phase = GamePhase.countdown;
-  double target = 0; // -1..1 ، الموجب لصالح اللاعب الأول (تحت) — العقدة تنسحب صوب اللي يضغط
+  TugModel get m => session.model;
+  bool get ready => session is! OnlineSession || (session as OnlineSession).ready;
+  final _rnd = math.Random();
+
   double shown = 0;
-  final taps = [0, 0];
-  final wins = [0, 0];
-  int winner = -1;
   final ripples = <_Ripple>[];
   Size size = Size.zero;
   double pulse = 0;
   int round = 0;
+  bool showOver = false;
+  double endAt = 0;
+
+  // الرسام يقرا هذني
+  GamePhase get phase => !ready || m.counting ? GamePhase.countdown : (m.over ? GamePhase.over : GamePhase.play);
+  List<int> get taps => m.taps;
+  List<int> get wins => m.wins;
+
+  /// أونلاين: إذا آني اللاعب الثاني نقلب الشاشة حتى أكون تحت
+  bool get flipped => session.online && session.me == 1;
+
+  @override
+  void dispose() {
+    session.dispose();
+    super.dispose();
+  }
 
   @override
   void restart() {
-    setState(() {
-      phase = GamePhase.countdown;
-      target = 0;
-      shown = 0;
-      taps[0] = 0;
-      taps[1] = 0;
-      ripples.clear();
-      winner = -1;
-      round++;
-    });
+    if (session.online && !m.over) return;
+    session.again();
   }
 
   @override
   void update(double dt) {
+    session.update(dt);
+    for (final e in session.takeEvents()) {
+      switch (e['e']) {
+        case 'tap':
+          final p = e['p'] as int;
+          pulse = 1;
+          // مكان الضغطة: بنص اللاعب (أونلاين ما نعرف المكان بالضبط للخصم)
+          final h = size.height, w = size.width;
+          final bottomHalf = (p == 0) != flipped;
+          final y = bottomHalf ? h * (0.55 + 0.4 * _rnd.nextDouble()) : h * (0.05 + 0.4 * _rnd.nextDouble());
+          ripples.add(_Ripple(Offset(w * (0.1 + 0.8 * _rnd.nextDouble()), y), C.players[p], time));
+          if (!session.online || p == session.me) Fx.tap();
+        case 'win':
+          endAt = time;
+          Fx.big();
+          Sfx.play('win');
+        case 'again':
+          round++;
+          showOver = false;
+          setState(() {});
+      }
+    }
+    if (!ready) return;
+    final target = flipped ? -m.pos : m.pos;
     shown += (target - shown) * (1 - math.exp(-dt * 16));
     ripples.removeWhere((r) => time - r.t0 > 0.6);
     pulse = math.max(0, pulse - dt * 4);
+    final shouldShow = m.over && time - endAt > 0.5;
+    if (shouldShow != showOver || (m.counting && round == 0)) setState(() => showOver = shouldShow);
   }
 
   void _down(PointerDownEvent e) {
-    if (phase != GamePhase.play || paused) return;
-    final p = e.localPosition.dy > size.height / 2 ? 0 : 1;
-    taps[p]++;
-    target += p == 0 ? _step : -_step;
-    pulse = 1;
-    ripples.add(_Ripple(e.localPosition, C.players[p], time));
-    Fx.tap();
-    if (target.abs() >= 1) {
-      target = target.sign;
-      winner = target > 0 ? 0 : 1;
-      wins[winner]++;
-      Fx.big();
-      setState(() => phase = GamePhase.over);
-    }
+    if (!ready || m.over || m.counting || paused) return;
+    // على نفس الجهاز: النص اللي ضغطت بيه. أونلاين: كل الشاشة إلك.
+    final p = session.online ? session.me : (e.localPosition.dy > size.height / 2 ? 0 : 1);
+    if (p < 0) return;
+    session.input(p, {'m': 'tap'});
   }
 
   @override
@@ -81,6 +113,8 @@ class _TugState extends LoopState<TugGame> {
       onPause: openPause,
       child: LayoutBuilder(builder: (context, box) {
         size = box.biggest;
+        if (!ready) return const NetWaiting();
+        final online = session.online;
         return Stack(
           children: [
             Positioned.fill(
@@ -90,22 +124,23 @@ class _TugState extends LoopState<TugGame> {
                 child: CustomPaint(painter: _TugPainter(this)),
               ),
             ),
-            if (phase == GamePhase.countdown)
+            if (m.counting)
               Positioned.fill(
                 child: Countdown(
-                  key: ValueKey(round),
-                  paused: paused,
-                  dual: true,
-                  onDone: () => setState(() => phase = GamePhase.play),
+                  key: ValueKey('${m.startAt}'),
+                  paused: paused && !online,
+                  dual: !online,
+                  onDone: () {},
                 ),
               ),
-            if (phase == GamePhase.over)
+            if (online) NetBanner(session: session, players: 2),
+            if (showOver)
               Positioned.fill(
                 child: ResultOverlay(
-                  winner: winner,
-                  scores: wins,
-                  dual: true,
-                  subtitle: '${taps[winner]} ضغطة',
+                  winner: m.winner,
+                  scores: m.wins,
+                  dual: !online,
+                  subtitle: m.winner >= 0 ? '${m.taps[m.winner]} ضغطة' : null,
                   onAgain: restart,
                 ),
               ),
@@ -128,7 +163,9 @@ class _TugPainter extends CustomPainter {
     final by = h / 2 + s.shown * reach;
     // حد المنطقتين يمشي بعكس العقدة: اللي يسحب تكبر ساحته
     final split = h / 2 - s.shown * reach;
-    final p0 = C.players[0], p1 = C.players[1];
+    // b = اللي تحت، t = اللي فوگ (أونلاين اللاعب الثاني يشوف نفسه تحت)
+    final b = s.flipped ? 1 : 0, t = 1 - b;
+    final p0 = C.players[b], p1 = C.players[t];
 
     // منطقة اللاعب الثاني (فوق)
     final top = Rect.fromLTRB(0, 0, w, math.max(split, 1));
@@ -160,8 +197,8 @@ class _TugPainter extends CustomPainter {
     dashedLine(canvas, Offset(0, h / 2), Offset(w, h / 2), Paint()..color = alpha(Colors.white, 0.15)..strokeWidth = 2);
 
     // عدد الضغطات
-    paintText(canvas, '${s.taps[0]}', Offset(w / 2, h * 0.76), size: 110, color: alpha(Colors.white, 0.1));
-    paintText(canvas, '${s.taps[1]}', Offset(w / 2, h * 0.24), size: 110, color: alpha(Colors.white, 0.1), flip: true);
+    paintText(canvas, '${s.taps[b]}', Offset(w / 2, h * 0.76), size: 110, color: alpha(Colors.white, 0.1));
+    paintText(canvas, '${s.taps[t]}', Offset(w / 2, h * 0.24), size: 110, color: alpha(Colors.white, 0.1), flip: !s.session.online);
     if (s.phase == GamePhase.play && s.taps[0] + s.taps[1] < 3) {
       paintText(canvas, 'اضغط بسرعة!', Offset(w / 2, h * 0.88), size: 30, color: alpha(Colors.white, 0.7));
       paintText(canvas, 'اضغط بسرعة!', Offset(w / 2, h * 0.12), size: 30, color: alpha(Colors.white, 0.7), flip: true);
@@ -225,8 +262,8 @@ class _TugPainter extends CustomPainter {
     }
 
     // نتيجة الجولات
-    paintText(canvas, '${s.wins[0]}', Offset(w - 34, h / 2 + 34), size: 34, color: p0);
-    paintText(canvas, '${s.wins[1]}', Offset(w - 34, h / 2 - 34), size: 34, color: p1, flip: true);
+    paintText(canvas, '${s.wins[b]}', Offset(w - 34, h / 2 + 34), size: 34, color: p0);
+    paintText(canvas, '${s.wins[t]}', Offset(w - 34, h / 2 - 34), size: 34, color: p1, flip: !s.session.online);
   }
 
   @override

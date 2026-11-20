@@ -11,3 +11,10 @@ pubspec.lock
 # تنولد بالبناء عبر tools/prepare.sh
 /android/
 /web/
+
+# سيرفر الغرف
+server/node_modules/
+server/.wrangler/
+server/.dev.vars
+server/src/logic.js
+server/deploy.txt
