@@ -1,16 +1,11 @@
 name: Build
 
-# الويب يتبنى ويتنشر مع كل تعديل.
-# الـ APK يتبنى بس إذا رسالة التعديل بيها [apk] أو تشغيل يدوي (توفير دقائق).
+# كل تعديل على main: الويب والـ APK ينبنون سوه من نفس التعديل وبنفس رقم النسخة،
+# حتى الاثنين يبقون دائماً متطابقين. رقم النسخة يطلع أسفل الشاشة الرئيسية.
 on:
   push:
     branches: [main]
   workflow_dispatch:
-    inputs:
-      apk:
-        description: "Build APK"
-        type: boolean
-        default: true
 
 concurrency:
   group: build-${{ github.ref }}
@@ -37,7 +32,7 @@ jobs:
           flutter analyze --no-fatal-infos --no-fatal-warnings
 
       - name: Build web
-        run: flutter build web --release
+        run: flutter build web --release --dart-define=BUILD=${GITHUB_SHA::7}
 
       - name: Deploy to Cloudflare Pages
         env:
@@ -52,7 +47,6 @@ jobs:
           npx --yes wrangler@4 pages deploy build/web --project-name=lamma --branch=main --commit-dirty=true
 
   apk:
-    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[apk]')
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -82,7 +76,7 @@ jobs:
       - name: Build APK
         run: |
           flutter pub get
-          flutter build apk --release
+          flutter build apk --release --dart-define=BUILD=${GITHUB_SHA::7}
           cp build/app/outputs/flutter-apk/app-release.apk lamma.apk
 
       - name: Publish APK
@@ -90,7 +84,7 @@ jobs:
         with:
           tag_name: apk-latest
           name: لمّة - آخر نسخة
-          body: "آخر نسخة APK من لمّة (${{ github.sha }})"
+          body: "آخر نسخة APK من لمّة — نفس نسخة الويب (${{ github.sha }})"
           files: lamma.apk
           prerelease: false
           make_latest: true

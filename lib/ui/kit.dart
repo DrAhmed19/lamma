@@ -327,6 +327,8 @@ class _CountdownState extends State<Countdown> with SingleTickerProviderStateMix
               child: Text(
                 _labels[i],
                 style: display(i == 3 ? 92.0 : 120.0, color: color, shadows: [
+                  // حافة غامقة حتى يبين حتى على الخلفيات الفاتحة
+                  Shadow(color: alpha(const Color(0xFF0B1230), 0.55), blurRadius: 3, offset: const Offset(0, 4)),
                   Shadow(color: alpha(color, 0.6), blurRadius: 30),
                 ]),
               ),

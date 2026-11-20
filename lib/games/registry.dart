@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../ui/icons.dart';
 import 'connect4.dart';
 import 'hockey.dart';
+import 'pigeon.dart';
 import 'reaction.dart';
 import 'tug.dart';
 import 'xo.dart';
@@ -18,6 +19,7 @@ class GameInfo {
     required this.colors,
     required this.icon,
     required this.build,
+    this.crazyHowTo,
   });
 
   final String id;
@@ -28,13 +30,29 @@ class GameInfo {
   final int maxPlayers;
   final List<Color> colors;
   final CustomPainter Function() icon;
-  final Widget Function(int players) build;
+  /// crazy = الوضع المجنون (بس للألعاب اللي عندها crazyHowTo)
+  final Widget Function(int players, bool crazy) build;
+
+  /// شرح الوضع المجنون. إذا null اللعبة بس بوضع عادي.
+  final String? crazyHowTo;
 
   String get playersLabel =>
       minPlayers == maxPlayers ? '$minPlayers لاعبين' : '$minPlayers - $maxPlayers لاعبين';
 }
 
 final games = <GameInfo>[
+  GameInfo(
+    id: 'pigeon',
+    title: 'الحمامة',
+    tagline: 'نيشن واصطاد الحمامة',
+    howTo: 'كل واحد عنده مصيادة بزاويته. اسحب لورا وعوف حتى ترمي الحجارة على الحمامة. أول واحد يوصل 10 إصابات يفوز.',
+    crazyHowTo: 'دقيقة وحدة والأكثر نقاط يفوز! الذهبية بنقطتين، الغراب الأسود ينقّصك نقطة، وأسراب تمر بسرعة. التقط الصناديق بالحجارة: نار تخترق، ثلاثية، وتجميد للخصوم. ثلاث إصابات ورا بعض = كومبو!',
+    minPlayers: 2,
+    maxPlayers: 4,
+    colors: const [Color(0xFF2EB8E6), Color(0xFF0B4566)],
+    icon: PigeonIcon.new,
+    build: (n, crazy) => PigeonGame(players: n, crazy: crazy),
+  ),
   GameInfo(
     id: 'hockey',
     title: 'هوكي',
@@ -44,7 +62,7 @@ final games = <GameInfo>[
     maxPlayers: 2,
     colors: const [Color(0xFF1E6BFF), Color(0xFF0B2A6B)],
     icon: HockeyIcon.new,
-    build: (n) => const HockeyGame(),
+    build: (n, _) => const HockeyGame(),
   ),
   GameInfo(
     id: 'reaction',
@@ -55,7 +73,7 @@ final games = <GameInfo>[
     maxPlayers: 4,
     colors: const [Color(0xFF16B46A), Color(0xFF0A4A33)],
     icon: ReactionIcon.new,
-    build: (n) => ReactionGame(players: n),
+    build: (n, _) => ReactionGame(players: n),
   ),
   GameInfo(
     id: 'tug',
@@ -66,7 +84,7 @@ final games = <GameInfo>[
     maxPlayers: 2,
     colors: const [Color(0xFFFF5A5F), Color(0xFF7A1630)],
     icon: TugIcon.new,
-    build: (n) => const TugGame(),
+    build: (n, _) => const TugGame(),
   ),
   GameInfo(
     id: 'connect4',
@@ -77,7 +95,7 @@ final games = <GameInfo>[
     maxPlayers: 2,
     colors: const [Color(0xFFFFB627), Color(0xFF7A4A06)],
     icon: Connect4Icon.new,
-    build: (n) => const Connect4Game(),
+    build: (n, _) => const Connect4Game(),
   ),
   GameInfo(
     id: 'xo',
@@ -88,6 +106,6 @@ final games = <GameInfo>[
     maxPlayers: 2,
     colors: const [Color(0xFF8B6CFF), Color(0xFF34207A)],
     icon: XoIcon.new,
-    build: (n) => const XoGame(),
+    build: (n, _) => const XoGame(),
   ),
 ];

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../core/version.dart';
 import '../games/registry.dart';
 import 'background.dart';
 import 'icons.dart';
@@ -69,6 +70,17 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                         onTap: () => _open(list[i]),
                       ),
                       childCount: list.length,
+                    ),
+                  ),
+                ),
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.only(bottom: 18),
+                    child: Text(
+                      versionLabel,
+                      textAlign: TextAlign.center,
+                      textDirection: TextDirection.rtl,
+                      style: body(12, color: alpha(C.muted, 0.7)),
                     ),
                   ),
                 ),
@@ -294,17 +306,23 @@ class _GameSheet extends StatefulWidget {
 }
 
 class _GameSheetState extends State<_GameSheet> {
+  /// يتذكر آخر وضع اختاروه لكل لعبة (طول ما التطبيق مفتوح)
+  static final Map<String, bool> _crazyMemory = {};
+
   late int _n = widget.initialPlayers.clamp(widget.game.minPlayers, widget.game.maxPlayers);
+  late bool _crazy = widget.game.crazyHowTo != null && (_crazyMemory[widget.game.id] ?? false);
 
   void _start() {
     final g = widget.game;
     final n = _n;
+    final crazy = _crazy;
+    _crazyMemory[g.id] = crazy;
     final nav = Navigator.of(context);
     nav.pop();
     nav.push(PageRouteBuilder(
       transitionDuration: const Duration(milliseconds: 380),
       reverseTransitionDuration: const Duration(milliseconds: 260),
-      pageBuilder: (_, __, ___) => g.build(n),
+      pageBuilder: (_, __, ___) => g.build(n, crazy),
       transitionsBuilder: (_, anim, __, child) {
         final t = Curves.easeOutCubic.transform(anim.value);
         return Opacity(
@@ -326,91 +344,135 @@ class _GameSheetState extends State<_GameSheet> {
         borderRadius: BorderRadius.circular(30),
         border: Border.all(color: C.line),
       ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Center(
-            child: Container(
-              width: 42,
-              height: 5,
-              decoration: BoxDecoration(color: C.line, borderRadius: BorderRadius.circular(3)),
-            ),
-          ),
-          const SizedBox(height: 14),
-          Row(
-            children: [
-              Container(
-                width: 78,
-                height: 78,
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(22),
-                  gradient: LinearGradient(colors: g.colors),
-                ),
-                child: CustomPaint(painter: g.icon()),
+      // ينسحب إذا الشاشة صغيرة حتى ما يطلع خطأ (الشرح وخيار الوضع طوّلوه)
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Center(
+              child: Container(
+                width: 42,
+                height: 5,
+                decoration: BoxDecoration(color: C.line, borderRadius: BorderRadius.circular(3)),
               ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(g.title, style: display(34)),
-                    Text(g.tagline, style: body(15, color: C.muted)),
-                  ],
+            ),
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                Container(
+                  width: 78,
+                  height: 78,
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(22),
+                    gradient: LinearGradient(colors: g.colors),
+                  ),
+                  child: CustomPaint(painter: g.icon()),
                 ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(g.title, style: display(34)),
+                      Text(g.tagline, style: body(15, color: C.muted)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: alpha(Colors.white, 0.04),
+                borderRadius: BorderRadius.circular(18),
+              ),
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 200),
+                child: Text(
+                  _crazy ? g.crazyHowTo! : g.howTo,
+                  key: ValueKey(_crazy),
+                  style: body(15.5, color: alpha(Colors.white, 0.85)),
+                ),
+              ),
+            ),
+            if (g.crazyHowTo != null) ...[
+              const SizedBox(height: 16),
+              Text('الوضع', style: body(15, weight: FontWeight.w700, color: C.muted)),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: Pressable(
+                      onTap: () => setState(() => _crazy = false),
+                      child: _ModeTile(icon: Icons.spa_rounded, label: 'عادي', selected: !_crazy),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Pressable(
+                      onTap: () => setState(() => _crazy = true),
+                      child: _ModeTile(
+                        icon: Icons.auto_awesome_rounded,
+                        label: 'مجنون',
+                        selected: _crazy,
+                        color: const Color(0xFFFF8A1F),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ],
-          ),
-          const SizedBox(height: 16),
-          Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: alpha(Colors.white, 0.04),
-              borderRadius: BorderRadius.circular(18),
-            ),
-            child: Text(g.howTo, style: body(15.5, color: alpha(Colors.white, 0.85))),
-          ),
-          if (g.maxPlayers > g.minPlayers) ...[
+            if (g.maxPlayers > g.minPlayers) ...[
+              const SizedBox(height: 16),
+              Text('عدد اللاعبين', style: body(15, weight: FontWeight.w700, color: C.muted)),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  for (var n = g.minPlayers; n <= g.maxPlayers; n++)
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 3),
+                        child: _PlayersChip(n: n, selected: _n == n, onTap: () => setState(() => _n = n)),
+                      ),
+                    ),
+                ],
+              ),
+            ],
             const SizedBox(height: 16),
-            Text('عدد اللاعبين', style: body(15, weight: FontWeight.w700, color: C.muted)),
+            Text('طريقة اللعب', style: body(15, weight: FontWeight.w700, color: C.muted)),
             const SizedBox(height: 8),
             Row(
               children: [
-                for (var n = g.minPlayers; n <= g.maxPlayers; n++)
-                  Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 3),
-                      child: _PlayersChip(n: n, selected: _n == n, onTap: () => setState(() => _n = n)),
-                    ),
-                  ),
+                Expanded(child: _ModeTile(icon: Icons.phone_android_rounded, label: 'نفس الجهاز', selected: true)),
+                const SizedBox(width: 8),
+                Expanded(child: _ModeTile(icon: Icons.wifi_rounded, label: 'أونلاين', soon: true)),
               ],
             ),
+            const SizedBox(height: 18),
+            BigButton(label: 'ابدأ اللعب', icon: Icons.play_arrow_rounded, color: g.colors[0], onTap: _start),
           ],
-          const SizedBox(height: 16),
-          Text('طريقة اللعب', style: body(15, weight: FontWeight.w700, color: C.muted)),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              Expanded(child: _ModeTile(icon: Icons.phone_android_rounded, label: 'نفس الجهاز', selected: true)),
-              const SizedBox(width: 8),
-              Expanded(child: _ModeTile(icon: Icons.wifi_rounded, label: 'أونلاين', soon: true)),
-            ],
-          ),
-          const SizedBox(height: 18),
-          BigButton(label: 'ابدأ اللعب', icon: Icons.play_arrow_rounded, color: g.colors[0], onTap: _start),
-        ],
+        ),
       ),
     );
   }
 }
 
 class _ModeTile extends StatelessWidget {
-  const _ModeTile({required this.icon, required this.label, this.selected = false, this.soon = false});
+  const _ModeTile({
+    required this.icon,
+    required this.label,
+    this.selected = false,
+    this.soon = false,
+    this.color = C.accent,
+  });
   final IconData icon;
   final String label;
   final bool selected;
   final bool soon;
+  final Color color;
 
   @override
   Widget build(BuildContext context) {
@@ -420,8 +482,8 @@ class _ModeTile extends StatelessWidget {
         height: 52,
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(16),
-          color: selected ? alpha(C.accent, 0.22) : alpha(Colors.white, 0.04),
-          border: Border.all(color: selected ? alpha(C.accent, 0.8) : C.line),
+          color: selected ? alpha(color, 0.22) : alpha(Colors.white, 0.04),
+          border: Border.all(color: selected ? alpha(color, 0.8) : C.line),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,

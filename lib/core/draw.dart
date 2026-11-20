@@ -17,7 +17,25 @@ void paintText(
   double maxWidth = 1000,
   List<Shadow>? shadows,
 }) {
-  final tp = TextPainter(
+  // نحفظ النص المجهّز حتى ما نعيد قياسه كل إطار (القياس غالي)
+  final key = '$text|$size|${color.toARGB32()}|$family|${weight.value}|$maxWidth|${shadows?.length ?? 0}|${shadows?.firstOrNull?.color.toARGB32()}';
+  var tp = _textCache[key];
+  if (tp == null) {
+    if (_textCache.length > 240) _textCache.clear();
+    tp = _textCache[key] = _layoutText(text, size, color, family, weight, maxWidth, shadows);
+  }
+  canvas.save();
+  canvas.translate(center.dx, center.dy);
+  if (flip) canvas.rotate(math.pi);
+  tp.paint(canvas, Offset(-tp.width / 2, -tp.height / 2));
+  canvas.restore();
+}
+
+final _textCache = <String, TextPainter>{};
+
+TextPainter _layoutText(String text, double size, Color color, String family, FontWeight weight, double maxWidth,
+    List<Shadow>? shadows) {
+  return TextPainter(
     text: TextSpan(
       text: text,
       style: TextStyle(
@@ -32,11 +50,6 @@ void paintText(
     textDirection: TextDirection.rtl,
     textAlign: TextAlign.center,
   )..layout(maxWidth: maxWidth);
-  canvas.save();
-  canvas.translate(center.dx, center.dy);
-  if (flip) canvas.rotate(math.pi);
-  tp.paint(canvas, Offset(-tp.width / 2, -tp.height / 2));
-  canvas.restore();
 }
 
 /// كرة/قرص لامع بلون اللاعب.
