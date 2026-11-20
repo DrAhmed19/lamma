@@ -10,7 +10,7 @@ rm -rf test
 ICON=assets/brand/icon-1024.png
 
 # ---------- أندرويد ----------
-G=$(ls android/app/build.gradle.kts android/app/build.gradle 2>/dev/null | head -1)
+G=$( (ls android/app/build.gradle.kts android/app/build.gradle 2>/dev/null || true) | head -1)
 sed -i -E 's/applicationId *=? *"[^"]*"/applicationId = "com.lamma.games"/' "$G"
 grep -n "applicationId" "$G"
 
