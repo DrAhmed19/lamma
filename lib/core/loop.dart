@@ -43,10 +43,10 @@ abstract class LoopState<T extends StatefulWidget> extends State<T>
 
   Future<void> openPause() async {
     if (paused) return;
-    paused = true;
+    setState(() => paused = true);
     final action = await showPauseMenu(context);
     if (!mounted) return;
-    paused = false;
+    setState(() => paused = false);
     if (action == PauseAction.restart) {
       restart();
     } else if (action == PauseAction.exit) {

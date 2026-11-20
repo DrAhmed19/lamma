@@ -250,9 +250,12 @@ class _PauseMenu extends StatelessWidget {
 
 /// عد تنازلي 3-2-1-يلا. dual = نسخة مقلوبة للاعب المقابل.
 class Countdown extends StatefulWidget {
-  const Countdown({super.key, required this.onDone, this.dual = false});
+  const Countdown({super.key, required this.onDone, this.dual = false, this.paused = false});
   final VoidCallback onDone;
   final bool dual;
+
+  /// يوقف العد ويا الإيقاف المؤقت للعبة.
+  final bool paused;
 
   @override
   State<Countdown> createState() => _CountdownState();
@@ -272,6 +275,19 @@ class _CountdownState extends State<Countdown> with SingleTickerProviderStateMix
         if (s == AnimationStatus.completed) widget.onDone();
       })
       ..forward();
+    if (widget.paused) _c.stop();
+  }
+
+  @override
+  void didUpdateWidget(covariant Countdown old) {
+    super.didUpdateWidget(old);
+    if (widget.paused != old.paused) {
+      if (widget.paused) {
+        _c.stop();
+      } else if (!_c.isCompleted) {
+        _c.forward();
+      }
+    }
   }
 
   void _onTick() {

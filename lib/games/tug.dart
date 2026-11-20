@@ -27,7 +27,7 @@ class _TugState extends LoopState<TugGame> {
   static const _step = 0.045;
 
   GamePhase phase = GamePhase.countdown;
-  double target = 0; // -1..1 ، الموجب لصالح اللاعب الأول (تحت)
+  double target = 0; // -1..1 ، الموجب لصالح اللاعب الأول (تحت) — العقدة تنسحب صوب اللي يضغط
   double shown = 0;
   final taps = [0, 0];
   final wins = [0, 0];
@@ -94,6 +94,7 @@ class _TugState extends LoopState<TugGame> {
               Positioned.fill(
                 child: Countdown(
                   key: ValueKey(round),
+                  paused: paused,
                   dual: true,
                   onDone: () => setState(() => phase = GamePhase.play),
                 ),
@@ -123,11 +124,14 @@ class _TugPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final w = size.width, h = size.height;
     final reach = h / 2 * 0.86;
-    final by = h / 2 - s.shown * reach;
+    // العقدة تنسحب صوب اللاعب اللي يضغط (الأول تحت، الثاني فوق)
+    final by = h / 2 + s.shown * reach;
+    // حد المنطقتين يمشي بعكس العقدة: اللي يسحب تكبر ساحته
+    final split = h / 2 - s.shown * reach;
     final p0 = C.players[0], p1 = C.players[1];
 
     // منطقة اللاعب الثاني (فوق)
-    final top = Rect.fromLTRB(0, 0, w, math.max(by, 1));
+    final top = Rect.fromLTRB(0, 0, w, math.max(split, 1));
     canvas.drawRect(
       top,
       Paint()
@@ -138,7 +142,7 @@ class _TugPainter extends CustomPainter {
         ).createShader(top),
     );
     // منطقة اللاعب الأول (تحت)
-    final bottom = Rect.fromLTRB(0, math.min(by, h - 1), w, h);
+    final bottom = Rect.fromLTRB(0, math.min(split, h - 1), w, h);
     canvas.drawRect(
       bottom,
       Paint()
@@ -149,10 +153,10 @@ class _TugPainter extends CustomPainter {
         ).createShader(bottom),
     );
 
-    // خطوط الفوز
+    // خطوط الفوز: كل لاعب يفوز لما يسحب العقدة لخطّه
     final y1 = h / 2 - reach, y0 = h / 2 + reach;
-    dashedLine(canvas, Offset(0, y1), Offset(w, y1), Paint()..color = alpha(p0, 0.8)..strokeWidth = 3);
-    dashedLine(canvas, Offset(0, y0), Offset(w, y0), Paint()..color = alpha(p1, 0.8)..strokeWidth = 3);
+    dashedLine(canvas, Offset(0, y1), Offset(w, y1), Paint()..color = alpha(p1, 0.8)..strokeWidth = 3);
+    dashedLine(canvas, Offset(0, y0), Offset(w, y0), Paint()..color = alpha(p0, 0.8)..strokeWidth = 3);
     dashedLine(canvas, Offset(0, h / 2), Offset(w, h / 2), Paint()..color = alpha(Colors.white, 0.15)..strokeWidth = 2);
 
     // عدد الضغطات
@@ -164,7 +168,7 @@ class _TugPainter extends CustomPainter {
     }
 
     // توهج الحد الفاصل
-    final glowRect = Rect.fromLTRB(0, by - 40, w, by + 40);
+    final glowRect = Rect.fromLTRB(0, split - 40, w, split + 40);
     canvas.drawRect(
       glowRect,
       Paint()
@@ -193,7 +197,7 @@ class _TugPainter extends CustomPainter {
       ..strokeWidth = 3
       ..strokeCap = StrokeCap.round;
     const gap = 16.0;
-    final off = (-s.shown * reach) % gap;
+    final off = (s.shown * reach) % gap;
     for (var y = -gap + off; y < h + gap; y += gap) {
       canvas.drawLine(Offset(rx - ropeW / 2 + 2, y), Offset(rx + ropeW / 2 - 2, y + gap * 0.6), braid);
     }

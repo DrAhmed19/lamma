@@ -65,6 +65,17 @@ class _ReactionState extends LoopState<ReactionGame> {
     setState(() {
       phase = GamePhase.countdown;
       score = List.filled(n, 0);
+      fouled = List.filled(n, false);
+      rs = _R.waiting;
+      goAt = 0;
+      nextAt = 0;
+      decoyAt = -1;
+      decoyEnd = 0;
+      roundEndAt = 0;
+      foulAt = 0;
+      roundWinner = -1;
+      reactionMs = 0;
+      wonByFoul = false;
       winner = -1;
       round++;
     });
@@ -163,7 +174,8 @@ class _ReactionState extends LoopState<ReactionGame> {
               Positioned.fill(
                 child: Countdown(
                   key: ValueKey(round),
-                  dual: n == 2,
+                  paused: paused,
+                  dual: true,
                   onDone: () => setState(() {
                     phase = GamePhase.play;
                     _startRound();
@@ -175,7 +187,7 @@ class _ReactionState extends LoopState<ReactionGame> {
                 child: ResultOverlay(
                   winner: winner,
                   scores: score,
-                  dual: n == 2,
+                  dual: true,
                   onAgain: restart,
                 ),
               ),

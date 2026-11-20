@@ -28,6 +28,9 @@ class _HockeyState extends LoopState<HockeyGame> {
   final pads = [Offset.zero, Offset.zero];
   final padV = [Offset.zero, Offset.zero];
   final List<Offset?> padTarget = [null, null];
+
+  /// فرق المضرب عن الإصبع لحظة اللمس؛ يذوب تدريجياً حتى المضرب يزحف للإصبع بدل ما يقفز.
+  final grab = [Offset.zero, Offset.zero];
   final owners = <int, int>{};
   final scores = [0, 0];
   final trail = <Offset>[];
@@ -40,6 +43,9 @@ class _HockeyState extends LoopState<HockeyGame> {
 
   void _layout(Size s) {
     if (s == size && _ready) return;
+    if (s.width <= 0 || s.height <= 0) return;
+    final old = table;
+    final oldW = size.width;
     size = s;
     final m = 6.0;
     table = Rect.fromLTRB(m, m, s.width - m, s.height - m);
@@ -49,7 +55,29 @@ class _HockeyState extends LoopState<HockeyGame> {
     if (!_ready) {
       _ready = true;
       _resetPositions(serveTo: -1);
+      return;
     }
+    // تغيّر حجم الشاشة: ننقل كل شي بنفس النسبة للطاولة الجديدة
+    Offset map(Offset p) => Offset(
+          table.left + (p.dx - old.left) / old.width * table.width,
+          table.top + (p.dy - old.top) / old.height * table.height,
+        );
+    final sv = oldW > 0 ? s.width / oldW : 1.0;
+    puck = map(puck);
+    puckV = puckV * sv;
+    puck = Offset(
+      puck.dx.clamp(table.left + rk, table.right - rk).toDouble(),
+      puck.dy.clamp(table.top + rk, table.bottom - rk).toDouble(),
+    );
+    for (var p = 0; p < 2; p++) {
+      pads[p] = _clampPad(p, map(pads[p]));
+      padV[p] = Offset.zero;
+      grab[p] = Offset.zero;
+      // الإصبع لازم يرفع وينزل من جديد بعد تغيّر الحجم
+      padTarget[p] = null;
+    }
+    owners.clear();
+    trail.clear();
   }
 
   void _resetPositions({required int serveTo}) {
@@ -60,6 +88,8 @@ class _HockeyState extends LoopState<HockeyGame> {
     padV[1] = Offset.zero;
     padTarget[0] = null;
     padTarget[1] = null;
+    grab[0] = Offset.zero;
+    grab[1] = Offset.zero;
     final dy = serveTo == 0 ? table.height * 0.1 : (serveTo == 1 ? -table.height * 0.1 : 0.0);
     puck = c.translate(0, dy);
     puckV = Offset.zero;
@@ -100,7 +130,9 @@ class _HockeyState extends LoopState<HockeyGame> {
         padV[p] = padV[p] * math.exp(-dt * 20);
         continue;
       }
-      final np = _clampPad(p, t);
+      grab[p] = grab[p] * math.exp(-dt * 10);
+      if (grab[p].distanceSquared < 0.25) grab[p] = Offset.zero;
+      final np = _clampPad(p, t + grab[p]);
       var v = (np - pads[p]) / dt;
       final maxV = size.width * 7;
       if (v.distance > maxV) v = v / v.distance * maxV;
@@ -216,6 +248,8 @@ class _HockeyState extends LoopState<HockeyGame> {
   void _down(PointerDownEvent e) {
     final p = e.localPosition.dy > size.height / 2 ? 0 : 1;
     owners[e.pointer] = p;
+    // نحفظ الفرق حتى المضرب ما ينط لمكان الإصبع
+    grab[p] = pads[p] - e.localPosition;
     padTarget[p] = e.localPosition;
   }
 
@@ -251,6 +285,7 @@ class _HockeyState extends LoopState<HockeyGame> {
               Positioned.fill(
                 child: Countdown(
                   key: ValueKey(round),
+                  paused: paused,
                   dual: true,
                   onDone: () => setState(() => phase = GamePhase.play),
                 ),
