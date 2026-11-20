@@ -7,6 +7,7 @@ if [ ! -d android ] || [ ! -d web ]; then
 fi
 rm -rf test
 
+command -v convert >/dev/null || { sudo apt-get update -qq >/dev/null; sudo apt-get install -y -qq imagemagick >/dev/null; }
 ICON=assets/brand/icon-1024.png
 
 # ---------- أندرويد ----------
