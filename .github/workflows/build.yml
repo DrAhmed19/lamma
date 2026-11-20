@@ -69,8 +69,14 @@ jobs:
           flutter pub get
           flutter analyze --no-fatal-infos --no-fatal-warnings
 
+      # WebAssembly (skwasm): رسم أسرع بهواية من النسخة العادية، وهذا يخلّي السحب واللعب سلس.
+      # المتصفحات القديمة تاخذ النسخة العادية تلقائياً (Flutter يحط الاثنين).
+      # الرؤوس بـ _headers تخلّي skwasm يشتغل بأكثر من خيط (أسرع).
       - name: Build web
-        run: flutter build web --release --dart-define=BUILD=${GITHUB_SHA::7} --dart-define=SERVER=${{ needs.server.outputs.url }}
+        run: |
+          flutter build web --release --wasm --dart-define=BUILD=${GITHUB_SHA::7} --dart-define=SERVER=${{ needs.server.outputs.url }}
+          printf '/*\n  Cross-Origin-Opener-Policy: same-origin\n  Cross-Origin-Embedder-Policy: credentialless\n' > build/web/_headers
+          cat build/web/_headers
 
       - name: Deploy to Cloudflare Pages
         env:
