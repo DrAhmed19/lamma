@@ -40,6 +40,8 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
 
   @override
   Widget build(BuildContext context) {
+    // بأول إطار على أندرويد ممكن العرض يكون صفر، والشبكة ما تتحمّل هالشي
+    if (MediaQuery.sizeOf(context).width <= 0) return const SizedBox.shrink();
     final list = games.where((g) => g.maxPlayers >= _players).toList();
     return Scaffold(
       body: Stack(
