@@ -1,5 +1,4 @@
 import 'dart:math' as math;
-import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 
@@ -119,20 +118,16 @@ class GlassIconButton extends StatelessWidget {
     return Pressable(
       onTap: onTap,
       scale: 0.88,
-      child: ClipOval(
-        child: BackdropFilter(
-          filter: ui.ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-          child: Container(
-            width: size,
-            height: size,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: alpha(Colors.black, 0.35),
-              border: Border.all(color: alpha(Colors.white, 0.22)),
-            ),
-            child: Icon(icon, color: Colors.white, size: size * 0.5),
-          ),
+      // بدون تمويه الخلفية: هذا الزر فوق اللعبة طول الوقت، والتمويه يقطّع بالمتصفح
+      child: Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: alpha(const Color(0xFF0B1022), 0.62),
+          border: Border.all(color: alpha(Colors.white, 0.22)),
         ),
+        child: Icon(icon, color: Colors.white, size: size * 0.5),
       ),
     );
   }
@@ -357,7 +352,13 @@ class ResultOverlay extends StatelessWidget {
     this.dual = false,
     this.subtitle,
     this.seats,
+    this.menuLabel,
+    this.onMenu,
   });
+
+  /// الزر الثاني (افتراضياً يرجع للقائمة). أونلاين: يرجع للغرفة.
+  final String? menuLabel;
+  final VoidCallback? onMenu;
 
   /// رقم لون كل لاعب (إذا اللعبة تستخدم ألوان غير الترتيب الافتراضي)
   final List<int>? seats;
@@ -446,9 +447,9 @@ class ResultOverlay extends StatelessWidget {
             BigButton(label: 'مرة ثانية', icon: Icons.replay_rounded, onTap: onAgain, color: winner >= 0 ? _color : C.accent),
             const SizedBox(width: 10),
             BigButton(
-              label: 'القائمة',
+              label: menuLabel ?? 'القائمة',
               filled: false,
-              onTap: () => Navigator.of(context).pop(),
+              onTap: onMenu ?? () => Navigator.of(context).pop(),
             ),
           ],
         ),
@@ -465,14 +466,8 @@ class ResultOverlay extends StatelessWidget {
       ),
       child: Stack(
         children: [
-          Positioned.fill(
-            child: ClipRect(
-              child: BackdropFilter(
-                filter: ui.ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-                child: Container(color: alpha(Colors.black, 0.5)),
-              ),
-            ),
-          ),
+          // تعتيم بدون تمويه (التمويه فوق لعبة شغالة غالي بالمتصفح)
+          Positioned.fill(child: Container(color: alpha(const Color(0xFF05070F), 0.72))),
           if (dual)
             Column(
               children: [

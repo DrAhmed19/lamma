@@ -130,7 +130,14 @@ class _XoState extends LoopState<XoGame> {
             if (online) NetBanner(session: session, players: 2),
             if (showOver)
               Positioned.fill(
-                child: ResultOverlay(winner: m.winner, scores: m.wins, dual: !online, onAgain: restart),
+                child: ResultOverlay(
+                  winner: m.winner,
+                  scores: m.wins,
+                  dual: !online,
+                  menuLabel: online ? 'الغرفة' : null,
+                  onMenu: roomMenu(context, session),
+                  onAgain: restart,
+                ),
               ),
           ],
         );

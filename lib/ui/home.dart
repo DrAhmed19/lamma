@@ -109,9 +109,12 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
           SizedBox(
             width: 64,
             height: 64,
-            child: AnimatedBuilder(
-              animation: _spin,
-              builder: (context, _) => CustomPaint(painter: LogoMarkPainter(t: _spin.value)),
+            // طبقة لحالها: الشعار يدور كل إطار، فما نخليه يعيد رسم باقي الشاشة ويا السحب
+            child: RepaintBoundary(
+              child: AnimatedBuilder(
+                animation: _spin,
+                builder: (context, _) => CustomPaint(painter: LogoMarkPainter(t: _spin.value)),
+              ),
             ),
           ),
           const SizedBox(width: 14),
@@ -255,8 +258,9 @@ class _GameCard extends StatelessWidget {
               colors: [c0, c1],
             ),
             border: Border.all(color: alpha(Colors.white, 0.16)),
+            // ظل خفيف (الظل الكبير المموّه غالي بالمتصفح ويقطّع ويا السحب)
             boxShadow: [
-              BoxShadow(color: alpha(c0, 0.28), blurRadius: 22, offset: const Offset(0, 10)),
+              BoxShadow(color: alpha(c0, 0.22), blurRadius: 8, offset: const Offset(0, 6)),
             ],
           ),
           child: Stack(

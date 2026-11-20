@@ -37,6 +37,14 @@ class NetState {
   final double at;
 }
 
+/// تنبيه من الغرفة: دخل، طلع، انطرد، صار صاحب الغرفة...
+class NetNotice {
+  const NetNotice(this.kind, this.seat, this.name);
+  final String kind;
+  final int seat;
+  final String name;
+}
+
 enum RoomStatus { connecting, online, reconnecting, closed }
 
 final _clock = Stopwatch()..start();
@@ -66,6 +74,12 @@ class RoomConn extends ChangeNotifier {
 
   /// مقاعد طلعت من المباراة الحالية
   List<int> out = const [];
+
+  /// المباراة خلصت لأن طلع لاعب، وهسه نرجع للغرفة
+  bool ending = false;
+
+  final _notices = StreamController<NetNotice>.broadcast();
+  Stream<NetNotice> get notices => _notices.stream;
 
   /// آخر حالة للعبة من السيرفر
   NetState? state;
@@ -163,6 +177,7 @@ class RoomConn extends ChangeNotifier {
         round = m['round'] as int;
         seats = [for (final s in m['seats'] as List) s as int];
         out = [for (final s in m['out'] as List) s as int];
+        ending = m['ending'] == true;
         players = [
           for (final p in m['players'] as List) NetPlayer(p['seat'] as int, p['name'] as String, p['on'] == true),
         ];
@@ -176,9 +191,12 @@ class RoomConn extends ChangeNotifier {
           _states.add(st);
         } catch (_) {}
         return; // الحالة تتحدث كثير، ما نعيد بناء الواجهات كل مرة
+      case 'notice':
+        _notices.add(NetNotice(m['m'] as String, (m['seat'] as num?)?.toInt() ?? -1, m['name'] as String? ?? 'لاعب'));
+        return;
       case 'err':
         error = m['m'] as String?;
-        if (error == 'notfound' || error == 'full') {
+        if (error == 'notfound' || error == 'full' || error == 'kicked') {
           status = RoomStatus.closed;
           _left = true;
           _ch?.sink.close();
@@ -199,6 +217,12 @@ class RoomConn extends ChangeNotifier {
   void setGame(String id, bool crazy) => _send({'t': 'cfg', 'game': id, 'crazy': crazy});
   void start() => _send({'t': 'start'});
   void toLobby() => _send({'t': 'lobby'});
+
+  /// صاحب الغرفة: يطرد لاعب، أو يسلّمه الغرفة
+  void kick(int seat) => _send({'t': 'kick', 'seat': seat});
+  void makeHost(int seat) => _send({'t': 'host', 'seat': seat});
+
+  bool get hostOn => seatOn(host);
 
   /// طلع من المباراة (الباقين يكملون)
   void quit() => _send({'t': 'quit'});
@@ -222,6 +246,7 @@ class RoomConn extends ChangeNotifier {
     _left = true;
     _close();
     _states.close();
+    _notices.close();
     super.dispose();
   }
 

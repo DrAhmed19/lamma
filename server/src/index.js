@@ -9,19 +9,26 @@
 // - كل لاعب ياخذ مقعد (0..3) ويتذكره بالـ token، فإذا انقطع ورجع يرجع لنفس مكانه
 //   وياخذ الحالة الحالية فوراً.
 // - إذا طلع أي واحد (حتى صاحب الغرفة) اللعبة تكمل للباقين.
-//   بلعبة لاعبين: إذا ما رجع خلال دقيقة، الثاني يفوز.
-// - صاحب الغرفة بس يختار اللعبة ويبدي. إذا طلع، اللي بعده ياخذ مكانه.
+//   بلعبة لاعبين: إذا طلع أو غاب 45 ثانية، الثاني يفوز وبعدها الكل يرجع للغرفة.
+// - صاحب الغرفة بس يختار اللعبة ويبدي، ويگدر يطرد لاعب أو يسلّم الغرفة لغيره.
+//   إذا انقطع يبقى صاحبها 20 ثانية، وإذا طوّل أو طلع، أقدم واحد ياخذ مكانه.
 //
-// رسائل العميل: join, cfg, start, in, again, lobby, quit, leave, ping
-// رسائل السيرفر: you, room, state, err, pong
+// رسائل العميل: join, cfg, start, in, again, lobby, quit, leave, kick, host, ping
+// رسائل السيرفر: you, room, state, notice, err, pong
 
 import "./logic.js";
 
 const ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ"; // بدون I و O حتى ما تلتبس
 const MAX_PLAYERS = 4;
 const IDLE_MS = 2 * 60 * 60 * 1000; // الغرفة تنمسح بعد ساعتين بدون نشاط
-// لاعب انقطع وما رجع خلال دقيقة = انسحب (يتغير بـ FORFEIT_MS للاختبار)
-const FORFEIT_DEFAULT = 60 * 1000;
+// بمباراة: اللي انقطع وما رجع خلال 45 ثانية = انسحب
+const FORFEIT_DEFAULT = 45 * 1000;
+// صاحب الغرفة يبقى صاحبها 20 ثانية إذا انقطع (طلع للواتساب مثلاً)
+const HOST_GRACE_DEFAULT = 20 * 1000;
+// بالغرفة: اللي انقطع 3 دقايق ينشال من القائمة
+const LOBBY_DROP_DEFAULT = 3 * 60 * 1000;
+// بعد ما تخلص المباراة لأن طلع لاعب: النتيجة تبقى 4 ثواني وبعدها الكل يرجع للغرفة
+const END_DELAY_DEFAULT = 4000;
 const SAVE_EVERY_MS = 2000;
 
 const cors = {
@@ -77,25 +84,42 @@ export class Room {
     this.game = null; // اللعبة الشغالة (من logic.js)
     this.timer = null; // تكّات الألعاب السريعة
     this.lastSave = 0;
+    // الأوقات تتغير بالمتغيرات للاختبار
     this.forfeitMs = Number(env.FORFEIT_MS ?? FORFEIT_DEFAULT);
+    this.hostGraceMs = Number(env.HOST_GRACE_MS ?? HOST_GRACE_DEFAULT);
+    this.lobbyDropMs = Number(env.LOBBY_DROP_MS ?? LOBBY_DROP_DEFAULT);
+    this.endDelayMs = Number(env.END_DELAY_MS ?? END_DELAY_DEFAULT);
   }
 
   // ------------------------------------------------------------ تخزين
 
   async meta() {
-    return (await this.ctx.storage.get("meta")) ?? null;
+    const m = (await this.ctx.storage.get("meta")) ?? null;
+    if (m) {
+      m.gone ??= {};
+      m.banned ??= [];
+      m.offlineSince ??= {};
+      m.out ??= [];
+      m.seats ??= [];
+    }
+    return m;
   }
 
-  async saveMeta(meta) {
-    meta.touched = Date.now();
+  async saveMeta(meta, { touch = true } = {}) {
+    if (touch) meta.touched = Date.now();
     await this.ctx.storage.put("meta", meta);
     await this.scheduleAlarm(meta);
   }
 
+  /// أقرب شي لازم السيرفر يصحى بيه: انسحاب، تسليم الغرفة، شطب لاعب طلع، نهاية مباراة
   async scheduleAlarm(meta) {
-    let at = Date.now() + IDLE_MS;
-    for (const t of Object.values(meta.offlineSince ?? {})) at = Math.min(at, t + this.forfeitMs + 500);
-    await this.ctx.storage.setAlarm(at);
+    let at = (meta.touched ?? Date.now()) + IDLE_MS;
+    for (const t of Object.values(meta.offlineSince)) at = Math.min(at, t + this.forfeitMs + 300);
+    const hg = meta.gone[meta.host];
+    if (hg !== undefined) at = Math.min(at, hg + this.hostGraceMs + 300);
+    if (!meta.started) for (const t of Object.values(meta.gone)) at = Math.min(at, t + this.lobbyDropMs + 300);
+    if (meta.endAt) at = Math.min(at, meta.endAt);
+    await this.ctx.storage.setAlarm(Math.max(at, Date.now() + 50));
   }
 
   /// يرجّع اللعبة من التخزين إذا السيرفر نام وصحى
@@ -131,8 +155,11 @@ export class Room {
         started: false,
         round: 0,
         seats: [],
-        out: [], // مقاعد طلعت من الجولة الحالية
-        offlineSince: {}, // مقعد → وقت الانقطاع
+        out: [], // مقاعد طلعت من المباراة الحالية
+        offlineSince: {}, // مشارك بمباراة انقطع: مقعد → وقت
+        gone: {}, // أي لاعب انقطع: مقعد → وقت
+        banned: [], // tokens مطرودين
+        endAt: 0, // وقت رجوع الكل للغرفة بعد ما تخلص المباراة لأن طلع لاعب
         players: {}, // مقعد → { name, token }
       });
       return new Response("ok");
@@ -164,6 +191,10 @@ export class Room {
     for (const ws of this.sockets()) this.send(ws, s);
   }
 
+  notice(m, meta, seat) {
+    this.broadcast({ t: "notice", m, seat, name: meta.players[seat]?.name ?? "لاعب" });
+  }
+
   roomState(meta) {
     const on = this.online();
     const players = Object.entries(meta.players).map(([seat, p]) => ({
@@ -182,14 +213,27 @@ export class Room {
       round: meta.round,
       seats: meta.seats,
       out: meta.out,
+      ending: !!meta.endAt,
       players,
     };
   }
 
-  /// إذا صاحب الغرفة طلع، الأقدم بالمتصلين يصير هو صاحبها
-  fixHost(meta) {
-    const on = [...this.online()].sort((a, b) => a - b);
-    if (!on.includes(meta.host)) meta.host = on.length ? on[0] : -1;
+  /// صاحب الغرفة يبقى صاحبها إذا انقطع شوية (يطلع للواتساب مثلاً).
+  /// إذا طوّل أو طلع نهائياً، أقدم واحد متصل ياخذ مكانه.
+  fixHost(meta, { force = false } = {}) {
+    const now = Date.now();
+    const on = this.online();
+    const exists = meta.players[meta.host] !== undefined;
+    const away = meta.gone[meta.host];
+    const keep = exists && !force && (on.has(meta.host) || (away !== undefined && now - away < this.hostGraceMs));
+    if (keep) return false;
+    const candidates = [...on].filter((s) => meta.players[s] && s !== meta.host).sort((a, b) => a - b);
+    const next = candidates.length ? candidates[0] : exists && on.has(meta.host) ? meta.host : -1;
+    if (next === meta.host) return false;
+    if (next < 0 && exists) return false; // ماكو أحد ثاني، يبقى هو
+    meta.host = next;
+    if (next >= 0) this.notice("host", meta, next);
+    return true;
   }
 
   /// رقم اللاعب باللعبة (حسب ترتيب المشاركين)
@@ -245,10 +289,11 @@ export class Room {
     if (!meta.started || !(await this.ensureGame(meta))) return this.stopLoop();
     const on = this.online();
     const anyone = meta.seats.some((s) => on.has(s) && !meta.out.includes(s));
-    if (anyone) this.startLoop();
+    if (anyone && !meta.endAt) this.startLoop();
     else this.stopLoop();
   }
 
+  /// لاعب طلع من المباراة: now = نهائياً (ينسحب)، غير هيچ = انقطع وننتظره
   async playerGone(meta, seat, now) {
     const p = this.playerOf(meta, seat);
     if (!meta.started || p < 0 || meta.out.includes(seat)) return;
@@ -263,6 +308,53 @@ export class Room {
       g.connection(p, false);
     }
     await this.flush();
+  }
+
+  /// إذا بقى أقل من لاعبين بالمباراة: نعرض النتيجة شوية وبعدها الكل يرجع للغرفة
+  checkMatch(meta) {
+    if (!meta.started || meta.endAt) return;
+    const left = meta.seats.filter((s) => !meta.out.includes(s) && meta.players[s]);
+    if (left.length < 2) {
+      meta.endAt = Date.now() + this.endDelayMs;
+      this.stopLoop();
+    }
+  }
+
+  async endMatch(meta) {
+    meta.started = false;
+    meta.out = [];
+    meta.offlineSince = {};
+    meta.endAt = 0;
+    this.stopLoop();
+    this.game = null;
+    await this.ctx.storage.delete("game");
+    this.fixHost(meta);
+    await this.saveMeta(meta);
+    this.broadcast(this.roomState(meta));
+  }
+
+  /// يشيل لاعب من الغرفة (طلع أو انطرد)
+  async removePlayer(meta, seat, { kicked = false } = {}) {
+    if (meta.players[seat] === undefined) return;
+    if (meta.started && this.playerOf(meta, seat) >= 0) await this.playerGone(meta, seat, true);
+    this.notice(kicked ? "kicked" : "left", meta, seat);
+    if (kicked) {
+      meta.banned.push(meta.players[seat].token);
+      for (const ws of this.sockets()) {
+        if (ws.deserializeAttachment().seat === seat) {
+          this.send(ws, { t: "err", m: "kicked" });
+          ws.serializeAttachment({ seat: -1 });
+          try {
+            ws.close(4003, "kicked");
+          } catch (_) {}
+        }
+      }
+    }
+    delete meta.players[seat];
+    delete meta.gone[seat];
+    delete meta.offlineSince[seat];
+    if (meta.host === seat) this.fixHost(meta, { force: true });
+    this.checkMatch(meta);
   }
 
   // ------------------------------------------------------------ الرسائل
@@ -288,7 +380,7 @@ export class Room {
     const me = ws.deserializeAttachment() ?? { seat: -1 };
 
     if (msg.t === "join") return this.onJoin(ws, meta, msg);
-    if (me.seat < 0) return; // لازم join أول شي
+    if (me.seat < 0 || meta.players[me.seat] === undefined) return; // لازم join أول شي
 
     const isHost = me.seat === meta.host;
     const p = this.playerOf(meta, me.seat);
@@ -306,12 +398,14 @@ export class Room {
       case "start": {
         if (!isHost || meta.started || !meta.game) return;
         if (!globalThis.lamma.supports(meta.game)) return this.send(ws, { t: "err", m: "unsupported" });
-        const seats = [...this.online()].sort((a, b) => a - b);
+        const seats = [...this.online()].filter((s) => meta.players[s]).sort((a, b) => a - b);
+        if (seats.length < 2) return this.send(ws, { t: "err", m: "few" });
         meta.started = true;
         meta.round += 1;
         meta.seats = seats;
         meta.out = [];
         meta.offlineSince = {};
+        meta.endAt = 0;
         const seed = Math.floor(Math.random() * 2 ** 31);
         this.stopLoop();
         this.game = globalThis.lamma.create(meta.game, seats.length, meta.crazy, seed);
@@ -323,7 +417,7 @@ export class Room {
       }
 
       case "in": {
-        if (!playing || typeof msg.d !== "object" || msg.d === null) return;
+        if (!playing || meta.endAt || typeof msg.d !== "object" || msg.d === null) return;
         const g = await this.ensureGame(meta);
         if (!g) return;
         g.input(p, JSON.stringify(msg.d));
@@ -333,7 +427,7 @@ export class Room {
       }
 
       case "again": {
-        if (!meta.started) return;
+        if (!meta.started || meta.endAt || !playing) return;
         const g = await this.ensureGame(meta);
         if (!g || !g.over()) return;
         g.again();
@@ -342,59 +436,59 @@ export class Room {
       }
 
       case "lobby":
-        // صاحب الغرفة يرجّع الكل للغرفة (بس بعد ما تخلص المباراة)
+        // صاحب الغرفة يرجّع الكل للغرفة بأي وقت
         if (!isHost || !meta.started) return;
-        if (this.game && !this.game.over()) return;
         await this.endMatch(meta);
         return;
 
-      case "quit":
-        // طلع من اللعبة (رجع لشاشة الغرفة): ينسحب، والباقين يكملون
-        if (!playing) return;
-        await this.playerGone(meta, me.seat, true);
+      case "kick": {
+        const seat = Number(msg.seat);
+        if (!isHost || seat === me.seat || meta.players[seat] === undefined) return;
+        await this.removePlayer(meta, seat, { kicked: true });
         await this.saveMeta(meta);
         this.broadcast(this.roomState(meta));
-        await this.afterLeave(meta);
+        await this.syncLoop(meta);
+        return;
+      }
+
+      case "host": {
+        const seat = Number(msg.seat);
+        if (!isHost || seat === me.seat || !this.online().has(seat) || meta.players[seat] === undefined) return;
+        meta.host = seat;
+        this.notice("host", meta, seat);
+        await this.saveMeta(meta);
+        this.broadcast(this.roomState(meta));
+        return;
+      }
+
+      case "quit":
+        // طلع من شاشة اللعبة بنصها: ينسحب، والباقين يكملون (إذا بقوا اثنين أو أكثر)
+        if (!playing) return;
+        await this.playerGone(meta, me.seat, true);
+        this.notice("quit", meta, me.seat);
+        this.checkMatch(meta);
+        await this.saveMeta(meta);
+        this.broadcast(this.roomState(meta));
+        await this.syncLoop(meta);
         return;
 
       case "leave":
-        if (playing) await this.playerGone(meta, me.seat, true);
-        delete meta.players[me.seat];
+        await this.removePlayer(meta, me.seat);
         ws.serializeAttachment({ seat: -1 });
-        this.fixHost(meta);
         await this.saveMeta(meta);
         this.broadcast(this.roomState(meta));
         try {
           ws.close(1000, "bye");
         } catch (_) {}
-        await this.afterLeave(meta);
+        await this.syncLoop(meta);
         return;
     }
-  }
-
-  /// إذا ما بقى أحد يلعب، نرجع للغرفة
-  async afterLeave(meta) {
-    if (!meta.started) return;
-    const on = this.online();
-    const left = meta.seats.filter((s) => on.has(s) && !meta.out.includes(s));
-    if (left.length === 0) await this.endMatch(meta);
-    else await this.syncLoop(meta);
-  }
-
-  async endMatch(meta) {
-    meta.started = false;
-    meta.out = [];
-    meta.offlineSince = {};
-    this.stopLoop();
-    this.game = null;
-    await this.ctx.storage.delete("game");
-    await this.saveMeta(meta);
-    this.broadcast(this.roomState(meta));
   }
 
   async onJoin(ws, meta, msg) {
     const name = String(msg.name ?? "").trim().slice(0, 14) || "لاعب";
     const token = String(msg.token ?? "").slice(0, 40);
+    if (token && meta.banned.includes(token)) return this.send(ws, { t: "err", m: "kicked" });
     let seat = -1;
     for (const [s, p] of Object.entries(meta.players)) {
       if (token && p.token === token) seat = Number(s);
@@ -412,18 +506,15 @@ export class Room {
       meta.players[seat].name = name;
     } else {
       const taken = new Set(Object.keys(meta.players).map(Number));
-      const on = this.online();
       for (let s = 0; s < MAX_PLAYERS && seat < 0; s++) if (!taken.has(s)) seat = s;
-      // مقعد واحد طلع ومو راجع (بس إذا مو بنص مباراة)
-      for (let s = 0; s < MAX_PLAYERS && seat < 0; s++) {
-        if (!on.has(s) && !meta.seats.includes(s)) seat = s;
-      }
       if (seat < 0) return this.send(ws, { t: "err", m: "full" });
       meta.players[seat] = { name, token };
+      if (meta.host >= 0) this.notice("joined", meta, seat);
     }
+    delete meta.gone[seat];
     ws.serializeAttachment({ seat });
+    if (meta.host < 0 || meta.players[meta.host] === undefined) meta.host = seat;
     this.fixHost(meta);
-    if (meta.host < 0) meta.host = seat;
 
     // رجع بنص مباراة: يكمل وياهم
     const p = this.playerOf(meta, seat);
@@ -443,10 +534,12 @@ export class Room {
     const me = ws.deserializeAttachment() ?? { seat: -1 };
     ws.serializeAttachment({ seat: -1 });
     const meta = await this.meta();
-    if (!meta || me.seat < 0) return;
+    if (!meta || me.seat < 0 || meta.players[me.seat] === undefined) return;
     // نفس المقعد ممكن رجع باتصال ثاني
-    if (!this.online().has(me.seat)) await this.playerGone(meta, me.seat, false);
-    this.fixHost(meta);
+    if (!this.online().has(me.seat)) {
+      meta.gone[me.seat] = Date.now();
+      await this.playerGone(meta, me.seat, false);
+    }
     await this.saveMeta(meta);
     this.broadcast(this.roomState(meta));
     await this.syncLoop(meta);
@@ -460,16 +553,36 @@ export class Room {
     const meta = await this.meta();
     if (!meta) return;
     const now = Date.now();
-    // اللي انقطع أكثر من دقيقة = انسحب، والباقين يكملون
-    for (const [seat, since] of Object.entries(meta.offlineSince ?? {})) {
-      if (now - since >= this.forfeitMs) await this.playerGone(meta, Number(seat), true);
+    // اللي انقطع وطوّل بنص مباراة = انسحب، والباقين يكملون
+    for (const [seat, since] of Object.entries(meta.offlineSince)) {
+      if (now - since >= this.forfeitMs) {
+        await this.playerGone(meta, Number(seat), true);
+        this.checkMatch(meta);
+      }
+    }
+    // المباراة خلصت لأن ما بقى غير واحد → الكل يرجع للغرفة
+    if (meta.endAt && now >= meta.endAt) {
+      await this.endMatch(meta);
+    }
+    // صاحب الغرفة طوّل → ينتقل
+    this.fixHost(meta);
+    // بالغرفة (مو بمباراة): اللي انقطع وطوّل ينشال من القائمة
+    if (!meta.started) {
+      for (const [seat, since] of Object.entries(meta.gone)) {
+        if (now - since >= this.lobbyDropMs && !this.online().has(Number(seat))) {
+          delete meta.players[seat];
+          delete meta.gone[seat];
+        }
+      }
+      if (meta.players[meta.host] === undefined) this.fixHost(meta, { force: true });
     }
     if (now - meta.touched >= IDLE_MS && this.sockets().length === 0) {
       this.stopLoop();
       await this.ctx.storage.deleteAll();
       return;
     }
-    await this.saveMeta(meta);
-    if (meta.started) this.broadcast(this.roomState(meta));
+    await this.saveMeta(meta, { touch: false });
+    this.broadcast(this.roomState(meta));
+    await this.syncLoop(meta);
   }
 }

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -196,18 +198,88 @@ class _LobbyScreenState extends State<LobbyScreen> {
 
   static List<GameInfo> get onlineGames => games.where((g) => g.online != null).toList();
 
+  StreamSubscription<NetNotice>? _noticeSub;
+
   @override
   void initState() {
     super.initState();
     room.addListener(_onRoom);
+    _noticeSub = room.notices.listen(_onNotice);
   }
 
   @override
   void dispose() {
+    _noticeSub?.cancel();
     room.removeListener(_onRoom);
     room.leave();
     room.dispose();
     super.dispose();
+  }
+
+  /// تنبيهات الغرفة تطلع كشريط تحت (حتى وانت باللعبة)
+  void _onNotice(NetNotice n) {
+    if (!mounted) return;
+    final me = n.seat == room.mySeat;
+    final text = switch (n.kind) {
+      'joined' => 'دخل ${n.name}',
+      'left' => 'طلع ${n.name} من الغرفة',
+      'kicked' => 'انطرد ${n.name}',
+      'quit' => '${n.name} طلع من اللعبة',
+      'host' => me ? 'صرت انت صاحب الغرفة' : '${n.name} صار صاحب الغرفة',
+      _ => null,
+    };
+    if (text == null || (me && n.kind != 'host')) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 3),
+        backgroundColor: C.surface2,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14), side: const BorderSide(color: C.line)),
+        content: Text(text, style: body(15, weight: FontWeight.w700, color: Colors.white)),
+      ));
+  }
+
+  /// قائمة صاحب الغرفة على كل لاعب: يسلّمه الغرفة أو يطرده
+  Future<void> _seatMenu(NetPlayer p) async {
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        margin: const EdgeInsets.all(10),
+        padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
+        decoration: BoxDecoration(
+          color: C.surface,
+          borderRadius: BorderRadius.circular(26),
+          border: Border.all(color: C.line),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(p.name, textAlign: TextAlign.center, style: display(28)),
+            const SizedBox(height: 14),
+            if (p.on) ...[
+              BigButton(
+                label: 'خليه صاحب الغرفة',
+                icon: Icons.star_rounded,
+                filled: false,
+                onTap: () => Navigator.pop(ctx, 'host'),
+              ),
+              const SizedBox(height: 10),
+            ],
+            BigButton(
+              label: 'اطرده من الغرفة',
+              icon: Icons.block_rounded,
+              color: const Color(0xFFFF4D6A),
+              onTap: () => Navigator.pop(ctx, 'kick'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (action == 'host') room.makeHost(p.seat);
+    if (action == 'kick') room.kick(p.seat);
   }
 
   void _onRoom() {
@@ -266,6 +338,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
       final msg = switch (room.error) {
         'notfound' => 'ما لگينا غرفة بهالكود. تأكد منه.',
         'full' => 'الغرفة مليانة (4 لاعبين).',
+        'kicked' => 'صاحب الغرفة طلّعك من الغرفة.',
         _ => 'صار خلل بالاتصال.',
       };
       return Padding(
@@ -309,9 +382,31 @@ class _LobbyScreenState extends State<LobbyScreen> {
         Text('اللاعبين', style: body(15, weight: FontWeight.w700, color: C.muted)),
         const SizedBox(height: 8),
         for (var s = 0; s < 4; s++) _seat(s),
+        if (room.isHost && room.players.length > 1)
+          Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: Text('اضغط على لاعب حتى تطرده أو تسلّمه الغرفة', style: body(13, color: C.muted)),
+          ),
+        if (!room.isHost && room.host >= 0 && !room.hostOn)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: _note('صاحب الغرفة انقطع... إذا ما رجع خلال ثواني، الغرفة تنتقل للي بعده.',
+                color: const Color(0xFFFFB627)),
+          ),
         const SizedBox(height: 20),
         if (room.started && room.me < 0)
           _note('أكو مباراة شغالة. تگدر تدخل بالجولة الجاية.')
+        else if (room.started && room.me >= 0 && !_gameOpen)
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _note(room.isHost ? 'المباراة بعدها مفتوحة.' : 'ننتظر صاحب الغرفة يرجّع الكل للغرفة...'),
+              if (room.isHost) ...[
+                const SizedBox(height: 12),
+                BigButton(label: 'رجّع الكل للغرفة', icon: Icons.meeting_room_rounded, onTap: room.toLobby),
+              ],
+            ],
+          )
         else if (room.isHost) ...[
           Text('اختار اللعبة', style: body(15, weight: FontWeight.w700, color: C.muted)),
           const SizedBox(height: 8),
@@ -438,7 +533,11 @@ class _LobbyScreenState extends State<LobbyScreen> {
   Widget _seat(int seat) {
     final p = room.players.where((x) => x.seat == seat).firstOrNull;
     final col = C.players[seat];
-    return Container(
+    final canManage = p != null && room.isHost && seat != room.mySeat;
+    return Pressable(
+      onTap: canManage ? () => _seatMenu(p) : null,
+      scale: 0.98,
+      child: Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
@@ -465,7 +564,12 @@ class _LobbyScreenState extends State<LobbyScreen> {
             const SizedBox(width: 6),
             Text('انقطع', style: body(13, color: const Color(0xFFFF8A8A))),
           ],
+          if (canManage) ...[
+            const SizedBox(width: 6),
+            const Icon(Icons.more_vert_rounded, color: C.muted, size: 20),
+          ],
         ],
+      ),
       ),
     );
   }
@@ -508,6 +612,18 @@ class _LobbyScreenState extends State<LobbyScreen> {
       ),
     );
   }
+}
+
+/// زر "الغرفة" بشاشة النتيجة أونلاين: صاحب الغرفة يرجّع الكل، والباقي يرجع لحاله
+VoidCallback? roomMenu(BuildContext context, Session s) {
+  if (s is! OnlineSession) return null;
+  return () {
+    if (s.room.isHost) {
+      s.room.toLobby();
+    } else {
+      Navigator.of(context).pop();
+    }
+  };
 }
 
 /// بانتظار أول حالة من السيرفر

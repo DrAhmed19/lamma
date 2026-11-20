@@ -63,12 +63,13 @@ class LogoMarkPainter extends CustomPainter {
     for (var i = 0; i < 4; i++) {
       final a = -math.pi / 2 + i * math.pi / 2 + t * math.pi * 2;
       final p = c + Offset(math.cos(a), math.sin(a)) * orbit;
+      // توهج بتدرج بدل التمويه (أخف بهواية، خصوصاً بالمتصفح)
       canvas.drawCircle(
         p,
-        r * 1.15,
+        r * 1.6,
         Paint()
-          ..color = alpha(C.players[i], 0.35)
-          ..maskFilter = MaskFilter.blur(BlurStyle.normal, r * 0.5),
+          ..shader = RadialGradient(colors: [alpha(C.players[i], 0.45), alpha(C.players[i], 0)])
+              .createShader(Rect.fromCircle(center: p, radius: r * 1.6)),
       );
     }
     for (var i = 0; i < 4; i++) {
@@ -130,11 +131,12 @@ class ReactionIcon extends CustomPainter {
       ..lineTo(w * 0.72, h * 0.42)
       ..lineTo(w * 0.53, h * 0.42)
       ..close();
-    canvas.drawPath(
-      bolt,
+    canvas.drawCircle(
+      Offset(w * 0.51, h * 0.5),
+      w * 0.36,
       Paint()
-        ..color = alpha(const Color(0xFFFFE066), 0.6)
-        ..maskFilter = MaskFilter.blur(BlurStyle.normal, w * 0.06),
+        ..shader = RadialGradient(colors: [alpha(const Color(0xFFFFE066), 0.45), alpha(const Color(0xFFFFE066), 0)])
+            .createShader(Rect.fromCircle(center: Offset(w * 0.51, h * 0.5), radius: w * 0.36)),
     );
     canvas.drawPath(
       bolt,
@@ -227,7 +229,13 @@ class HockeyIcon extends CustomPainter {
     paintDisc(canvas, Offset(w * 0.4, h * 0.76), w * 0.15, C.players[0]);
     paintDisc(canvas, Offset(w * 0.6, h * 0.22), w * 0.15, C.players[1]);
     final puck = Offset(w * 0.58, h * 0.52);
-    canvas.drawCircle(puck, w * 0.1, Paint()..color = alpha(Colors.white, 0.4)..maskFilter = MaskFilter.blur(BlurStyle.normal, w * 0.04));
+    canvas.drawCircle(
+      puck,
+      w * 0.14,
+      Paint()
+        ..shader = RadialGradient(colors: [alpha(Colors.white, 0.45), alpha(Colors.white, 0)])
+            .createShader(Rect.fromCircle(center: puck, radius: w * 0.14)),
+    );
     canvas.drawCircle(puck, w * 0.08, Paint()..color = const Color(0xFF14182B));
     canvas.drawCircle(puck, w * 0.08, _stroke(Colors.white, w * 0.025));
   }

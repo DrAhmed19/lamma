@@ -1926,9 +1926,7 @@ class PigeonIcon extends CustomPainter {
     );
     canvas.drawOval(
       Rect.fromCenter(center: Offset(w * 0.58, h * 0.66), width: w * 0.5, height: h * 0.14),
-      Paint()
-        ..color = alpha(const Color(0xFF0B2236), 0.25)
-        ..maskFilter = MaskFilter.blur(BlurStyle.normal, w * 0.02),
+      Paint()..color = alpha(const Color(0xFF0B2236), 0.2),
     );
     canvas.save();
     canvas.translate(w * 0.5, h * 0.48);

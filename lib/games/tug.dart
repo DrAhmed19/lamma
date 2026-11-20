@@ -140,6 +140,8 @@ class _TugState extends LoopState<TugGame> {
                   winner: m.winner,
                   scores: m.wins,
                   dual: !online,
+                  menuLabel: online ? 'الغرفة' : null,
+                  onMenu: roomMenu(context, session),
                   subtitle: m.winner >= 0 ? '${m.taps[m.winner]} ضغطة' : null,
                   onAgain: restart,
                 ),

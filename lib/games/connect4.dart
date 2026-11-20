@@ -172,6 +172,8 @@ class _C4State extends LoopState<Connect4Game> {
                   scores: m.wins,
                   seats: pc,
                   dual: !online,
+                  menuLabel: online ? 'الغرفة' : null,
+                  onMenu: roomMenu(context, session),
                   onAgain: restart,
                 ),
               ),
