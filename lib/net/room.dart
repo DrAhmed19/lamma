@@ -91,7 +91,12 @@ class RoomConn extends ChangeNotifier {
   /// عنوان السيرفر لهالغرفة (الإنترنت، أو تلفون صاحب الغرفة بنفس الشبكة)
   final String server;
   bool get isLan => server != _kServerDefine || lanOrigin != null;
-  final String _token = _randomToken();
+  // رقم الجهاز ثابت (محفوظ)، حتى إذا رجع لنفس الغرفة (بالرابط أو بعد ما سكّر التطبيق)
+  // يرجع لنفس مكانه وإدارته، مو يدخل كلاعب ثاني بنفس الاسم
+  final String _token = Profile.I.deviceId;
+
+  /// رمز الغرفة اللي الجهاز داخلها هسة (null = ماكو)
+  static String? activeCode;
 
   RoomStatus status = RoomStatus.connecting;
   String? error;
@@ -189,6 +194,7 @@ class RoomConn extends ChangeNotifier {
 
   static RoomConn join(String code, String name, {String? server}) {
     final c = RoomConn._(code.toUpperCase(), name, server ?? kServer);
+    activeCode = c.code;
     c._connect();
     return c;
   }
@@ -206,6 +212,12 @@ class RoomConn extends ChangeNotifier {
         },
         onDone: () {
           netDebug = 'closed ${ch.closeCode ?? ''} ${ch.closeReason ?? ''}'.trim();
+          // نفس الجهاز دخل من مكان ثاني وأخذ المقعد: هذا الاتصال القديم يسكت وما يرجع يحاول
+          if (ch.closeCode == 4000 && identical(ch, _ch)) {
+            _close();
+            notifyListeners();
+            return;
+          }
           _onDrop(ch);
         },
         onError: (e) {
@@ -408,6 +420,7 @@ class RoomConn extends ChangeNotifier {
 
   @override
   void dispose() {
+    if (activeCode == code) activeCode = null;
     _left = true;
     _close();
     _states.close();
@@ -416,8 +429,4 @@ class RoomConn extends ChangeNotifier {
     super.dispose();
   }
 
-  static String _randomToken() {
-    final r = math.Random.secure();
-    return List.generate(20, (_) => r.nextInt(36).toRadixString(36)).join();
-  }
 }

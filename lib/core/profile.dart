@@ -30,6 +30,14 @@ class Profile extends ChangeNotifier {
   SharedPreferences? _p;
   String name = '';
   String avatar = kAvatars.first;
+
+  /// رقم عشوائي ثابت للجهاز (يتعرّف بيه بالغرف)
+  String deviceId = _newId();
+
+  static String _newId() {
+    final r = math.Random.secure();
+    return List.generate(20, (_) => r.nextInt(36).toRadixString(36)).join();
+  }
   final stats = <String, GameStat>{};
 
   /// أفضل زمن استجابة بلعبة أسرع إصبع (ملّي ثانية)، 0 = ما أكو
@@ -43,6 +51,12 @@ class Profile extends ChangeNotifier {
     try {
       _p = await SharedPreferences.getInstance();
       name = _p!.getString('name') ?? '';
+      final id = _p!.getString('deviceId');
+      if (id != null && id.length >= 10) {
+        deviceId = id;
+      } else {
+        await _p!.setString('deviceId', deviceId);
+      }
       avatar = _p!.getString('avatar') ?? kAvatars[math.Random().nextInt(kAvatars.length)];
       bestReaction = _p!.getInt('bestReaction') ?? 0;
       tournamentsWon = _p!.getInt('tours') ?? 0;

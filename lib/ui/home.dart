@@ -61,6 +61,8 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     _lastLink = uri.toString();
     _lastLinkAt = now;
     if (seg.length < 2) return; // /j/ بدون غرفة: يكفي إن التطبيق انفتح
+    // فتح رابط غرفته اللي هو بيها هسة: يبقى بمكانه
+    if (seg[1].toUpperCase() == RoomConn.activeCode) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       // إذا كان بغرفة ثانية أو لعبة: نرجع للرئيسية أول
