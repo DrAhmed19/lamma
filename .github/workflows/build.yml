@@ -105,7 +105,8 @@ jobs:
 
   apk:
     needs: server
-    if: always()
+    # رسالة الـ commit بيها [web] = نبني الويب بس (أسرع وأوفر)
+    if: always() && !contains(github.event.head_commit.message, '[web]')
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
