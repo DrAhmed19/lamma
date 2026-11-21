@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:web_socket_channel/web_socket_channel.dart';
 
+import '../core/perf.dart';
 import '../core/profile.dart';
 import '../logic/game_model.dart';
 import '../logic/models.dart';
@@ -287,6 +288,8 @@ class RoomConn extends ChangeNotifier {
   void _onData(dynamic raw) {
     final Map<String, dynamic> m;
     _lastRx = DateTime.now();
+    netMsgs++;
+    if (raw is String) netBytes += raw.length;
     try {
       m = jsonDecode(raw as String) as Map<String, dynamic>;
     } catch (_) {

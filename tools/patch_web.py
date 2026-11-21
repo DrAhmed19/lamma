@@ -51,6 +51,19 @@ body_extra = '''
 h = re.sub(r'(<body[^>]*>)', r'\1' + body_extra, h, count=1)
 idx.write_text(h, encoding="utf-8")
 
+# flutter_bootstrap مخصص: ?r=ck يشغّل محرك CanvasKit بدل Skwasm (للمقارنة بالآيفون)
+pathlib.Path("web/flutter_bootstrap.js").write_text("""{{flutter_js}}
+{{flutter_build_config}}
+(function () {
+  var r = new URLSearchParams(location.search).get('r');
+  try { if (r) localStorage.setItem('lamma_r', r); else r = localStorage.getItem('lamma_r'); } catch (e) {}
+  var cfg = {};
+  if (r === 'ck') cfg.renderer = 'canvaskit';
+  if (r === 'sk') cfg.renderer = 'skwasm';
+  _flutter.loader.load({ config: cfg });
+})();
+""", encoding="utf-8")
+
 mp = pathlib.Path("web/manifest.json")
 m = json.loads(mp.read_text(encoding="utf-8"))
 m.update({

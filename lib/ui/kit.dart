@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../core/fx.dart';
+import '../core/perf.dart';
 import '../net/room.dart';
 import 'icons.dart';
 import 'react.dart';
@@ -178,6 +179,17 @@ class GameScaffold extends StatelessWidget {
               ),
             ),
             if (room != null) Positioned.fill(child: IgnorePointer(child: ReactLayer(room: room!))),
+            // عدّاد الأداء (مؤقت للتشخيص)
+            Positioned(
+              left: 8,
+              bottom: 6,
+              child: IgnorePointer(
+                child: ValueListenableBuilder<String>(
+                  valueListenable: perfText,
+                  builder: (_, t, __) => Text(t, textDirection: TextDirection.ltr, style: const TextStyle(fontSize: 10, color: Color(0x99FFFFFF))),
+                ),
+              ),
+            ),
           ],
         ),
       ),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 
 import '../ui/kit.dart';
+import 'perf.dart';
 
 enum GamePhase { countdown, play, over }
 
@@ -31,6 +32,7 @@ abstract class LoopState<T extends StatefulWidget> extends State<T>
   void _onTick(Duration elapsed) {
     var dt = (elapsed - _last).inMicroseconds / 1e6;
     _last = elapsed;
+    if (dt > 0 && dt < 2) perfFrame(dt);
     if (dt > 0.05) dt = 0.05;
     if (dt < 0) dt = 0;
     if (!paused) {
