@@ -29,6 +29,7 @@ class _XoState extends LoopState<XoGame> {
       : LocalSession(XoModel(players: 2, crazy: false, seed: DateTime.now().microsecondsSinceEpoch));
 
   XoModel get m => session.model;
+  @override
   bool get ready => session is! OnlineSession || (session as OnlineSession).ready;
 
   /// مؤثرات الرسم (تنحسب بالتطبيق من الأحداث)

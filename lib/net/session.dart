@@ -121,8 +121,18 @@ class OnlineSession<M extends GameModel> extends Session<M> {
 
   final RoomConn room;
   late StreamSubscription<NetState> _sub;
+
+  // العرض أونلاين (للألعاب السريعة): نخزن الحالات اللي توصل بمخزن صغير ونعرض
+  // متأخرين شوية (delay) عن آخر حالة، ونعتمد على وقت السيرفر (model.time) مو وقت
+  // الوصول. هيج تأخر الشبكة المتذبذب ما يسبب تقطيع ووقوف ثم قفزة.
+  final List<_Snap<M>> _buf = [];
   M? _model, _prev;
-  double _recvAt = 0, _interval = 0.05;
+  double _blend = 1;
+  double _offset = double.nan; // ساعتنا - وقت السيرفر (أقل قيمة = أسرع وصول)
+  double _late = 0.02; // متوسط تأخر الحزم عن أسرعها (التذبذب)
+  double _gap = 1 / 30; // الفرق بين حالتين بوقت السيرفر
+  bool _realtime = false;
+  bool _silent = false;
   final List<Map<String, dynamic>> _events = [];
 
   bool get ready => _model != null;
@@ -133,9 +143,61 @@ class OnlineSession<M extends GameModel> extends Session<M> {
   M? get prev => _prev;
 
   @override
-  double get blend {
-    if (_prev == null) return 1;
-    return ((netNow - _recvAt) / _interval).clamp(0.0, 1.0);
+  double get blend => _blend;
+
+  void _apply(NetState st, {bool firstTime = false}) {
+    final m = st.model;
+    if (m is! M) return;
+    _realtime = m.tickHz > 0;
+    final ev = firstTime ? const <Map<String, dynamic>>[] : st.events;
+    if (!_realtime) {
+      // لعبة بالدور: نعرض آخر حالة فوراً
+      _buf.clear();
+      _prev = _model;
+      _model = m;
+      _blend = 1;
+      _events.addAll(ev);
+      watchResult(silent: firstTime);
+      return;
+    }
+    final t = m.time;
+    // جولة جديدة (الوقت رجع لورا): نبدي من جديد
+    if (_buf.isNotEmpty && t < _buf.last.t - 1e-6) {
+      for (final s in _buf) {
+        s.fire(_events);
+      }
+      _buf.clear();
+      _offset = double.nan;
+    }
+    if (_buf.isNotEmpty && (t - _buf.last.t).abs() < 1e-6) {
+      // نفس التكّة وصلت مرتين: نبدّل الحالة ونجمع الأحداث
+      final old = _buf.removeLast();
+      _buf.add(_Snap(m, t, [...old.ev, ...ev]));
+    } else {
+      if (_buf.isNotEmpty) {
+        final g = t - _buf.last.t;
+        if (g > 0 && g < 0.5) _gap = _gap * 0.9 + g * 0.1;
+      }
+      _buf.add(_Snap(m, t, ev));
+    }
+    final o = st.at - t;
+    if (_offset.isNaN || o < _offset) {
+      _offset = o;
+    } else {
+      _offset += (o - _offset) * 0.01; // يلحق ببطء إذا الطريق تبدّل وصار أبطأ
+    }
+    _late = _late * 0.9 + (o - _offset) * 0.1;
+    while (_buf.length > 40) {
+      _buf.removeAt(0).fire(_events);
+    }
+    if (_model == null) {
+      // أول حالة: نعرضها فوراً حتى اللعبة تفتح بدون انتظار
+      _model = m;
+      _prev = null;
+      _blend = 1;
+      _silent = firstTime;
+      watchResult(silent: firstTime);
+    }
   }
 
   @override
@@ -147,20 +209,6 @@ class OnlineSession<M extends GameModel> extends Session<M> {
   @override
   bool isOn(int player) => room.isOn(player);
 
-  void _apply(NetState st, {bool firstTime = false}) {
-    final m = st.model;
-    if (m is! M) return;
-    if (_model != null) {
-      final gap = st.at - _recvAt;
-      if (gap > 0 && gap < 0.5) _interval = _interval * 0.8 + gap * 0.2;
-    }
-    _prev = _model;
-    _model = m;
-    _recvAt = st.at;
-    if (!firstTime) _events.addAll(st.events);
-    watchResult(silent: firstTime);
-  }
-
   @override
   void input(int player, Map<String, dynamic> d) => room.input(d);
 
@@ -168,7 +216,36 @@ class OnlineSession<M extends GameModel> extends Session<M> {
   void again() => room.again();
 
   @override
-  void update(double dt) {}
+  void update(double dt) {
+    if (!_realtime || _buf.isEmpty || _offset.isNaN) return;
+    final delay = (_gap + 2.5 * _late).clamp(0.05, 0.25);
+    var rt = netNow - _offset - delay;
+    // متأخرين هواي (التطبيق نام أو تعلّق): نقفز لآخر حالة
+    if (_buf.last.t - rt > 0.6) {
+      _offset = netNow - delay - _buf.last.t;
+      rt = _buf.last.t;
+    }
+    for (final s in _buf) {
+      if (s.t > rt) break;
+      s.fire(_events);
+    }
+    while (_buf.length >= 2 && _buf[1].t <= rt) {
+      _buf.removeAt(0);
+    }
+    final a = _buf[0];
+    if (_buf.length == 1 || rt <= a.t) {
+      _prev = null;
+      _model = a.m;
+      _blend = 1;
+    } else {
+      final b = _buf[1];
+      _prev = a.m;
+      _model = b.m;
+      _blend = ((rt - a.t) / (b.t - a.t)).clamp(0.0, 1.0);
+    }
+    watchResult(silent: _silent);
+    _silent = false;
+  }
 
   @override
   List<Map<String, dynamic>> takeEvents() {
@@ -182,5 +259,19 @@ class OnlineSession<M extends GameModel> extends Session<M> {
     _sub.cancel();
     // طلعت من شاشة اللعبة وهي بعدها شغالة = انسحبت، والباقين يكملون
     if (room.playing && ready && !model.over) room.quit();
+  }
+}
+
+class _Snap<M> {
+  _Snap(this.m, this.t, this.ev);
+  final M m;
+  final double t;
+  final List<Map<String, dynamic>> ev;
+  bool _fired = false;
+
+  void fire(List<Map<String, dynamic>> out) {
+    if (_fired) return;
+    _fired = true;
+    out.addAll(ev);
   }
 }

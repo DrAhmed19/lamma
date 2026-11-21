@@ -111,6 +111,7 @@ class _PigeonState extends LoopState<PigeonGame> {
   Session<PigeonModel>? _session;
   Session<PigeonModel> get session => _session!;
   bool get online => widget.room != null;
+  @override
   bool get ready => _session != null && (_session is! OnlineSession || (_session as OnlineSession).ready);
   PigeonModel get m => session.model;
 

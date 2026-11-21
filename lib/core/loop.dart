@@ -18,6 +18,10 @@ abstract class LoopState<T extends StatefulWidget> extends State<T>
   double time = 0;
   bool paused = false;
 
+  /// أونلاين: وصلت أول حالة من السيرفر؟ (كل لعبة تحددها)
+  bool get ready => true;
+  bool? _wasReady;
+
   @override
   void initState() {
     super.initState();
@@ -34,6 +38,14 @@ abstract class LoopState<T extends StatefulWidget> extends State<T>
       update(dt);
     }
     frame.value++;
+    // أول ما توصل حالة السيرفر نعيد بناء الشاشة، حتى ما تبقى على "جارٍ الاتصال"
+    // (قبل كانت تفتح بس بعد الإيقاف المؤقت لأن هو اللي يعيد البناء)
+    final r = ready;
+    if (r != _wasReady) {
+      final first = _wasReady == null;
+      _wasReady = r;
+      if (!first && mounted) setState(() {});
+    }
   }
 
   void update(double dt);

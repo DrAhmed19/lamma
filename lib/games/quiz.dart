@@ -31,6 +31,7 @@ class _QuizState extends LoopState<QuizGame> {
       : LocalSession(QuizModel(players: widget.players, crazy: false, seed: DateTime.now().microsecondsSinceEpoch));
 
   QuizModel get m => session.model;
+  @override
   bool get ready => session is! OnlineSession || (session as OnlineSession).ready;
   bool get online => session.online;
   double endAt = 0;

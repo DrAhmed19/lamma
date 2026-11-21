@@ -35,6 +35,7 @@ class _TugState extends LoopState<TugGame> {
       : LocalSession(TugModel(players: 2, crazy: false, seed: DateTime.now().microsecondsSinceEpoch));
 
   TugModel get m => session.model;
+  @override
   bool get ready => session is! OnlineSession || (session as OnlineSession).ready;
   final _rnd = math.Random();
 

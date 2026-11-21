@@ -40,6 +40,7 @@ class _C4State extends LoopState<Connect4Game> {
       : LocalSession(Connect4Model(players: 2, crazy: false, seed: DateTime.now().microsecondsSinceEpoch));
 
   Connect4Model get m => session.model;
+  @override
   bool get ready => session is! OnlineSession || (session as OnlineSession).ready;
 
   final List<_Fall> falls = [];
