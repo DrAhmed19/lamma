@@ -75,6 +75,9 @@ class NetNotice {
 enum RoomStatus { connecting, online, reconnecting, closed }
 
 final _clock = Stopwatch()..start();
+/// آخر سبب مشكلة اتصال (يظهر صغير بشاشة "جارٍ الاتصال" حتى نعرف شنو السبب بالآيفون)
+String netDebug = '';
+
 double get netNow => _clock.elapsedMicroseconds / 1e6;
 
 /// الاتصال بغرفة. السيرفر هو اللي يدير اللعبة؛ هنا بس نعرض ونرسل الحركات.
@@ -201,15 +204,24 @@ class RoomConn extends ChangeNotifier {
         (d) {
           if (identical(ch, _ch)) _onData(d);
         },
-        onDone: () => _onDrop(ch),
-        onError: (_) => _onDrop(ch),
+        onDone: () {
+          netDebug = 'closed ${ch.closeCode ?? ''} ${ch.closeReason ?? ''}'.trim();
+          _onDrop(ch);
+        },
+        onError: (e) {
+          netDebug = 'error: ${e.toString().split('\n').first}';
+          _onDrop(ch);
+        },
       );
       ch.ready.timeout(const Duration(seconds: 8)).then((_) {
         if (!identical(ch, _ch)) return;
         _attempt = 0;
         _lastRx = DateTime.now();
         _send({'t': 'join', 'name': name, 'token': _token, 'avatar': Profile.I.avatar});
-      }).catchError((_) => _onDrop(ch));
+      }).catchError((e) {
+        netDebug = 'ws: ${e.toString().split('\n').first}';
+        _onDrop(ch);
+      });
       _ping?.cancel();
       _ping = Timer.periodic(const Duration(seconds: 8), (_) => _send({'t': 'ping'}));
       // اتصال ميت (النت تبدّل، التلفون نام...): إذا ماكو شي وصل 20 ثانية نرجع نتصل
@@ -217,7 +229,8 @@ class RoomConn extends ChangeNotifier {
       _watch = Timer.periodic(const Duration(seconds: 4), (_) {
         if (identical(ch, _ch) && DateTime.now().difference(_lastRx) > const Duration(seconds: 20)) _onDrop(ch);
       });
-    } catch (_) {
+    } catch (e) {
+      netDebug = 'connect: ${e.toString().split('\n').first}';
       _onDrop(null);
     }
   }
@@ -312,7 +325,10 @@ class RoomConn extends ChangeNotifier {
           final st = NetState(model, ev, netNow);
           state = st;
           _states.add(st);
-        } catch (_) {}
+          netDebug = '';
+        } catch (e) {
+          netDebug = 'state: ${e.toString().split('\n').first}';
+        }
         return; // الحالة تتحدث كثير، ما نعيد بناء الواجهات كل مرة
       case 'emo':
         _emos.add(NetEmo((m['seat'] as num).toInt(), (m['i'] as num).toInt()));

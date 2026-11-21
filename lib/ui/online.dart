@@ -914,6 +914,11 @@ class NetWaiting extends StatelessWidget {
           const SizedBox(width: 34, height: 34, child: CircularProgressIndicator(strokeWidth: 3)),
           const SizedBox(height: 14),
           Text('جارٍ الاتصال...', style: body(16, color: C.muted)),
+          if (netDebug.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 8, left: 24, right: 24),
+              child: Text(netDebug, textAlign: TextAlign.center, textDirection: TextDirection.ltr, style: body(11, color: C.muted)),
+            ),
         ],
       ),
     );
