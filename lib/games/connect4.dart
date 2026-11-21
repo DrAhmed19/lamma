@@ -176,6 +176,7 @@ class _C4State extends LoopState<Connect4Game> {
                   dual: !online,
                   menuLabel: online ? 'الغرفة' : null,
                   onMenu: roomMenu(context, session),
+                  session: session,
                   againLabel: againLabelOf(session),
                   footer: tourFooter(session),
                   names: namesOf(session),

@@ -16,6 +16,21 @@ class GameStat {
   factory GameStat.fromJson(Map<String, dynamic> j) => GameStat(played: j['p'] as int? ?? 0, won: j['w'] as int? ?? 0);
 }
 
+/// سجلّي ضد خصم واحد (بالاسم، أونلاين بس)
+class Rival {
+  Rival({this.won = 0, this.lost = 0, this.streak = 0});
+
+  /// كم مرة فزت عليه / فاز عليّ
+  int won, lost;
+
+  /// ورا بعض: موجب = فزت عليه هالعدد، سالب = فاز عليّ
+  int streak;
+
+  Map<String, dynamic> toJson() => {'w': won, 'l': lost, 's': streak};
+  factory Rival.fromJson(Map<String, dynamic> j) =>
+      Rival(won: j['w'] as int? ?? 0, lost: j['l'] as int? ?? 0, streak: j['s'] as int? ?? 0);
+}
+
 /// لقب يحصل عليه اللاعب
 class PlayerTitle {
   const PlayerTitle(this.icon, this.name, this.how);
@@ -39,6 +54,12 @@ class Profile extends ChangeNotifier {
     return List.generate(20, (_) => r.nextInt(36).toRadixString(36)).join();
   }
   final stats = <String, GameStat>{};
+
+  /// سجلّي ضد كل خصم (للإحصائية المضحكة بصورة النتيجة)
+  final rivals = <String, Rival>{};
+
+  /// كم مرة فزت ورا بعض بكل لعبة (أونلاين)
+  final winStreak = <String, int>{};
 
   /// أفضل زمن استجابة بلعبة أسرع إصبع (ملّي ثانية)، 0 = ما أكو
   int bestReaction = 0;
@@ -65,6 +86,14 @@ class Profile extends ChangeNotifier {
       if (s != null) {
         (jsonDecode(s) as Map<String, dynamic>).forEach((k, v) => stats[k] = GameStat.fromJson(v as Map<String, dynamic>));
       }
+      final r = _p!.getString('rivals');
+      if (r != null) {
+        (jsonDecode(r) as Map<String, dynamic>).forEach((k, v) => rivals[k] = Rival.fromJson(v as Map<String, dynamic>));
+      }
+      final ws = _p!.getString('winStreak');
+      if (ws != null) {
+        (jsonDecode(ws) as Map<String, dynamic>).forEach((k, v) => winStreak[k] = v as int);
+      }
     } catch (_) {}
     notifyListeners();
   }
@@ -78,6 +107,8 @@ class Profile extends ChangeNotifier {
       await p.setInt('tours', tournamentsWon);
       await p.setInt('onlineGames', onlineGames);
       await p.setString('stats', jsonEncode({for (final e in stats.entries) e.key: e.value.toJson()}));
+      await p.setString('rivals', jsonEncode({for (final e in rivals.entries) e.key: e.value.toJson()}));
+      await p.setString('winStreak', jsonEncode(winStreak));
     } catch (_) {}
   }
 
@@ -90,11 +121,40 @@ class Profile extends ChangeNotifier {
   }
 
   /// نهاية مباراة. won = null على نفس الجهاز (ما نعرف منو انت).
-  void recordGame(String game, {bool? won, bool online = false}) {
+  /// أونلاين: [beat] = الخصوم اللي فزت عليهم، [lostTo] = اللي فاز عليّ، [drew] = تعادلت وياهم.
+  void recordGame(
+    String game, {
+    bool? won,
+    bool online = false,
+    List<String> beat = const [],
+    String? lostTo,
+    List<String> drew = const [],
+  }) {
     final s = stats.putIfAbsent(game, GameStat.new);
     s.played++;
     if (won == true) s.won++;
-    if (online) onlineGames++;
+    if (online) {
+      onlineGames++;
+      winStreak[game] = won == true ? (winStreak[game] ?? 0) + 1 : 0;
+      for (final n in beat) {
+        final r = rivals.putIfAbsent(n, Rival.new);
+        r.won++;
+        r.streak = r.streak > 0 ? r.streak + 1 : 1;
+      }
+      if (lostTo != null) {
+        final r = rivals.putIfAbsent(lostTo, Rival.new);
+        r.lost++;
+        r.streak = r.streak < 0 ? r.streak - 1 : -1;
+      }
+      for (final n in drew) {
+        rivals[n]?.streak = 0;
+      }
+      // ما نخلي القائمة تكبر بلا حد
+      if (rivals.length > 60) {
+        final weakest = rivals.entries.reduce((a, b) => a.value.won + a.value.lost <= b.value.won + b.value.lost ? a : b).key;
+        rivals.remove(weakest);
+      }
+    }
     notifyListeners();
     _save();
   }

@@ -17,6 +17,7 @@ import 'flow.dart' show createFriendsRoom;
 import 'invite.dart';
 import 'kit.dart';
 import 'react.dart';
+import 'share_card.dart';
 import 'theme.dart';
 
 Widget _note(String text, {Color color = C.muted, IconData? icon}) {
@@ -583,6 +584,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
               ),
             ),
           if (ranking.isEmpty) Text('الفوز بأي لعبة = 3 نقاط، والتعادل = نقطة للجميع.', style: body(13, color: C.muted)),
+          if (t.done && ranking.isNotEmpty) ShareResultButton(data: () => tourCard(room, t)),
         ],
       ),
     );

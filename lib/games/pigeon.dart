@@ -565,6 +565,7 @@ class _PigeonState extends LoopState<PigeonGame> {
                   subtitle: crazy ? 'انتهى الوقت!' : null,
                   menuLabel: online ? 'الغرفة' : null,
                   onMenu: roomMenu(context, session),
+                  session: session,
                   againLabel: againLabelOf(session),
                   footer: tourFooter(session),
                   names: namesOf(session),

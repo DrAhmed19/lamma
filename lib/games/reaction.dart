@@ -171,6 +171,7 @@ class _ReactionState extends LoopState<ReactionGame> {
                   dual: !online,
                   menuLabel: online ? 'الغرفة' : null,
                   onMenu: roomMenu(context, session),
+                  session: session,
                   againLabel: againLabelOf(session),
                   footer: tourFooter(session),
                   names: namesOf(session),

@@ -131,6 +131,7 @@ class _QuizState extends LoopState<QuizGame> {
                       dual: !online,
                       menuLabel: online ? 'الغرفة' : null,
                       onMenu: roomMenu(context, session),
+                      session: session,
                       names: namesOf(session),
                       againLabel: againLabelOf(session),
                       footer: tourFooter(session),

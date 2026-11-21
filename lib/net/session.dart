@@ -49,7 +49,19 @@ abstract class Session<M extends GameModel> {
       if (!online) {
         Profile.I.recordGame(m.id);
       } else if (me >= 0) {
-        Profile.I.recordGame(m.id, won: m.winner == me, online: true);
+        // الخصوم بالاسم (لإحصائية صورة النتيجة: "فاز على فلان 5 مرات متتالية")
+        final others = [
+          for (var p = 0; p < m.scores.length; p++)
+            if (p != me && nameOf(p).trim().isNotEmpty) nameOf(p),
+        ];
+        Profile.I.recordGame(
+          m.id,
+          won: m.winner == me,
+          online: true,
+          beat: m.winner == me ? others : const [],
+          lostTo: m.winner >= 0 && m.winner != me ? nameOf(m.winner) : null,
+          drew: m.winner < 0 ? others : const [],
+        );
       }
     }
     _wasOver = m.over;

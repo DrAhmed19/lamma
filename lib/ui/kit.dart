@@ -5,8 +5,10 @@ import 'package:flutter/material.dart';
 import '../core/fx.dart';
 import '../core/perf.dart';
 import '../net/room.dart';
+import '../net/session.dart';
 import 'icons.dart';
 import 'react.dart';
+import 'share_card.dart';
 import 'theme.dart';
 
 /// زر يصغر شوية عند الضغط.
@@ -384,7 +386,20 @@ class ResultOverlay extends StatelessWidget {
     this.againLabel,
     this.footer,
     this.names,
+    this.session,
   });
+
+  /// جلسة اللعبة: لزر "شارك النتيجة" (اسم اللعبة، الصور الرمزية، الإحصائية، البطولة)
+  final Session? session;
+
+  ShareCardData _shareData() {
+    final s = session;
+    if (s is OnlineSession) {
+      final t = s.room.tour;
+      if (t != null && t.done) return tourCard(s.room, t);
+    }
+    return resultCard(session: s, winner: winner, scores: scores, names: names, colorOf: (i) => C.players[_seat(i)]);
+  }
 
   /// نص زر الإعادة (بالبطولة: "اللعبة التالية")
   final String? againLabel;
@@ -496,6 +511,10 @@ class ResultOverlay extends StatelessWidget {
             ),
           ],
         ),
+        if (session != null) ...[
+          const SizedBox(height: 6),
+          ShareResultButton(data: _shareData),
+        ],
       ],
     );
 

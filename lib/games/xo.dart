@@ -138,6 +138,7 @@ class _XoState extends LoopState<XoGame> {
                   dual: !online,
                   menuLabel: online ? 'الغرفة' : null,
                   onMenu: roomMenu(context, session),
+                  session: session,
                   againLabel: againLabelOf(session),
                   footer: tourFooter(session),
                   names: namesOf(session),
