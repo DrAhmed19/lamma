@@ -230,9 +230,8 @@ class _TugPainter extends CustomPainter {
       Offset(rx, 0),
       Offset(rx, h),
       Paint()
-        ..color = alpha(Colors.black, 0.35)
-        ..strokeWidth = ropeW + 8
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6),
+        ..color = alpha(Colors.black, 0.22)
+        ..strokeWidth = ropeW + 8,
     );
     canvas.drawLine(Offset(rx, 0), Offset(rx, h), Paint()..color = const Color(0xFF8A6A3D)..strokeWidth = ropeW + 4);
     canvas.drawLine(Offset(rx, 0), Offset(rx, h), Paint()..color = const Color(0xFFE2BE84)..strokeWidth = ropeW);
@@ -249,7 +248,7 @@ class _TugPainter extends CustomPainter {
     // العقدة (العلامة)
     final k = Offset(rx, by);
     final kr = math.max(20.0, w * 0.055) * (1 + 0.12 * s.pulse);
-    canvas.drawCircle(k, kr * 1.6, Paint()..color = alpha(Colors.white, 0.18)..maskFilter = MaskFilter.blur(BlurStyle.normal, kr * 0.6));
+    softGlow(canvas, k, kr, alpha(Colors.white, 0.28), kr * 0.6);
     final flag = Rect.fromCenter(center: k, width: kr * 4.2, height: kr * 0.7);
     canvas.drawRRect(RRect.fromRectAndRadius(flag, Radius.circular(kr * 0.35)), Paint()..color = const Color(0xFFFFC93C));
     canvas.drawCircle(k, kr, Paint()..color = Colors.white);

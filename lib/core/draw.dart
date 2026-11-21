@@ -53,16 +53,20 @@ TextPainter _layoutText(String text, double size, Color color, String family, Fo
 }
 
 /// كرة/قرص لامع بلون اللاعب.
+/// توهج ناعم بدون MaskFilter.blur (الـ blur كل إطار يثقّل خصوصاً على الآيفون):
+/// حلقات شفافة متداخلة تعطي نفس الشكل تقريباً وأخف بكثير.
+void softGlow(Canvas canvas, Offset c, double r, Color color, double spread) {
+  const steps = 4;
+  for (var i = steps; i >= 1; i--) {
+    final f = i / steps;
+    canvas.drawCircle(c, r + spread * f, Paint()..color = color.withValues(alpha: color.a * 0.32));
+  }
+}
+
 void paintDisc(Canvas canvas, Offset c, double r, Color color,
     {double glow = 0}) {
   if (glow > 0) {
-    canvas.drawCircle(
-      c,
-      r * 1.25,
-      Paint()
-        ..color = alpha(color, 0.45 * glow)
-        ..maskFilter = MaskFilter.blur(BlurStyle.normal, r * 0.5),
-    );
+    softGlow(canvas, c, r, alpha(color, 0.45 * glow * 1.6), r * 0.45);
   }
   final rect = Rect.fromCircle(center: c, radius: r);
   canvas.drawCircle(

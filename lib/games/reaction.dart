@@ -246,7 +246,7 @@ class _ReactionPainter extends CustomPainter {
       for (var d = 0; d < dotsCount; d++) {
         final p = Offset(startX + d * gap, half - (small ? 26 : 34));
         if (d < s.score[i]) {
-          canvas.drawCircle(p, dr * 1.6, Paint()..color = alpha(col, 0.5)..maskFilter = MaskFilter.blur(BlurStyle.normal, dr));
+          softGlow(canvas, p, dr, alpha(col, 0.8), dr * 0.6);
           canvas.drawCircle(p, dr, Paint()..color = lighten(col, 0.2));
         } else {
           canvas.drawCircle(p, dr, Paint()..style = PaintingStyle.stroke..strokeWidth = 2..color = alpha(col, 0.45));
@@ -316,7 +316,7 @@ class _ReactionPainter extends CustomPainter {
             ..color = alpha(sig, 0.6 * (1 - tt)),
         );
       }
-      canvas.drawCircle(c, R * 1.5, Paint()..color = alpha(sig, 0.5)..maskFilter = MaskFilter.blur(BlurStyle.normal, R * 0.6));
+      softGlow(canvas, c, R, alpha(sig, 0.8), R * 0.5);
     } else if (playing && s.rs == ReactionModel.waiting) {
       final k = 0.5 + 0.5 * math.sin(s.time * 3);
       canvas.drawCircle(c, R * (1.08 + 0.05 * k), Paint()..style = PaintingStyle.stroke..strokeWidth = 3..color = alpha(const Color(0xFFFF4D6A), 0.35 + 0.3 * k));

@@ -1053,9 +1053,7 @@ class _PigeonPainter extends CustomPainter {
       final wall = Rect.fromLTRB(floor.left, top - wallH, floor.right, top);
       canvas.drawRect(
         wall.shift(Offset(0, -5 * k)).inflate(2),
-        Paint()
-          ..color = alpha(Colors.black, 0.1)
-          ..maskFilter = MaskFilter.blur(BlurStyle.normal, 5 * k),
+        Paint()..color = alpha(Colors.black, 0.1),
       );
       canvas.drawRect(wall, Paint()..color = const Color(0xFFC88A57));
       final mortar = Paint()

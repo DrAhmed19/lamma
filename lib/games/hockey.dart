@@ -311,7 +311,8 @@ class _HockeyPainter extends CustomPainter {
     void goal(double y, Color col) {
       final a = Offset(c.dx - s.gw, y), bb = Offset(c.dx + s.gw, y);
       canvas.drawLine(a, bb, Paint()..color = const Color(0xFF05070D)..strokeWidth = 9);
-      canvas.drawLine(a, bb, Paint()..color = alpha(col, 0.8)..strokeWidth = 7..strokeCap = StrokeCap.round..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6));
+      canvas.drawLine(a, bb, Paint()..color = alpha(col, 0.35)..strokeWidth = 11..strokeCap = StrokeCap.round);
+      canvas.drawLine(a, bb, Paint()..color = alpha(col, 0.8)..strokeWidth = 7..strokeCap = StrokeCap.round);
       canvas.drawLine(a, bb, Paint()..color = col..strokeWidth = 4..strokeCap = StrokeCap.round);
     }
 
@@ -326,7 +327,7 @@ class _HockeyPainter extends CustomPainter {
 
     // القرص
     final puck = s.puckPos();
-    canvas.drawCircle(puck, s.rk * 1.4, Paint()..color = alpha(Colors.white, 0.18 + 0.3 * s.hitFlash)..maskFilter = MaskFilter.blur(BlurStyle.normal, s.rk * 0.6));
+    softGlow(canvas, puck, s.rk, alpha(Colors.white, (0.18 + 0.3 * s.hitFlash) * 1.6), s.rk * 0.5);
     canvas.drawCircle(puck, s.rk, Paint()..color = const Color(0xFF151A2E));
     canvas.drawCircle(puck, s.rk, Paint()..style = PaintingStyle.stroke..strokeWidth = s.rk * 0.18..color = Colors.white);
     canvas.drawCircle(puck, s.rk * 0.35, Paint()..color = alpha(Colors.white, 0.25));
@@ -335,7 +336,7 @@ class _HockeyPainter extends CustomPainter {
     for (var p = 0; p < 2; p++) {
       final pc = s.padPos(p);
       final col = C.players[p];
-      canvas.drawCircle(pc.translate(0, s.rp * 0.12), s.rp * 1.05, Paint()..color = alpha(Colors.black, 0.45)..maskFilter = MaskFilter.blur(BlurStyle.normal, s.rp * 0.25));
+      canvas.drawCircle(pc.translate(0, s.rp * 0.12), s.rp * 1.08, Paint()..color = alpha(Colors.black, 0.3));
       paintDisc(canvas, pc, s.rp, col, glow: s.active[p] ? 0.8 : 0.3);
       paintDisc(canvas, pc, s.rp * 0.45, lighten(col, 0.15));
     }
