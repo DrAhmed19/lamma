@@ -61,6 +61,22 @@ class Profile extends ChangeNotifier {
   /// كم مرة فزت ورا بعض بكل لعبة (أونلاين)
   final winStreak = <String, int>{};
 
+  /// اللي حاظرهم (رقم عام → اسم): ما ينجمع وياهم باللعب ويا الغرباء
+  final blocked = <String, String>{};
+
+  void block(String pid, String name) {
+    if (pid.isEmpty) return;
+    blocked[pid] = name;
+    notifyListeners();
+    _save();
+  }
+
+  void unblock(String pid) {
+    blocked.remove(pid);
+    notifyListeners();
+    _save();
+  }
+
   /// أفضل زمن استجابة بلعبة أسرع إصبع (ملّي ثانية)، 0 = ما أكو
   int bestReaction = 0;
   int tournamentsWon = 0;
@@ -90,6 +106,10 @@ class Profile extends ChangeNotifier {
       if (r != null) {
         (jsonDecode(r) as Map<String, dynamic>).forEach((k, v) => rivals[k] = Rival.fromJson(v as Map<String, dynamic>));
       }
+      final bl = _p!.getString('blocked');
+      if (bl != null) {
+        (jsonDecode(bl) as Map<String, dynamic>).forEach((k, v) => blocked[k] = '$v');
+      }
       final ws = _p!.getString('winStreak');
       if (ws != null) {
         (jsonDecode(ws) as Map<String, dynamic>).forEach((k, v) => winStreak[k] = v as int);
@@ -109,6 +129,7 @@ class Profile extends ChangeNotifier {
       await p.setString('stats', jsonEncode({for (final e in stats.entries) e.key: e.value.toJson()}));
       await p.setString('rivals', jsonEncode({for (final e in rivals.entries) e.key: e.value.toJson()}));
       await p.setString('winStreak', jsonEncode(winStreak));
+      await p.setString('blocked', jsonEncode(blocked));
     } catch (_) {}
   }
 

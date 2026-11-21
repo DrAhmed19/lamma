@@ -27,11 +27,48 @@ const kWebUrl = String.fromEnvironment('WEB', defaultValue: 'https://lamma-dk0.p
 String playerName = '';
 
 class NetPlayer {
-  const NetPlayer(this.seat, this.name, this.on, [this.avatar = '']);
+  const NetPlayer(this.seat, this.name, this.on, [this.avatar = '', this.pid = '']);
   final int seat;
   final String name;
   final bool on;
   final String avatar;
+
+  /// رقم عام للجهاز (للإبلاغ والحظر بالغرف العامة). فاضي بالغرف المحلية.
+  final String pid;
+}
+
+/// ممنوع من اللعب ويا الغرباء (من الإبلاغات)
+class NetBan {
+  const NetBan(this.reason, this.until, this.perm);
+  final String reason;
+
+  /// متى ينتهي المنع (null = نهائي)
+  final DateTime? until;
+  final bool perm;
+
+  factory NetBan.fromJson(Map m) => NetBan(
+        m['reason'] as String? ?? '',
+        (m['until'] as num? ?? 0) > 0 ? DateTime.fromMillisecondsSinceEpoch((m['until'] as num).toInt()) : null,
+        m['perm'] == true,
+      );
+
+  /// النص بالواجهة
+  String get message {
+    final why = reason.isEmpty ? '' : ' بسبب: $reason';
+    if (perm || until == null) return 'تم منعك من اللعب مع لاعبين آخرين$why.\nيمكنك اللعب مع أصدقائك كالمعتاد.';
+    final left = until!.difference(DateTime.now());
+    final h = (left.inMinutes / 60).ceil().clamp(1, 24 * 30);
+    final when = h <= 24 ? (h <= 1 ? 'ساعة' : '$h ساعة') : '${(h / 24).ceil()} أيام';
+    return 'تم منعك مؤقتًا من اللعب مع لاعبين آخرين$why.\nيمكنك العودة بعد $when تقريبًا، ويمكنك اللعب مع أصدقائك كالمعتاد.';
+  }
+}
+
+/// نتيجة طلب اللعب ويا الغرباء
+class QuickResult {
+  const QuickResult(this.code, {this.warn, this.ban});
+  final String? code;
+  final String? warn;
+  final NetBan? ban;
 }
 
 /// بطولة: ألعاب ورا بعض، والنقاط لكل مقعد
@@ -184,11 +221,26 @@ class RoomConn extends ChangeNotifier {
   }
 
   /// لعب سريع: السيرفر يلگي غرفة عامة تنتظر بهاللعبة أو يسوّي وحدة
-  static Future<String> quickRoom(String game) async {
-    final r = await http.get(Uri.parse('$kServer/quick?game=$game')).timeout(const Duration(seconds: 10));
+  /// لعب ويا الغرباء: نرسل رقم الجهاز (حتى السيرفر يتأكد من المنع) واللي حاظرهم
+  static Future<QuickResult> quickRoom(String game) async {
+    final r = await http
+        .post(
+          Uri.parse('$kServer/quick'),
+          headers: {'content-type': 'application/json'},
+          body: jsonEncode({'game': game, 'dev': Profile.I.deviceId, 'avoid': Profile.I.blocked.keys.toList()}),
+        )
+        .timeout(const Duration(seconds: 10));
     if (r.statusCode != 200) throw Exception('server ${r.statusCode}');
-    return (jsonDecode(r.body) as Map)['code'] as String;
+    final m = jsonDecode(r.body) as Map;
+    if (m['error'] == 'banned') return QuickResult(null, ban: NetBan.fromJson(m));
+    return QuickResult(m['code'] as String, warn: m['warn'] as String?);
   }
+
+  /// إبلاغ عن لاعب بغرفة عامة (name / abuse / cheat / other)
+  void report(int seat, String reason) => _send({'t': 'report', 'seat': seat, 'r': reason});
+
+  /// إذا السيرفر رفض الدخول لأني ممنوع
+  NetBan? ban;
 
   static Future<String> createRoom({String? server}) async {
     final r = await http.get(Uri.parse('${server ?? kServer}/new')).timeout(const Duration(seconds: 10));
@@ -233,7 +285,8 @@ class RoomConn extends ChangeNotifier {
         if (!identical(ch, _ch)) return;
         _attempt = 0;
         _lastRx = DateTime.now();
-        _send({'t': 'join', 'name': name, 'token': _token, 'avatar': Profile.I.avatar});
+        // avoid = اللي حاظرهم (السيرفر يستعمله بالغرف العامة بس)
+        _send({'t': 'join', 'name': name, 'token': _token, 'avatar': Profile.I.avatar, 'avoid': Profile.I.blocked.keys.toList()});
       }).catchError((e) {
         netDebug = 'ws: ${e.toString().split('\n').first}';
         _onDrop(ch);
@@ -334,7 +387,7 @@ class RoomConn extends ChangeNotifier {
         ending = m['ending'] == true;
         players = [
           for (final p in m['players'] as List)
-            NetPlayer(p['seat'] as int, p['name'] as String, p['on'] == true, p['avatar'] as String? ?? ''),
+            NetPlayer(p['seat'] as int, p['name'] as String, p['on'] == true, p['avatar'] as String? ?? '', p['pid'] as String? ?? ''),
         ];
         if (!started && wasStarted) state = null;
       case 'state':
@@ -357,7 +410,8 @@ class RoomConn extends ChangeNotifier {
         return;
       case 'err':
         error = m['m'] as String?;
-        if (error == 'notfound' || error == 'full' || error == 'kicked') {
+        if (error == 'banned') ban = NetBan.fromJson(m);
+        if (error == 'notfound' || error == 'full' || error == 'kicked' || error == 'name' || error == 'banned') {
           status = RoomStatus.closed;
           _left = true;
           _ch?.sink.close();

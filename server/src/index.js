@@ -17,7 +17,7 @@
 // - بطولة: صاحب الغرفة يختار كم لعبة، والفائز بكل وحدة ياخذ 3 نقاط (التعادل نقطة للكل).
 // - الغرف العامة (لعب سريع): ماكو صاحب غرفة يتحكم، واللعب يبدي تلقائياً.
 //
-// رسائل العميل: join, cfg, cap, start, tour, in, again, lobby, quit, leave, kick, host, emo, ping
+// رسائل العميل: join, cfg, cap, report, start, tour, in, again, lobby, quit, leave, kick, host, emo, ping
 // رسائل السيرفر: you, room, state, notice, emo, err, pong
 
 import "./logic.js";
@@ -48,9 +48,25 @@ const quickMax = (g) => QUICK_MAX[g] ?? GAME_MAX[g];
 const gameFits = (g, n) =>
   (GAME_MAX[g] ?? 0) >= n && (GAME_MIN[g] ?? 2) <= n && (!GAME_COUNTS[g] || GAME_COUNTS[g].includes(n));
 
+/// أسباب الإبلاغ
+const REPORT_REASONS = { name: "اسم غير مناسب", abuse: "سلوك مسيء", cheat: "غش", other: "أسباب أخرى" };
+const DAY_MS = 24 * 60 * 60 * 1000;
+/// المنع التلقائي: المخالفة الأولى تنبيه، الثانية يوم، الثالثة 3 أيام، وبعدها أسبوع
+const BAN_STEPS = [0, DAY_MS, 3 * DAY_MS, 7 * DAY_MS];
+const WARN_TEXT = "وصلتنا شكاوى عن سلوكك، التكرار يعرضك للمنع.";
+
+/// رقم عام للجهاز: من رقمه السري (token) بتشفير باتجاه واحد، حتى ينعرض للناس بدون ما يكشف السري
+async function pidOf(token) {
+  if (!token) return "";
+  const d = await crypto.subtle.digest("SHA-256", new TextEncoder().encode("lamma:" + token));
+  return [...new Uint8Array(d)].slice(0, 8).map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+const cleanPids = (a) => (Array.isArray(a) ? a.filter((x) => typeof x === "string" && /^[0-9a-f]{16}$/.test(x)).slice(0, 100) : []);
+
 const cors = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET, OPTIONS",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
   "Access-Control-Allow-Headers": "*",
 };
 
@@ -83,11 +99,45 @@ export default {
     }
 
     if (url.pathname === "/quick") {
-      const game = url.searchParams.get("game") ?? "";
+      // POST {game, dev, avoid}: dev = رقم الجهاز (حتى نتأكد من المنع)، avoid = اللي حاظرهم
+      let body = {};
+      if (req.method === "POST") {
+        try {
+          body = await req.json();
+        } catch (_) {}
+      }
+      const game = String(body.game ?? url.searchParams.get("game") ?? "");
       if (!GAME_MAX[game] || NO_QUICK.has(game)) return json({ error: "game" }, 400);
+      const pid = await pidOf(String(body.dev ?? "").slice(0, 40));
+      let warn = null;
+      if (pid && env.MOD) {
+        const c = await (await env.MOD.get(env.MOD.idFromName("mod")).fetch(`https://mod/check?pid=${pid}`)).json();
+        if (c.banned) return json({ error: "banned", ...c.banned });
+        warn = c.warn;
+      }
       const mm = env.MATCH.get(env.MATCH.idFromName("mm"));
-      const r = await mm.fetch(`https://mm/find?game=${game}`);
-      return json(await r.json(), r.status);
+      const r = await mm.fetch("https://mm/find", {
+        method: "POST",
+        body: JSON.stringify({ game, pid, avoid: cleanPids(body.avoid) }),
+      });
+      const out = await r.json();
+      if (warn && out.code) out.warn = warn;
+      return json(out, r.status);
+    }
+
+    // صفحة الإدارة (برابط سري): الإبلاغات والممنوعين
+    if (url.pathname === "/admin" || url.pathname === "/admin/act") {
+      const key = env.ADMIN_KEY;
+      let form = null;
+      if (req.method === "POST") form = Object.fromEntries(new URLSearchParams(await req.text()));
+      const given = form?.key ?? url.searchParams.get("key") ?? "";
+      if (!key || given !== key || !env.MOD) return new Response("not found", { status: 404 });
+      const mod = env.MOD.get(env.MOD.idFromName("mod"));
+      if (form && url.pathname === "/admin/act") {
+        await mod.fetch("https://mod/admin/act", { method: "POST", body: JSON.stringify({ pid: form.pid, act: form.act }) });
+      }
+      const data = await (await mod.fetch("https://mod/admin")).json();
+      return new Response(adminPage(data, key), { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" } });
     }
 
     // هل أكو غرفة بهالكود؟ (حتى التطبيق يعرف يدوّر بالشبكة المحلية إذا ماكو)
@@ -126,33 +176,36 @@ export class Match {
     for (const [c, r] of Object.entries(list)) if (now - r.at > 120000) delete list[c];
 
     if (url.pathname === "/update") {
-      const code = url.searchParams.get("code");
-      if (url.searchParams.get("open") === "1") {
-        list[code] = {
-          game: url.searchParams.get("game"),
-          n: Number(url.searchParams.get("n")),
-          max: Number(url.searchParams.get("max")),
-          at: now,
-        };
+      const u = await req.json();
+      if (u.open) {
+        // pids = اللاعبين بالغرفة، avoid = اللي هم حاظرينهم
+        list[u.code] = { game: u.game, n: u.n, max: u.max, pids: cleanPids(u.pids), avoid: cleanPids(u.avoid), at: now };
       } else {
-        delete list[code];
+        delete list[u.code];
       }
       await this.ctx.storage.put("open", list);
       return new Response("ok");
     }
 
     if (url.pathname === "/find") {
-      const game = url.searchParams.get("game");
+      const q = await req.json();
+      const game = q.game;
+      const pid = q.pid ?? "";
+      const avoid = new Set(q.avoid ?? []);
       const max = quickMax(game);
       if (!max) return json({ error: "game" }, 400);
       // الغرفة اللي بيها أكثر ناس أول (حتى تبدي أسرع)
       const cands = Object.entries(list)
         .filter(([, r]) => r.game === game && r.n < r.max)
+        // ما نجمعه ويا اللي حاظرهم، ولا ويا اللي حاظرينه
+        .filter(([, r]) => !(r.pids ?? []).some((p) => avoid.has(p)) && !(pid && (r.avoid ?? []).includes(pid)))
         .sort((a, b) => b[1].n - a[1].n);
       if (cands.length) {
         const [code, r] = cands[0];
         r.n += 1; // حجز، حتى اللي يجون سوه يتوزعون صح
         r.at = now;
+        if (pid) (r.pids ??= []).push(pid);
+        for (const a of avoid) (r.avoid ??= []).push(a);
         await this.ctx.storage.put("open", list);
         return json({ code });
       }
@@ -161,7 +214,7 @@ export class Match {
         const stub = this.env.ROOMS.get(this.env.ROOMS.idFromName(code));
         const r = await stub.fetch(`https://room/init?code=${code}&public=1&game=${game}`);
         if (r.ok) {
-          list[code] = { game, n: 1, max, at: now };
+          list[code] = { game, n: 1, max, pids: pid ? [pid] : [], avoid: [...avoid], at: now };
           await this.ctx.storage.put("open", list);
           return json({ code });
         }
@@ -333,6 +386,7 @@ export class Room {
       seat: Number(seat),
       name: p.name,
       avatar: p.avatar ?? "",
+      pid: p.pid ?? "",
       on: on.has(Number(seat)),
     }));
     players.sort((a, b) => a.seat - b.seat);
@@ -383,7 +437,19 @@ export class Room {
     const open = !meta.started && n < max ? "1" : "0";
     try {
       const mm = this.env.MATCH.get(this.env.MATCH.idFromName("mm"));
-      await mm.fetch(`https://mm/update?code=${meta.code}&game=${meta.game}&n=${n}&max=${max}&open=${open}`);
+      const ps = Object.values(meta.players);
+      await mm.fetch("https://mm/update", {
+        method: "POST",
+        body: JSON.stringify({
+          code: meta.code,
+          game: meta.game,
+          n,
+          max,
+          open: open === "1",
+          pids: ps.map((p) => p.pid).filter(Boolean),
+          avoid: ps.flatMap((p) => p.avoid ?? []),
+        }),
+      });
     } catch (_) {}
   }
 
@@ -606,6 +672,19 @@ export class Room {
     }
     if (msg.t === "ping") return this.send(ws, { t: "pong" });
 
+    // الدخول: الرقم العام والمنع ينحسبون قبل ما نقرا حالة الغرفة.
+    // (أي await مو تخزين يخلّي رسائل ثانية تدخل بالنص، فإذا قريناها قبل ممكن نكتب فوق تغييراتهم)
+    let pre = null;
+    if (msg.t === "join") {
+      const pid = await pidOf(String(msg.token ?? "").slice(0, 40));
+      let ban = null;
+      const m0 = await this.meta();
+      if (m0?.public && pid && this.env.MOD) {
+        ban = (await (await this.env.MOD.get(this.env.MOD.idFromName("mod")).fetch(`https://mod/check?pid=${pid}&peek=1`)).json()).banned;
+      }
+      pre = { pid, ban };
+    }
+
     const meta = await this.meta();
     if (!meta) {
       this.send(ws, { t: "err", m: "notfound" });
@@ -616,7 +695,7 @@ export class Room {
     }
     const me = ws.deserializeAttachment() ?? { seat: -1 };
 
-    if (msg.t === "join") return this.onJoin(ws, meta, msg);
+    if (msg.t === "join") return this.onJoin(ws, meta, msg, pre);
     if (me.seat < 0 || meta.players[me.seat] === undefined) return;
 
     const isHost = me.seat === meta.host && !meta.public;
@@ -742,6 +821,21 @@ export class Room {
         return;
       }
 
+      case "report": {
+        // إبلاغ عن لاعب: بالغرف العامة بس، والسيرفر يتأكد إنهم بنفس الغرفة
+        const seat = Number(msg.seat);
+        const target = meta.players[seat];
+        const reason = String(msg.r ?? "");
+        if (!meta.public || !target || seat === me.seat || !REPORT_REASONS[reason] || !this.env.MOD) return;
+        const by = meta.players[me.seat]?.pid;
+        if (!by || !target.pid) return;
+        await this.env.MOD.get(this.env.MOD.idFromName("mod")).fetch("https://mod/report", {
+          method: "POST",
+          body: JSON.stringify({ pid: target.pid, name: target.name, by, reason, code: meta.code }),
+        });
+        return;
+      }
+
       case "emo": {
         // تفاعل سريع (رقم من قائمة ثابتة، مو نص حر)
         const i = Number(msg.i);
@@ -778,11 +872,18 @@ export class Room {
     }
   }
 
-  async onJoin(ws, meta, msg) {
+  async onJoin(ws, meta, msg, pre) {
     const name = String(msg.name ?? "").trim().slice(0, 14) || "لاعب";
     const avatar = String(msg.avatar ?? "").slice(0, 8);
     const token = String(msg.token ?? "").slice(0, 40);
     if (token && meta.banned.includes(token)) return this.send(ws, { t: "err", m: "kicked" });
+    // اسم ممنوع: التطبيق يطلب منه يغيّره
+    if (globalThis.lamma.badName(name)) return this.send(ws, { t: "err", m: "name" });
+    // الرقم العام والمنع انحسبوا قبل (pre)، حتى ما يصير await هنا
+    const pid = pre?.pid ?? "";
+    // الغرف العامة: الممنوع ما يدخل
+    if (meta.public && pre?.ban) return this.send(ws, { t: "err", m: "banned", ...pre.ban });
+    const avoid = meta.public ? cleanPids(msg.avoid) : [];
     let seat = -1;
     for (const [s, p] of Object.entries(meta.players)) {
       if (token && p.token === token) seat = Number(s);
@@ -798,13 +899,15 @@ export class Room {
       }
       meta.players[seat].name = name;
       meta.players[seat].avatar = avatar;
+      meta.players[seat].pid = pid;
+      meta.players[seat].avoid = avoid;
     } else {
       const taken = new Set(Object.keys(meta.players).map(Number));
       const max = meta.public ? quickMax(meta.game) ?? MAX_PLAYERS : meta.cap ?? MAX_PLAYERS;
       if (taken.size >= max) return this.send(ws, { t: "err", m: "full" });
       for (let s = 0; s < MAX_PLAYERS && seat < 0; s++) if (!taken.has(s)) seat = s;
       if (seat < 0) return this.send(ws, { t: "err", m: "full" });
-      meta.players[seat] = { name, token, avatar };
+      meta.players[seat] = { name, token, avatar, pid, avoid };
       if (meta.host >= 0) this.notice("joined", meta, seat);
     }
     delete meta.gone[seat];
@@ -898,4 +1001,140 @@ export class Room {
     this.broadcast(this.roomState(meta));
     await this.syncLoop(meta);
   }
+}
+
+// ================================================================ الإبلاغات والمنع
+
+/// وحدة لكل السيرفر: الإبلاغات، المخالفات، والمنع من اللعب ويا الغرباء.
+/// المخالفة: 3 أشخاص مختلفين بلّغوا عن نفس الجهاز خلال يوم (بعد آخر مخالفة). كل مبلّغ ينحسب مرة باليوم.
+export class Mod {
+  constructor(ctx, env) {
+    this.ctx = ctx;
+    this.env = env;
+  }
+
+  async rec(pid) {
+    return (await this.ctx.storage.get("t:" + pid)) ?? { reports: [], strikes: 0, last: 0, until: 0, reason: "", perm: false, warn: false, name: "" };
+  }
+
+  async fetch(req) {
+    const url = new URL(req.url);
+    const now = Date.now();
+
+    if (url.pathname === "/report") {
+      const r = await req.json();
+      if (!r.pid || !r.by || r.pid === r.by || !REPORT_REASONS[r.reason]) return json({ ok: false });
+      const t = await this.rec(r.pid);
+      t.name = String(r.name ?? "").slice(0, 14);
+      t.reports = t.reports.filter((x) => now - x.at < 7 * DAY_MS);
+      if (t.reports.some((x) => x.by === r.by && now - x.at < DAY_MS)) return json({ ok: true, dup: true });
+      t.reports.push({ by: r.by, reason: r.reason, at: now, code: r.code });
+      t.reports = t.reports.slice(-50);
+      // البلاغات من آخر يوم وبعد آخر مخالفة، من أشخاص مختلفين
+      const win = t.reports.filter((x) => now - x.at < DAY_MS && x.at > t.last);
+      const people = new Set(win.map((x) => x.by));
+      if (people.size >= 3) {
+        t.strikes += 1;
+        t.last = now;
+        const count = {};
+        for (const x of win) count[x.reason] = (count[x.reason] ?? 0) + 1;
+        t.reason = Object.entries(count).sort((a, b) => b[1] - a[1])[0][0];
+        const step = BAN_STEPS[Math.min(t.strikes - 1, BAN_STEPS.length - 1)];
+        if (step === 0) t.warn = true;
+        else t.until = Math.max(t.until, now + step);
+      }
+      await this.ctx.storage.put("t:" + r.pid, t);
+      // قائمة الإدارة
+      const recent = (await this.ctx.storage.get("recent")) ?? [];
+      recent.push({ pid: r.pid, name: t.name, reason: r.reason, at: now, code: r.code });
+      await this.ctx.storage.put("recent", recent.slice(-300));
+      const idx = new Set((await this.ctx.storage.get("idx")) ?? []);
+      idx.add(r.pid);
+      await this.ctx.storage.put("idx", [...idx].slice(-1000));
+      return json({ ok: true, strikes: t.strikes });
+    }
+
+    if (url.pathname === "/check") {
+      const pid = url.searchParams.get("pid") ?? "";
+      const t = (await this.ctx.storage.get("t:" + pid)) ?? null;
+      if (!t) return json({ banned: null, warn: null });
+      const banned = t.perm || t.until > now ? { until: t.perm ? 0 : t.until, perm: !!t.perm, reason: REPORT_REASONS[t.reason] ?? "" } : null;
+      let warn = null;
+      // التنبيه يطلع مرة وحدة (إلا إذا بس نتأكد، peek)
+      if (!banned && t.warn) {
+        warn = WARN_TEXT;
+        if (url.searchParams.get("peek") !== "1") {
+          t.warn = false;
+          await this.ctx.storage.put("t:" + pid, t);
+        }
+      }
+      return json({ banned, warn });
+    }
+
+    if (url.pathname === "/admin") {
+      const idx = (await this.ctx.storage.get("idx")) ?? [];
+      const people = [];
+      for (const pid of idx) {
+        const t = await this.rec(pid);
+        people.push({ pid, name: t.name, strikes: t.strikes, until: t.until, perm: t.perm, reason: t.reason, reports: t.reports.length });
+      }
+      people.sort((a, b) => Number(b.perm) - Number(a.perm) || b.strikes - a.strikes || b.reports - a.reports);
+      return json({ now, people, recent: ((await this.ctx.storage.get("recent")) ?? []).slice(-100).reverse() });
+    }
+
+    if (url.pathname === "/admin/act") {
+      const a = await req.json();
+      if (!/^[0-9a-f]{16}$/.test(a.pid ?? "")) return json({ ok: false });
+      const t = await this.rec(a.pid);
+      if (a.act === "ban") t.perm = true;
+      if (a.act === "unban") {
+        t.perm = false;
+        t.until = 0;
+        t.warn = false;
+      }
+      if (a.act === "clear") {
+        t.perm = false;
+        t.until = 0;
+        t.warn = false;
+        t.strikes = 0;
+        t.reports = [];
+        t.last = now;
+      }
+      await this.ctx.storage.put("t:" + a.pid, t);
+      const idx = new Set((await this.ctx.storage.get("idx")) ?? []);
+      idx.add(a.pid);
+      await this.ctx.storage.put("idx", [...idx]);
+      return json({ ok: true });
+    }
+    return new Response("?", { status: 404 });
+  }
+}
+
+function esc(x) {
+  return String(x ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+}
+
+/// صفحة الإدارة البسيطة
+function adminPage(d, key) {
+  const when = (t) => (t ? new Date(t).toISOString().replace("T", " ").slice(0, 16) : "");
+  const status = (p) => (p.perm ? "منع نهائي" : p.until > d.now ? "ممنوع لحد " + when(p.until) : p.strikes ? "مخالفات: " + p.strikes : "");
+  const btn = (pid, act, label) =>
+    `<form method="post" action="/admin/act" style="display:inline"><input type="hidden" name="key" value="${esc(key)}"><input type="hidden" name="pid" value="${esc(pid)}"><input type="hidden" name="act" value="${act}"><button>${label}</button></form>`;
+  const rows = d.people
+    .map(
+      (p) =>
+        `<tr><td>${esc(p.name)}</td><td><code>${esc(p.pid)}</code></td><td>${p.reports}</td><td>${esc(status(p))}</td><td>${esc(REPORT_REASONS[p.reason] ?? "")}</td><td>${
+          p.perm ? btn(p.pid, "unban", "رفع المنع") : btn(p.pid, "ban", "منع نهائي") + (p.until > d.now ? btn(p.pid, "unban", "رفع المنع") : "")
+        } ${btn(p.pid, "clear", "تصفير")}</td></tr>`,
+    )
+    .join("");
+  const recent = d.recent
+    .map((r) => `<tr><td>${when(r.at)}</td><td>${esc(r.name)}</td><td><code>${esc(r.pid)}</code></td><td>${esc(REPORT_REASONS[r.reason])}</td><td>${esc(r.code)}</td></tr>`)
+    .join("");
+  return `<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>لمّة - الإدارة</title><style>body{font-family:sans-serif;background:#0b0e1a;color:#eee;margin:16px}table{border-collapse:collapse;width:100%;margin-bottom:24px}
+td,th{border-bottom:1px solid #333;padding:6px;text-align:right;font-size:14px}button{margin:2px;padding:4px 8px}code{font-size:12px;color:#aab}</style></head><body>
+<h2>اللاعبون المُبلَّغ عنهم</h2><table><tr><th>الاسم</th><th>الرقم</th><th>بلاغات</th><th>الحالة</th><th>السبب</th><th></th></tr>${rows}</table>
+<h2>آخر البلاغات</h2><table><tr><th>الوقت (UTC)</th><th>الاسم</th><th>الرقم</th><th>السبب</th><th>الغرفة</th></tr>${recent}</table></body></html>`;
 }

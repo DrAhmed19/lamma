@@ -11,6 +11,7 @@ import 'dart:math' as math;
 
 import '../logic/game_model.dart';
 import '../logic/models.dart';
+import '../logic/name_filter.dart';
 
 /// اتصال لاعب واحد
 abstract class LanPeer {
@@ -475,6 +476,8 @@ class LanRoom {
     var token = '${msg['token'] ?? ''}';
     if (token.length > 40) token = token.substring(0, 40);
     if (token.isNotEmpty && banned.contains(token)) return _send(peer, {'t': 'err', 'm': 'kicked'});
+    // اسم ممنوع (نفس فحص السيرفر). الإبلاغ والمنع بس بالإنترنت ويا الغرباء.
+    if (isBadName(name)) return _send(peer, {'t': 'err', 'm': 'name'});
     var seat = -1;
     players.forEach((s, p) {
       if (token.isNotEmpty && p.token == token) seat = s;

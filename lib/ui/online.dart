@@ -9,6 +9,7 @@ import 'package:share_plus/share_plus.dart';
 
 import '../core/profile.dart';
 import '../games/registry.dart';
+import '../logic/name_filter.dart';
 import '../net/lan.dart';
 import '../net/room.dart';
 import '../net/session.dart';
@@ -16,6 +17,7 @@ import 'background.dart';
 import 'flow.dart' show createFriendsRoom;
 import 'invite.dart';
 import 'kit.dart';
+import 'profile_ui.dart' show editProfile;
 import 'react.dart';
 import 'share_card.dart';
 import 'theme.dart';
@@ -274,6 +276,8 @@ class _LobbyScreenState extends State<LobbyScreen> {
         'notfound' => 'انتهت هاي الغرفة، أو أن الرمز غير صحيح.',
         'full' => 'الغرفة ممتلئة.',
         'kicked' => 'أخرجك مدير الغرفة.',
+        'name' => '$badNameMessage.',
+        'banned' => room.ban?.message ?? 'تم منعك من اللعب مع لاعبين آخرين.',
         _ => room.isLan ? 'أُغلقت الغرفة.' : 'حدث خلل في الاتصال.',
       };
       return Padding(
@@ -284,6 +288,10 @@ class _LobbyScreenState extends State<LobbyScreen> {
           children: [
             _note(msg, color: const Color(0xFFFF4D6A), icon: Icons.error_outline_rounded),
             const SizedBox(height: 16),
+            if (room.error == 'name') ...[
+              BigButton(label: 'تغيير الاسم', icon: Icons.edit_rounded, onTap: _renameAndRejoin),
+              const SizedBox(height: 10),
+            ],
             if (room.error == 'notfound' && !_local) ...[
               BigButton(
                 label: 'سوّي غرفة جديدة',
@@ -296,7 +304,11 @@ class _LobbyScreenState extends State<LobbyScreen> {
               ),
               const SizedBox(height: 10),
             ],
-            BigButton(label: 'رجوع', filled: room.error != 'notfound' || _local, onTap: () => Navigator.of(context).pop()),
+            BigButton(
+              label: 'رجوع',
+              filled: (room.error != 'notfound' || _local) && room.error != 'name',
+              onTap: () => Navigator.of(context).pop(),
+            ),
           ],
         ),
       );
@@ -348,6 +360,99 @@ class _LobbyScreenState extends State<LobbyScreen> {
         ),
       ],
     );
+  }
+
+  /// السيرفر رفض الاسم: يغيّره ويرجع يدخل نفس الغرفة
+  Future<void> _renameAndRejoin() async {
+    final ok = await editProfile(context, problem: badNameMessage);
+    if (!ok || !mounted) return;
+    Navigator.of(context).pushReplacement(MaterialPageRoute(
+      builder: (_) => LobbyScreen(room: RoomConn.join(room.code, Profile.I.name, server: room.server), preferGame: widget.preferGame, lanHost: widget.lanHost),
+    ));
+  }
+
+  // ------------------------------------------------------------ الإبلاغ والحظر (الغرف العامة بس)
+
+  static const _reasons = [
+    ('name', 'اسم غير مناسب', Icons.badge_outlined),
+    ('abuse', 'سلوك مسيء', Icons.sentiment_very_dissatisfied_rounded),
+    ('cheat', 'غش', Icons.gpp_bad_outlined),
+    ('other', 'أخرى', Icons.more_horiz_rounded),
+  ];
+
+  Future<void> _playerMenu(NetPlayer p) async {
+    final blocked = Profile.I.blocked.containsKey(p.pid);
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) => Align(
+        alignment: Alignment.bottomCenter,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 520),
+          child: Container(
+            margin: const EdgeInsets.all(10),
+            padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
+            decoration: BoxDecoration(color: C.surface, borderRadius: BorderRadius.circular(26), border: Border.all(color: C.line)),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text('${p.avatar} ${p.name}', textAlign: TextAlign.center, style: display(28)),
+                const SizedBox(height: 10),
+                Text('إبلاغ عن هذا اللاعب', style: body(14, weight: FontWeight.w800, color: C.muted)),
+                const SizedBox(height: 6),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (final (id, label, icon) in _reasons)
+                      Pressable(
+                        onTap: () => Navigator.pop(ctx, 'r:$id'),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                          decoration: BoxDecoration(
+                            color: alpha(Colors.white, 0.05),
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(color: C.line),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(icon, size: 18, color: const Color(0xFFFF8A8A)),
+                              const SizedBox(width: 6),
+                              Text(label, style: body(14, weight: FontWeight.w700)),
+                            ],
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                BigButton(
+                  label: blocked ? 'إلغاء الحظر' : 'حظر (لن تُجمع معه مرة أخرى)',
+                  icon: Icons.block_rounded,
+                  color: const Color(0xFFFF4D6A),
+                  filled: !blocked,
+                  onTap: () => Navigator.pop(ctx, blocked ? 'unblock' : 'block'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    if (action == null || !mounted) return;
+    if (action.startsWith('r:')) {
+      room.report(p.seat, action.substring(2));
+      _toast('شكرًا، وصلنا البلاغ.');
+    } else if (action == 'block') {
+      Profile.I.block(p.pid, p.name);
+      _toast('تم حظر ${p.name}. لن تُجمع معه في المرات القادمة.');
+    } else if (action == 'unblock') {
+      Profile.I.unblock(p.pid);
+      _toast('تم إلغاء الحظر.');
+    }
   }
 
   // ------------------------------------------------------------ الدعوة
@@ -505,8 +610,14 @@ class _LobbyScreenState extends State<LobbyScreen> {
   Widget _seat(NetPlayer p) {
     final col = C.players[p.seat];
     final canManage = room.isHost && !room.isPublic && p.seat != room.mySeat;
+    // الغرف العامة: إبلاغ وحظر
+    final canReport = room.isPublic && p.seat != room.mySeat && p.pid.isNotEmpty;
     return Pressable(
-      onTap: canManage ? () => _seatMenu(p) : null,
+      onTap: canManage
+          ? () => _seatMenu(p)
+          : canReport
+              ? () => _playerMenu(p)
+              : null,
       scale: 0.98,
       child: Container(
         margin: const EdgeInsets.only(bottom: 8),
@@ -541,7 +652,11 @@ class _LobbyScreenState extends State<LobbyScreen> {
               const SizedBox(width: 8),
               Text('غير متصل', style: body(12, color: const Color(0xFFFF8A8A))),
             ],
-            if (canManage) const Icon(Icons.more_vert_rounded, color: C.muted, size: 20),
+            if (canReport && Profile.I.blocked.containsKey(p.pid)) ...[
+              const SizedBox(width: 6),
+              const Icon(Icons.block_rounded, color: Color(0xFFFF8A8A), size: 18),
+            ],
+            if (canManage || canReport) const Icon(Icons.more_vert_rounded, color: C.muted, size: 20),
           ],
         ),
       ),

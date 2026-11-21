@@ -189,6 +189,12 @@ Future<void> main() async {
   await wait(500);
   check((a.state!['chain'] as List).isNotEmpty && a.state!['turn'] == (turn + 1) % 4, 'opening double played, next turn');
 
+  // اسم ممنوع ما يدخل
+  final rude = Client('شرموطة');
+  await rude.connect(http.port);
+  await wait(300);
+  check(rude.seat < 0 && rude.msgs.any((m) => m['t'] == 'err' && m['m'] == 'name'), 'bad name rejected');
+
   room.dispose();
   await http.close(force: true);
   exit(exitCode);

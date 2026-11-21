@@ -1,5 +1,6 @@
 // اختبار سيرفر الإنترنت محلياً: cd server && npx wrangler dev --port 8799
-// dart run tools/server_test.dart http://127.0.0.1:8799
+// dart run tools/server_test.dart http://127.0.0.1:8799 [ADMIN_KEY]
+// (لاختبار صفحة الإدارة: ADMIN_KEY=... بـ server/.dev.vars ونفسه هنا)
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -18,6 +19,7 @@ class Client {
   Map<String, dynamic>? room, state;
   int seat = -1;
   final emos = <int>[];
+  final errs = <String>[];
 
   Future<void> connect(String base, String code) async {
     ws = await WebSocket.connect('${base.replaceFirst('http', 'ws')}/ws/$code');
@@ -27,6 +29,7 @@ class Client {
       if (m['t'] == 'state') state = m['s'] as Map<String, dynamic>;
       if (m['t'] == 'you') seat = m['seat'] as int;
       if (m['t'] == 'emo') emos.add(m['i'] as int);
+      if (m['t'] == 'err') errs.add(m['m'] as String);
     });
     send({'t': 'join', 'name': name, 'token': '$name-tok'});
   }
@@ -157,5 +160,78 @@ Future<void> main(List<String> args) async {
   check((e1.state?['pile'] as List?)?.every((t) => t == -1) == true && (e1.state?['pile'] as List).length == 14, 'domino draw pile hidden (14)');
   await e1.ws.close();
   await e2.ws.close();
+
+  // ------------------------------------------------ الأسماء والإبلاغ والمنع
+  Future<Map> postJson(String path, Map body) async {
+    final rq = await hc.postUrl(Uri.parse('$base$path'));
+    rq.headers.contentType = ContentType.json;
+    rq.write(jsonEncode(body));
+    return jsonDecode(await (await rq.close()).transform(utf8.decoder).join()) as Map;
+  }
+
+  final rude = Client('شرموطة');
+  await rude.connect(base, code2);
+  await wait(500);
+  check(rude.seat < 0 && rude.errs.contains('name'), 'bad name rejected');
+  await rude.ws.close();
+
+  // جولة إبلاغ: الهدف يدخل غرفة عامة، و3 أشخاص مختلفين يبلّغون عنه
+  final run = DateTime.now().millisecondsSinceEpoch;
+  final target = Client('target$run');
+  Future<void> reportRound(String game, List<String> names) async {
+    final q = (await postJson('/quick', {'game': game, 'dev': '${target.name}-tok'}))['code'] as String;
+    await target.connect(base, q);
+    await wait(400);
+    final rs = <Client>[];
+    for (final n in names) {
+      final c = Client(n);
+      final cq = (await postJson('/quick', {'game': game, 'dev': '$n-tok'}))['code'] as String;
+      await c.connect(base, cq);
+      rs.add(c);
+      await wait(300);
+    }
+    await wait(400);
+    for (final c in rs) {
+      c.send({'t': 'report', 'seat': target.seat, 'r': 'abuse'});
+      await wait(250);
+    }
+    await wait(500);
+    for (final c in [target, ...rs]) {
+      await c.ws.close();
+    }
+  }
+
+  await reportRound('quiz', ['ra$run', 'rb$run', 'rc$run']);
+  final w = await postJson('/quick', {'game': 'xo', 'dev': '${target.name}-tok'});
+  check(w['warn'] != null && w['code'] != null, 'first strike = warning only');
+  await reportRound('reaction', ['rd$run', 're$run', 'rf$run']);
+  final bn = await postJson('/quick', {'game': 'xo', 'dev': '${target.name}-tok'});
+  check(bn['error'] == 'banned' && (bn['until'] as num) > DateTime.now().millisecondsSinceEpoch, 'second strike = banned from quick match');
+  final ok = await getJson('/new');
+  final friend = Client(target.name);
+  await friend.connect(base, ok['code'] as String);
+  await wait(400);
+  check(friend.seat >= 0, 'banned player can still play with friends');
+  await friend.ws.close();
+
+  // الحظر: اللي حاظر واحد ما ينجمع وياه
+  final x1 = Client('x1$run'), x2 = Client('x2$run');
+  final xq = (await postJson('/quick', {'game': 'pigeon', 'dev': '${x1.name}-tok'}))['code'] as String;
+  await x1.connect(base, xq);
+  await wait(500);
+  final x1pid = (x1.room!['players'] as List).firstWhere((p) => p['seat'] == x1.seat)['pid'] as String;
+  final xq2 = (await postJson('/quick', {'game': 'pigeon', 'dev': '${x2.name}-tok', 'avoid': [x1pid]}))['code'] as String;
+  check(x1pid.length == 16 && xq2 != xq, 'blocked player is not matched together');
+  await x1.ws.close();
+
+  // صفحة الإدارة: مقفولة بدون السر
+  final adm = await hc.getUrl(Uri.parse('$base/admin?key=wrong'));
+  check((await adm.close()).statusCode == 404, 'admin page needs the secret key');
+  if (args.length > 1) {
+    final good = await hc.getUrl(Uri.parse('$base/admin?key=${args[1]}'));
+    final res = await good.close();
+    final html = await res.transform(utf8.decoder).join();
+    check(res.statusCode == 200 && html.contains(target.name.substring(0, 14)), 'admin page lists the reported player');
+  }
   exit(exitCode);
 }

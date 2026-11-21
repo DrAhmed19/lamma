@@ -57,6 +57,38 @@ void showMessage(BuildContext context, String text, {bool error = false}) {
     ));
 }
 
+/// نافذة رسالة بسيطة بزر "حسنًا"
+Future<void> showNotice(BuildContext context, {required IconData icon, required String title, required String text}) {
+  return showModalBottomSheet<void>(
+    context: context,
+    backgroundColor: Colors.transparent,
+    builder: (ctx) => Align(
+      alignment: Alignment.bottomCenter,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 520),
+        child: Container(
+          margin: const EdgeInsets.all(10),
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(color: C.surface, borderRadius: BorderRadius.circular(30), border: Border.all(color: C.line)),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Icon(icon, size: 48, color: const Color(0xFFFFB627)),
+              const SizedBox(height: 8),
+              Text(title, textAlign: TextAlign.center, style: display(26)),
+              const SizedBox(height: 6),
+              Text(text, textAlign: TextAlign.center, style: body(15, color: alpha(Colors.white, 0.85))),
+              const SizedBox(height: 18),
+              BigButton(label: 'حسنًا', onTap: () => Navigator.pop(ctx)),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
 void _openLobby(BuildContext context, RoomConn room, {GameInfo? game, LanHost? lan}) {
   Navigator.of(context).push(MaterialPageRoute(builder: (_) => LobbyScreen(room: room, preferGame: game, lanHost: lan)));
 }
@@ -116,18 +148,29 @@ Future<void> quickMatch(BuildContext context, GameInfo game) async {
     showMessage(context, 'اللعب مع لاعبين آخرين يحتاج إلى اتصال بالإنترنت.', error: true);
     return;
   }
-  String? code;
+  QuickResult? res;
   await withBusy(context, 'جارٍ البحث عن لاعبين...', () async {
     try {
-      code = await RoomConn.quickRoom(game.id);
+      res = await RoomConn.quickRoom(game.id);
     } catch (_) {}
   });
   if (!context.mounted) return;
-  if (code == null) {
+  final r = res;
+  if (r == null) {
     showMessage(context, 'تعذّر الاتصال. تحقّق من اتصالك بالإنترنت ثم حاول مرة أخرى.', error: true);
     return;
   }
-  _openLobby(context, RoomConn.join(code!, Profile.I.name), game: game);
+  // ممنوع من الإبلاغات
+  if (r.ban != null) {
+    await showNotice(context, icon: Icons.block_rounded, title: 'لا يمكنك اللعب مع لاعبين آخرين الآن', text: r.ban!.message);
+    return;
+  }
+  // تنبيه أول مرة (قبل المنع)
+  if (r.warn != null) {
+    await showNotice(context, icon: Icons.warning_amber_rounded, title: 'تنبيه', text: r.warn!);
+    if (!context.mounted) return;
+  }
+  _openLobby(context, RoomConn.join(r.code!, Profile.I.name), game: game);
 }
 
 /// يدخل غرفة بالرمز: يدوّر بالإنترنت أول، وبعدين بالشبكة المحلية

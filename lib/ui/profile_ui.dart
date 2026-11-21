@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../core/profile.dart';
 import '../games/registry.dart';
+import '../logic/name_filter.dart';
 import 'background.dart';
 import 'kit.dart';
 import 'online.dart';
@@ -10,14 +11,17 @@ import 'theme.dart';
 /// قبل اللعب ويا الآخرين نحتاج اسم (مرة وحدة بس، وينحفظ)
 /// [invited]: جاي من رابط دعوة، فبعد الاسم يدخل الغرفة مباشرة
 Future<bool> ensureProfile(BuildContext context, {bool invited = false}) async {
-  if (Profile.I.hasName) return true;
-  return await editProfile(context, first: true, invited: invited);
+  final bad = isBadName(Profile.I.name);
+  if (Profile.I.hasName && !bad) return true;
+  return await editProfile(context, first: !Profile.I.hasName, invited: invited, problem: bad ? badNameMessage : null);
 }
 
 /// نافذة الاسم والصورة الرمزية
-Future<bool> editProfile(BuildContext context, {bool first = false, bool invited = false}) async {
+/// [problem]: سبب نطلب تغيير الاسم (مثلاً الاسم المحفوظ صار ممنوع)
+Future<bool> editProfile(BuildContext context, {bool first = false, bool invited = false, String? problem}) async {
   final name = TextEditingController(text: Profile.I.name);
   var avatar = Profile.I.avatar;
+  String? nameError = problem;
   final ok = await showModalBottomSheet<bool>(
     context: context,
     backgroundColor: Colors.transparent,
@@ -54,8 +58,14 @@ Future<bool> editProfile(BuildContext context, {bool first = false, bool invited
                       maxLength: 14,
                       textAlign: TextAlign.center,
                       style: body(22, weight: FontWeight.w800),
+                      onChanged: (_) {
+                        if (nameError != null) set(() => nameError = null);
+                      },
                       decoration: InputDecoration(
                         hintText: 'اكتب اسمك',
+                        errorText: nameError,
+                        errorMaxLines: 2,
+                        errorStyle: body(13, weight: FontWeight.w700, color: const Color(0xFFFF6B81)),
                         counterText: '',
                         hintStyle: body(20, color: alpha(C.muted, 0.5)),
                         filled: true,
@@ -97,6 +107,11 @@ Future<bool> editProfile(BuildContext context, {bool first = false, bool invited
                       icon: Icons.check_rounded,
                       onTap: () {
                         if (name.text.trim().isEmpty) return;
+                        // فلتر الأسماء (نفس فحص السيرفر)
+                        if (isBadName(name.text)) {
+                          set(() => nameError = badNameMessage);
+                          return;
+                        }
                         Navigator.pop(ctx, true);
                       },
                     ),
@@ -195,6 +210,33 @@ class ProfileScreen extends StatelessWidget {
                           ),
                       ],
                     ),
+                    if (p.blocked.isNotEmpty) ...[
+                      const SizedBox(height: 22),
+                      Text('المحظورون', style: body(16, weight: FontWeight.w800, color: C.muted)),
+                      Text('لن تُجمع معهم عند اللعب مع لاعبين آخرين.', style: body(13, color: C.muted)),
+                      const SizedBox(height: 8),
+                      for (final e in p.blocked.entries)
+                        Container(
+                          margin: const EdgeInsets.only(bottom: 6),
+                          padding: const EdgeInsets.fromLTRB(14, 4, 6, 4),
+                          decoration: BoxDecoration(
+                            color: alpha(Colors.white, 0.04),
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(color: C.line),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.block_rounded, color: C.muted, size: 18),
+                              const SizedBox(width: 8),
+                              Expanded(child: Text(e.value.isEmpty ? 'لاعب' : e.value, style: body(15, weight: FontWeight.w700))),
+                              TextButton(
+                                onPressed: () => p.unblock(e.key),
+                                child: Text('إلغاء الحظر', style: body(13, weight: FontWeight.w800, color: const Color(0xFFC9B8FF))),
+                              ),
+                            ],
+                          ),
+                        ),
+                    ],
                     const SizedBox(height: 22),
                     Text('الألعاب', style: body(16, weight: FontWeight.w800, color: C.muted)),
                     const SizedBox(height: 8),

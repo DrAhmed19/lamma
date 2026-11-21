@@ -6,6 +6,7 @@ import 'dart:js_interop';
 
 import 'package:lamma/logic/game_model.dart';
 import 'package:lamma/logic/models.dart';
+import 'package:lamma/logic/name_filter.dart';
 
 @JS('globalThis')
 external JSObject get _global;
@@ -41,6 +42,9 @@ class JsLogic {
   JSObject restore(String json) =>
       createJSInteropWrapper(JsGame(restoreModel(jsonDecode(json) as Map<String, dynamic>)));
   bool supports(String id) => onlineGames.contains(id);
+
+  /// فلتر الأسماء (نفس اللي بالتطبيق)
+  bool badName(String name) => isBadName(name);
 }
 
 void main() {

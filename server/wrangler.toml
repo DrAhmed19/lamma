@@ -21,3 +21,12 @@ class_name = "Match"
 [[migrations]]
 tag = "v2"
 new_sqlite_classes = ["Match"]
+
+# الإبلاغات والمنع من اللعب ويا الغرباء (وحدة لكل السيرفر). رابط صفحة الإدارة بالسر ADMIN_KEY
+[[durable_objects.bindings]]
+name = "MOD"
+class_name = "Mod"
+
+[[migrations]]
+tag = "v3"
+new_sqlite_classes = ["Mod"]
