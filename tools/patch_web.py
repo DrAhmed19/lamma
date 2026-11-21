@@ -56,7 +56,11 @@ pathlib.Path("web/flutter_bootstrap.js").write_text("""{{flutter_js}}
 {{flutter_build_config}}
 (function () {
   var r = new URLSearchParams(location.search).get('r');
-  try { if (r) localStorage.setItem('lamma_r', r); else r = localStorage.getItem('lamma_r'); } catch (e) {}
+  try {
+    if (r === 'auto') { localStorage.removeItem('lamma_r'); r = null; }
+    else if (r) localStorage.setItem('lamma_r', r);
+    else r = localStorage.getItem('lamma_r');
+  } catch (e) {}
   var cfg = {};
   // آيفون/آيباد/سفاري: محرك skwasm بطيء كلش (جربناه: 2-7 إطار بالثانية، وCanvasKit 50+)،
   // فنستخدم CanvasKit إلهم دائماً. باقي المتصفحات تبقى على skwasm (أسرع بكروم).
