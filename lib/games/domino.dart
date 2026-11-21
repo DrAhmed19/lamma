@@ -56,10 +56,28 @@ class _DominoState extends LoopState<DominoGame> {
   final ValueNotifier<int> boardVer = ValueNotifier(0);
   _Layout? layout;
 
+  /// قطعة نازلة على الطاولة (حركة من مكان اللاعب لمكانها بالسلسلة)
+  int flyTile = -1, flyFrom = 0;
+  double flyAt = -10;
+  static const flyDur = 0.38;
+
+  /// فقاعات "مرّر" و"سحب" فوق اللاعبين
+  final bubbles = <({int p, String text, double at})>[];
+  static const bubbleDur = 1.8;
+
+  /// مكان اللاعب بالشاشة: 0 = تحت (آني)، وبالأربعة 1 = يسار، 2 = فوق (شريكي)، 3 = يمين. باثنين: 1 = فوق.
+  int rel(int p) {
+    final base = vp < 0 ? 0 : vp;
+    return (p - base + m.players) % m.players;
+  }
+
+  /// فوق؟ (الخصم باثنين أو الشريك بأربعة)
+  bool isTop(int r) => m.players == 2 ? r == 1 : r == 2;
+
   @override
   void initState() {
     super.initState();
-    Sfx.preload(const ['clack', 'pop', 'tick', 'gold', 'freeze', 'win']);
+    Sfx.preload(const ['clack', 'pop', 'tick', 'gold', 'freeze', 'win', 'whoosh']);
   }
 
   @override
@@ -83,10 +101,17 @@ class _DominoState extends LoopState<DominoGame> {
     for (final e in session.takeEvents()) {
       switch (e['e']) {
         case 'play':
-          Sfx.play('clack');
-          Fx.hit();
+          // القطعة تنزل من مكان اللاعب، والصوت لمّن توصل
+          flyTile = e['t'] as int;
+          flyFrom = rel(e['p'] as int);
+          flyAt = time;
+          Sfx.play('whoosh', volume: 0.35);
         case 'draw':
           Sfx.play('pop', volume: 0.6);
+          _bubble(e['p'] as int, 'سحب ${e['n']}');
+        case 'pass':
+          Sfx.play('tick', volume: 0.6);
+          _bubble(e['p'] as int, 'مرّر!');
         case 'round':
           final s = e['side'] as int;
           final mine = vp >= 0 && s == m.sideOf(vp);
@@ -101,6 +126,17 @@ class _DominoState extends LoopState<DominoGame> {
           Sfx.play('win');
           Fx.big();
       }
+    }
+    // وصلت القطعة: تنرسم بالطاولة
+    if (flyTile >= 0 && time - flyAt >= flyDur) {
+      flyTile = -1;
+      boardVer.value++;
+      Sfx.play('clack');
+      Fx.hit();
+    }
+    if (bubbles.isNotEmpty && time - bubbles.first.at > bubbleDur) {
+      bubbles.removeWhere((b) => time - b.at > bubbleDur);
+      setState(() {});
     }
     if (!ready) return;
     final sig = '${m.chain.length}|${m.turn}|${m.phase}|${m.hands.map((h) => h.length)}|${m.side}|${m.over}|${m.pile.length}|${m.round}';
@@ -119,6 +155,12 @@ class _DominoState extends LoopState<DominoGame> {
     }
     final shouldShow = m.over && time - endAt > 1.4;
     if (shouldShow != showOver) setState(() => showOver = shouldShow);
+  }
+
+  void _bubble(int p, String text) {
+    bubbles.removeWhere((b) => b.p == p);
+    bubbles.add((p: p, text: text, at: time));
+    setState(() {});
   }
 
   // ------------------------------------------------------------ الحركات
@@ -227,6 +269,7 @@ class _DominoState extends LoopState<DominoGame> {
                 ),
               ),
             ),
+          if (ready) for (final b in bubbles) _bubbleView(b),
           if (ready && online) NetBanner(session: session, players: m.players),
           if (ready && covered) Positioned.fill(child: _cover()),
           if (showOver)
@@ -245,6 +288,51 @@ class _DominoState extends LoopState<DominoGame> {
               ),
             ),
         ],
+      ),
+    );
+  }
+
+  /// فقاعة "مرّر!" أو "سحب" تطلع بمكان اللاعب وتختفي
+  Widget _bubbleView(({int p, String text, double at}) b) {
+    final r = rel(b.p);
+    final align = r == 0
+        ? const Alignment(0, 0.5)
+        : isTop(r)
+            ? const Alignment(0, -0.6)
+            : r == 1
+                ? const Alignment(-0.72, 0)
+                : const Alignment(0.72, 0);
+    return Align(
+      alignment: align,
+      child: IgnorePointer(
+        child: ValueListenableBuilder<int>(
+          valueListenable: frame,
+          builder: (context, _, __) {
+            final age = time - b.at;
+            final pop = Curves.elasticOut.transform((age / 0.45).clamp(0.0, 1.0));
+            final fade = age < bubbleDur - 0.35 ? 1.0 : ((bubbleDur - age) / 0.35).clamp(0.0, 1.0);
+            final c = colorOf(b.p);
+            return Opacity(
+              opacity: fade,
+              child: Transform.scale(
+                scale: 0.4 + 0.6 * pop,
+                child: Transform.translate(
+                  offset: Offset(0, -10 * (age / bubbleDur)),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(color: c, width: 3),
+                      boxShadow: const [BoxShadow(color: Color(0x55000000), offset: Offset(0, 3))],
+                    ),
+                    child: Text(b.text, style: display(22, color: darken(c, 0.35))),
+                  ),
+                ),
+              ),
+            );
+          },
+        ),
       ),
     );
   }
@@ -275,32 +363,88 @@ class _DominoState extends LoopState<DominoGame> {
     return Row(children: [chip(mine), const SizedBox(width: 8), chip(1 - mine)]);
   }
 
-  /// قطع لاعب صغيرة (ظهرها، أو مكشوفة بنتيجة الجولة)
+  /// قطع لاعب: مروحة متراكبة قريبة من صورته (ظهرها، أو مكشوفة بنتيجة الجولة)
   Widget _miniHand(int p, {bool vertical = false}) {
     final h = m.hands[p];
-    const s = 9.0;
-    final tiles = [
-      for (final t in h)
-        SizedBox(
-          width: vertical ? s * 2 : s,
-          height: vertical ? s : s * 2,
-          // على نفس الجهاز الموديل يعرف كل القطع، فنقلبها هنا (إلا بنتيجة الجولة)
-          child: CustomPaint(painter: _TilePainter(t, faceDown: t < 0 || (!online && m.phase == 'play' && !m.over))),
-        ),
-    ];
-    return Wrap(
-      direction: vertical ? Axis.vertical : Axis.horizontal,
-      spacing: 2,
-      runSpacing: 2,
-      alignment: WrapAlignment.center,
-      children: tiles,
+    if (h.isEmpty) return const SizedBox.shrink();
+    // مكشوفة بنتيجة الجولة: أكبر شوية حتى تنقرا
+    final open = m.phase != 'play' || m.over;
+    final s = open ? 13.0 : 12.0;
+    final step = open ? s + 2 : s * 0.55; // متراكبة وهي مقلوبة، ومتفرقة وهي مكشوفة
+    final tw = vertical ? s * 2 : s, th = vertical ? s : s * 2;
+    final n = h.length;
+    final w = vertical ? tw : tw + step * (n - 1);
+    final hh = vertical ? th + step * (n - 1) : th;
+    return SizedBox(
+      width: w,
+      height: hh,
+      child: Stack(
+        children: [
+          for (var i = 0; i < n; i++)
+            Positioned(
+              left: vertical ? 0 : step * i,
+              top: vertical ? step * i : 0,
+              width: tw,
+              height: th,
+              // على نفس الجهاز الموديل يعرف كل القطع، فنقلبها هنا (إلا بنتيجة الجولة)
+              child: CustomPaint(painter: _TilePainter(h[i], faceDown: h[i] < 0 || (!online && !open))),
+            ),
+        ],
+      ),
+    );
+  }
+
+  /// صورة اللاعب وجنبها عدد قطعه (والدور يلمع)
+  Widget _avatarBadge(int p) {
+    final turn = m.phase == 'play' && m.turn == p;
+    final room = widget.room;
+    final avatar = room != null && p < room.seats.length ? room.avatarOfSeat(room.seats[p]) : '';
+    final c = colorOf(p);
+    return SizedBox(
+      width: 46,
+      height: 40,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Positioned(
+            left: 3,
+            top: 0,
+            child: Container(
+              width: 38,
+              height: 38,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: alpha(c, 0.3),
+                shape: BoxShape.circle,
+                border: Border.all(color: turn ? _gold : c, width: turn ? 3 : 2),
+              ),
+              child: avatar.isEmpty
+                  ? Container(width: 18, height: 18, decoration: BoxDecoration(color: c, shape: BoxShape.circle))
+                  : Text(avatar, style: const TextStyle(fontSize: 20)),
+            ),
+          ),
+          // عدد القطع
+          Positioned(
+            right: -2,
+            bottom: -2,
+            child: Container(
+              constraints: const BoxConstraints(minWidth: 20),
+              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF7F1E3),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: c, width: 2),
+              ),
+              child: Text('${m.hands[p].length}', textAlign: TextAlign.center, style: body(12, weight: FontWeight.w900, color: const Color(0xFF1C1A22))),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
   Widget _seatLabel(int p, {bool compact = false}) {
     final turn = m.phase == 'play' && m.turn == p;
-    final room = widget.room;
-    final avatar = room != null && p < room.seats.length ? room.avatarOfSeat(room.seats[p]) : '';
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
@@ -311,12 +455,19 @@ class _DominoState extends LoopState<DominoGame> {
       child: compact
           ? Column(
               children: [
-                if (avatar.isNotEmpty) Text(avatar, style: const TextStyle(fontSize: 16)),
+                _avatarBadge(p),
                 Text(nameOf(p), maxLines: 1, overflow: TextOverflow.ellipsis, style: body(11, weight: FontWeight.w800)),
-                Text('${m.hands[p].length} قطع', style: body(10, color: alpha(Colors.white, 0.7))),
               ],
             )
-          : Text('$avatar ${nameOf(p)} · ${m.hands[p].length}', maxLines: 1, overflow: TextOverflow.ellipsis, style: body(12, weight: FontWeight.w800)),
+          : Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _avatarBadge(p),
+                const SizedBox(width: 6),
+                Flexible(child: Text(nameOf(p), maxLines: 1, overflow: TextOverflow.ellipsis, style: body(13, weight: FontWeight.w800))),
+                const SizedBox(width: 4),
+              ],
+            ),
     );
   }
 
@@ -328,10 +479,6 @@ class _DominoState extends LoopState<DominoGame> {
         _seatLabel(p),
         const SizedBox(height: 4),
         _miniHand(p),
-        if (m.pile.isNotEmpty) ...[
-          const SizedBox(height: 2),
-          Text('السحب: ${m.pile.length}', style: body(11, color: alpha(Colors.white, 0.6))),
-        ],
       ],
     );
   }
@@ -359,11 +506,45 @@ class _DominoState extends LoopState<DominoGame> {
         child: Stack(
           children: [
             Positioned.fill(child: RepaintBoundary(child: CustomPaint(painter: _BoardPainter(this)))),
-            if (selected >= 0) Positioned.fill(child: CustomPaint(painter: _MarksPainter(this))),
+            // دوري: الجهات اللي تنفع تتلوّن، والقطعة النازلة تتحرك
+            if (myTurn) Positioned.fill(child: CustomPaint(painter: _MarksPainter(this))),
+            Positioned.fill(child: IgnorePointer(child: CustomPaint(painter: _FlyPainter(this)))),
+            // قطع السحب (بلاعبين)
+            if (m.players == 2) Positioned(top: 4, left: 4, child: _stock()),
           ],
         ),
       );
     });
+  }
+
+  /// كومة السحب ويا عددها
+  Widget _stock() {
+    final n = m.pile.length;
+    return Opacity(
+      opacity: n == 0 ? 0.45 : 1,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox(
+            width: 30,
+            height: 34,
+            child: Stack(
+              children: [
+                for (var i = 0; i < math.min(3, math.max(1, n)); i++)
+                  Positioned(
+                    left: i * 3.0,
+                    top: 6 - i * 3.0,
+                    width: 24,
+                    height: 26,
+                    child: CustomPaint(painter: _TilePainter(-1, faceDown: true)),
+                  ),
+              ],
+            ),
+          ),
+          Text(n == 0 ? 'خلص السحب' : 'السحب $n', style: body(11, weight: FontWeight.w800, color: alpha(Colors.white, 0.85))),
+        ],
+      ),
+    );
   }
 
   Widget _statusRow() {
@@ -564,9 +745,12 @@ class _TilePainter extends CustomPainter {
 
 /// قطعة بمكانها على الطاولة
 class _Placed {
-  _Placed(this.rect, this.a, this.b);
+  _Placed(this.rect, this.a, this.b, [this.t = -1]);
   final Rect rect;
   final int a, b;
+
+  /// رقم القطعة (حتى نعرف وين نزلت القطعة الأخيرة)
+  final int t;
 }
 
 class _Layout {
@@ -593,7 +777,7 @@ _Layout layoutChain(DominoModel m, Size size) {
     final a0 = m.chainL(m.anchor), b0 = m.chainR(m.anchor);
     final dbl0 = a0 == b0;
     final r0 = dbl0 ? Rect.fromCenter(center: Offset(cx, 0), width: u, height: 2 * u) : Rect.fromCenter(center: Offset(cx, 0), width: 2 * u, height: u);
-    tiles.add(_Placed(r0, a0, b0));
+    tiles.add(_Placed(r0, a0, b0, m.chainTile(m.anchor)));
 
     Offset walk(int from, int to, int step, int dir0, int vdir) {
       var x = dir0 > 0 ? r0.right : r0.left;
@@ -607,20 +791,21 @@ _Layout layoutChain(DominoModel m, Size size) {
         final b = step > 0 ? m.chainR(i) : m.chainL(i);
         final dbl = a == b;
         final w = dbl ? u : 2 * u;
+        final tid = m.chainTile(i);
         final fits = dir > 0 ? x + w <= size.width - margin : x - w >= margin;
         if (fits) {
           final r = dbl
               ? Rect.fromLTWH(dir > 0 ? x : x - u, y - u, u, 2 * u)
               : Rect.fromLTWH(dir > 0 ? x : x - 2 * u, y - u / 2, 2 * u, u);
           // الأفقية: النص القريب بجهة القطعة اللي قبلها
-          tiles.add(dir > 0 || dbl ? _Placed(r, a, b) : _Placed(r, b, a));
+          tiles.add(dir > 0 || dbl ? _Placed(r, a, b, tid) : _Placed(r, b, a, tid));
           x += dir * w;
           lastHalf = dbl ? u : u / 2;
         } else {
           // لفّة: قطعة عمودية نازلة (أو صاعدة) تحت/فوق طرف آخر قطعة، والصف الجاي يرجع بالعكس
           final left = dir > 0 ? x - u : x;
           final r = vdir > 0 ? Rect.fromLTWH(left, y + lastHalf, u, 2 * u) : Rect.fromLTWH(left, y - lastHalf - 2 * u, u, 2 * u);
-          tiles.add(vdir > 0 ? _Placed(r, a, b) : _Placed(r, b, a));
+          tiles.add(vdir > 0 ? _Placed(r, a, b, tid) : _Placed(r, b, a, tid));
           // الصف الجاي بمستوى النص البعيد من القطعة العمودية
           y += vdir * (lastHalf + 1.5 * u);
           x = dir > 0 ? left : left + u;
@@ -644,7 +829,7 @@ _Layout layoutChain(DominoModel m, Size size) {
     if (bottom - top <= size.height - 8 || tries == 29) {
       final dy = size.height / 2 - (top + bottom) / 2;
       final shift = Offset(0, dy);
-      return _Layout([for (final t in tiles) _Placed(t.rect.shift(shift), t.a, t.b)], u, leftMark + shift, rightMark + shift);
+      return _Layout([for (final t in tiles) _Placed(t.rect.shift(shift), t.a, t.b, t.t)], u, leftMark + shift, rightMark + shift);
     }
     u *= 0.88;
   }
@@ -660,6 +845,7 @@ class _BoardPainter extends CustomPainter {
     final l = layoutChain(s.m, size);
     s.layout = l;
     for (final t in l.tiles) {
+      if (t.t >= 0 && t.t == s.flyTile) continue; // بعدها نازلة (_FlyPainter)
       paintTile(canvas, t.rect, t.a, t.b);
     }
   }
@@ -676,9 +862,29 @@ class _MarksPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final l = s.layout;
-    if (l == null) return;
+    final m = s.m;
+    if (l == null || m.chainLen == 0 || s.vp < 0) return;
     final pulse = 0.5 + 0.5 * math.sin(s.time * 6);
-    for (final p in [l.leftMark, l.rightMark]) {
+    // بدون اختيار: نلوّن بالأخضر الجهات اللي تنفع لأي قطعة عندي
+    if (s.selected < 0) {
+      final sides = {for (final t in m.playable(s.vp)) ...m.sidesFor(t)};
+      for (final side in sides) {
+        final p = side == 'l' ? l.leftMark : l.rightMark;
+        canvas.drawCircle(p, l.u * 0.7, Paint()..color = alpha(C.go, 0.18 + 0.12 * pulse));
+        canvas.drawCircle(
+          p,
+          l.u * 0.7,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 2
+            ..color = alpha(C.go, 0.7),
+        );
+      }
+      return;
+    }
+    // قطعة مختارة: علامات ذهبية بس على الجهات اللي تنفع إلها (تنضغط)
+    final ok = m.sidesFor(s.selected);
+    for (final p in [if (ok.contains('l')) l.leftMark, if (ok.contains('r')) l.rightMark]) {
       canvas.drawCircle(p, l.u * (0.75 + 0.1 * pulse), Paint()..color = alpha(_gold, 0.25 + 0.2 * pulse));
       canvas.drawCircle(
         p,
@@ -693,6 +899,40 @@ class _MarksPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_MarksPainter old) => true;
+}
+
+/// القطعة النازلة: تطير من مكان اللاعب لمكانها بالسلسلة وتكبر شوية وترجع
+class _FlyPainter extends CustomPainter {
+  _FlyPainter(this.s) : super(repaint: s.frame);
+  final _DominoState s;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final l = s.layout;
+    if (s.flyTile < 0 || l == null) return;
+    _Placed? dest;
+    for (final t in l.tiles) {
+      if (t.t == s.flyTile) dest = t;
+    }
+    if (dest == null) return;
+    final k = ((s.time - s.flyAt) / _DominoState.flyDur).clamp(0.0, 1.0);
+    final e = Curves.easeOutCubic.transform(k);
+    final r = s.flyFrom;
+    final from = r == 0
+        ? Offset(size.width / 2, size.height + l.u * 3)
+        : s.isTop(r)
+            ? Offset(size.width / 2, -l.u * 3)
+            : r == 1
+                ? Offset(-l.u * 3, size.height / 2)
+                : Offset(size.width + l.u * 3, size.height / 2);
+    final c = Offset.lerp(from, dest.rect.center, e)!;
+    final scale = 1.35 - 0.35 * e;
+    final rect = Rect.fromCenter(center: c, width: dest.rect.width * scale, height: dest.rect.height * scale);
+    paintTile(canvas, rect, dest.a, dest.b, glow: k < 1);
+  }
+
+  @override
+  bool shouldRepaint(_FlyPainter old) => true;
 }
 
 /// أيقونة اللعبة: قطعتين
