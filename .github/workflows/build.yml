@@ -99,6 +99,8 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 40
 
       - uses: actions/setup-java@v4
         with:
@@ -125,12 +127,22 @@ jobs:
           flutter build apk --release --dart-define=BUILD=${GITHUB_SHA::7} --dart-define=SERVER=${{ needs.server.outputs.url }}
           cp build/app/outputs/flutter-apk/app-release.apk lamma.apk
 
+      # معلومات التحديث: التطبيق يقراها ويقارن رقم نسخته، ويعرض شنو الجديد (آخر 30 تعديل)
+      - name: Update info
+        run: |
+          VER=$(grep '^version:' pubspec.yaml | sed 's/version: *//; s/+.*//' | tr -d '\r')
+          CHANGES=$(git log -30 --abbrev=7 --pretty=format:'%h%x09%cI%x09%s' | jq -R -s 'split("\n") | map(select(length>0) | split("\t") | {sha: .[0], date: .[1], title: .[2]})')
+          jq -n --arg sha "${GITHUB_SHA::7}" --arg version "$VER" --arg sha256 "$(sha256sum lamma.apk | cut -d' ' -f1)" --argjson size "$(stat -c%s lamma.apk)" --arg date "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --argjson changes "$CHANGES" '{sha:$sha, version:$version, size:$size, sha256:$sha256, date:$date, changes:$changes}' > update.json
+          cat update.json | head -c 600
+
       - name: Publish APK
         uses: softprops/action-gh-release@v2
         with:
           tag_name: apk-latest
           name: لمّة - آخر نسخة
           body: "آخر نسخة APK من لمّة — نفس نسخة الويب (${{ github.sha }})"
-          files: lamma.apk
+          files: |
+            lamma.apk
+            update.json
           prerelease: false
           make_latest: true

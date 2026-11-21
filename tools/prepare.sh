@@ -20,7 +20,9 @@ sed -i 's/android:label="[^"]*"/android:label="لمّة"/' "$M"
 grep -q 'screenOrientation' "$M" || sed -i 's/android:name=".MainActivity"/android:name=".MainActivity"\n            android:screenOrientation="portrait"/' "$M"
 # الإنترنت (للأونلاين). Flutter يحطه بس بنسخة التطوير، فلازم نضيفه للنسخة الأصلية.
 grep -q 'android.permission.INTERNET' "$M" || sed -i 's|<application|<uses-permission android:name="android.permission.INTERNET"/>\n    <application|' "$M"
-grep -n "INTERNET" "$M"
+# تحديث التطبيق من داخله (تثبيت الـ APK)
+grep -q 'android.permission.REQUEST_INSTALL_PACKAGES' "$M" || sed -i 's|<application|<uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES"/>\n    <application|' "$M"
+grep -n "INTERNET\|REQUEST_INSTALL" "$M"
 
 KT=$(find android/app/src/main -name MainActivity.kt | head -1)
 PKG=$(grep -m1 '^package' "$KT")

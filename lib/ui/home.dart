@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../core/updater.dart';
 import '../core/version.dart';
 import '../games/registry.dart';
 import '../net/room.dart';
@@ -8,6 +9,7 @@ import 'icons.dart';
 import 'kit.dart';
 import 'online.dart';
 import 'theme.dart';
+import 'update.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -24,6 +26,8 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   void initState() {
     super.initState();
     _spin = AnimationController(vsync: this, duration: const Duration(seconds: 18))..repeat();
+    // نفحص إذا أكو نسخة جديدة (أندرويد بس)
+    Updater.I.check();
     // رابط دعوة بالويب: ?room=ABCD يفتح الأونلاين ويحط الكود
     final code = Uri.base.queryParameters['room'];
     if (code != null && code.length == 4) {
@@ -66,6 +70,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
               physics: const BouncingScrollPhysics(),
               slivers: [
                 SliverToBoxAdapter(child: _header()),
+                const SliverToBoxAdapter(child: UpdateBanner()),
                 SliverToBoxAdapter(child: _playersPicker()),
                 SliverPadding(
                   padding: const EdgeInsets.fromLTRB(16, 6, 16, 28),
@@ -89,11 +94,15 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                 SliverToBoxAdapter(
                   child: Padding(
                     padding: const EdgeInsets.only(bottom: 18),
-                    child: Text(
-                      versionLabel,
-                      textAlign: TextAlign.center,
-                      textDirection: TextDirection.rtl,
-                      style: body(12, color: alpha(C.muted, 0.7)),
+                    child: Pressable(
+                      // أندرويد: الضغط على رقم النسخة يفتح شاشة التحديث
+                      onTap: Updater.I.supported ? () => showUpdateSheet(context) : null,
+                      child: Text(
+                        Updater.I.supported ? '$versionLabel · تحقق من التحديث' : versionLabel,
+                        textAlign: TextAlign.center,
+                        textDirection: TextDirection.rtl,
+                        style: body(12, color: alpha(C.muted, 0.7)),
+                      ),
                     ),
                   ),
                 ),
