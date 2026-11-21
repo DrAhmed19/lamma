@@ -393,58 +393,84 @@ class _LobbyScreenState extends State<LobbyScreen> {
     }
   }
 
-  Widget _inviteCard() {
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(color: C.surface, borderRadius: BorderRadius.circular(24), border: Border.all(color: C.line)),
-      child: Column(
-        children: [
-          Text('ادعُ أصدقاءك', style: body(16, weight: FontWeight.w800, color: C.muted)),
-          const SizedBox(height: 4),
-          Text(room.code, style: display(58, color: Colors.white).copyWith(letterSpacing: 12)),
-          Text('هذا رمز الغرفة', style: body(13, color: C.muted)),
-          const SizedBox(height: 14),
-          if (!_local) ...[
-            WhatsAppButton(label: 'ادعُ عبر واتساب', text: () => _invite),
-            const SizedBox(height: 8),
-          ],
-          Row(
+  void _showQr() {
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => Dialog(
+        backgroundColor: C.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Expanded(
-                child: BigButton(
-                  label: _local ? 'إرسال الدعوة' : 'طرق أخرى',
-                  icon: Icons.share_rounded,
-                  filled: _local,
-                  onTap: _share,
-                ),
+              Text(room.code, style: display(40, color: Colors.white).copyWith(letterSpacing: 8)),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(18)),
+                child: QrImageView(data: _link, size: 220, padding: EdgeInsets.zero),
               ),
-              const SizedBox(width: 8),
-              Pressable(
-                onTap: _copy,
-                child: Container(
-                  width: 56,
-                  height: 56,
-                  decoration: BoxDecoration(color: alpha(Colors.white, 0.06), borderRadius: BorderRadius.circular(18), border: Border.all(color: C.line)),
-                  child: const Icon(Icons.copy_rounded, color: Colors.white),
-                ),
+              const SizedBox(height: 12),
+              Text(
+                room.isLan ? 'امسح الرمز بكاميرا الهاتف (يجب أن تكونوا على شبكة Wi‑Fi نفسها)' : 'امسح الرمز بكاميرا الهاتف',
+                textAlign: TextAlign.center,
+                style: body(14, color: C.muted),
               ),
             ],
           ),
-          const SizedBox(height: 14),
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(18)),
-            child: QrImageView(data: _link, size: 150, padding: EdgeInsets.zero),
+        ),
+      ),
+    );
+  }
+
+  Widget _square(IconData icon, VoidCallback onTap) => Pressable(
+        onTap: onTap,
+        child: Container(
+          width: 52,
+          height: 52,
+          decoration: BoxDecoration(color: alpha(Colors.white, 0.06), borderRadius: BorderRadius.circular(16), border: Border.all(color: C.line)),
+          child: Icon(icon, color: Colors.white),
+        ),
+      );
+
+  // بطاقة الدعوة مضغوطة: الرمز + أزرار بسطر، والـ QR بنافذة لمّن ينضغط
+  Widget _inviteCard() {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
+      decoration: BoxDecoration(color: C.surface, borderRadius: BorderRadius.circular(22), border: Border.all(color: C.line)),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('رمز الغرفة', style: body(13, color: C.muted)),
+                    Text(room.code, style: display(40, color: Colors.white).copyWith(letterSpacing: 8, height: 1.1)),
+                  ],
+                ),
+              ),
+              _square(Icons.copy_rounded, _copy),
+              const SizedBox(width: 8),
+              _square(Icons.qr_code_2_rounded, _showQr),
+            ],
           ),
-          const SizedBox(height: 8),
-          Text(
-            room.isLan ? 'لمن بجانبك: امسح الرمز بكاميرا الهاتف (يجب أن تكونوا على شبكة Wi‑Fi نفسها)' : 'لمن بجانبك: امسح الرمز بكاميرا الهاتف',
-            textAlign: TextAlign.center,
-            style: body(13, color: C.muted),
-          ),
+          const SizedBox(height: 10),
+          if (!_local)
+            Row(
+              children: [
+                Expanded(child: WhatsAppButton(label: 'واتساب', text: () => _invite)),
+                const SizedBox(width: 8),
+                _square(Icons.share_rounded, _share),
+              ],
+            )
+          else
+            BigButton(label: 'إرسال الدعوة', icon: Icons.share_rounded, filled: true, onTap: _share),
           if (widget.lanHost != null) ...[
-            const SizedBox(height: 4),
-            Text('أبقِ التطبيق مفتوحًا طوال اللعب.', textAlign: TextAlign.center, style: body(13, color: const Color(0xFFFFB627))),
+            const SizedBox(height: 8),
+            Text('على شبكة Wi‑Fi نفسها · أبقِ التطبيق مفتوحًا طوال اللعب', textAlign: TextAlign.center, style: body(12, color: const Color(0xFFFFB627))),
           ],
         ],
       ),

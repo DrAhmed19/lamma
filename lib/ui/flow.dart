@@ -67,12 +67,15 @@ Future<void> createFriendsRoom(BuildContext context, {GameInfo? game}) async {
   String? code;
   String? server;
   LanHost? lan;
+  String? onlineErr;
   await withBusy(context, 'جارٍ تجهيز الغرفة...', () async {
     if (onlineAvailable) {
       try {
         code = await RoomConn.createRoom();
         return;
-      } catch (_) {}
+      } catch (e) {
+        onlineErr = e.toString().split('\n').first;
+      }
     }
     // ماكو إنترنت: غرفة على نفس الشبكة (أندرويد)
     if (lanHostSupported) {
@@ -100,6 +103,10 @@ Future<void> createFriendsRoom(BuildContext context, {GameInfo? game}) async {
     return;
   }
   _openLobby(context, RoomConn.join(code!, Profile.I.name, server: server), game: game, lan: lan);
+  // ما گدرنا نوصل السيرفر فسوّينا غرفة محلية: نبيّن السبب حتى نعرف شنو صار
+  if (lan != null && onlineErr != null && context.mounted) {
+    showMessage(context, 'تعذّر الوصول إلى سيرفر الإنترنت، فأُنشئت غرفة على شبكة Wi‑Fi نفسها.\n($onlineErr)');
+  }
 }
 
 /// "مع لاعبين آخرين": لعب سريع بالإنترنت

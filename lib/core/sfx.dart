@@ -31,8 +31,15 @@ class Sfx {
     }
   }
 
+  static final Map<String, int> _lastAt = {};
+  static final _clock = Stopwatch()..start();
+
   static void play(String name, {double volume = 1}) {
     if (!enabled) return;
+    // نفس الصوت مرتين بأقل من 70ms ما يبين، بس يثقّل (خصوصاً متصفح الآيفون)
+    final now = _clock.elapsedMilliseconds;
+    if (now - (_lastAt[name] ?? -1000) < 70) return;
+    _lastAt[name] = now;
     final ps = _pool.putIfAbsent(name, () => List.generate(_voices, (_) => _make(name)));
     final i = (_next[name] ?? 0) % ps.length;
     _next[name] = i + 1;

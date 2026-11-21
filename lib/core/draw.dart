@@ -17,6 +17,10 @@ void paintText(
   double maxWidth = 1000,
   List<Shadow>? shadows,
 }) {
+  // الشفافية تتغير كل إطار (كتابة تختفي تدريجياً)، فنقرّبها لـ 12 درجة،
+  // وإلا كل إطار يصير نص جديد ونعيد قياسه = تقطيع (خصوصاً بالآيفون لمّن تنصاد حمامة)
+  color = _q(color);
+  if (shadows != null) shadows = [for (final s in shadows) Shadow(color: _q(s.color), blurRadius: s.blurRadius, offset: s.offset)];
   // نحفظ النص المجهّز حتى ما نعيد قياسه كل إطار (القياس غالي)
   final key = '$text|$size|${color.toARGB32()}|$family|${weight.value}|$maxWidth|${shadows?.length ?? 0}|${shadows?.firstOrNull?.color.toARGB32()}';
   var tp = _textCache[key];
@@ -32,6 +36,8 @@ void paintText(
 }
 
 final _textCache = <String, TextPainter>{};
+
+Color _q(Color c) => c.withValues(alpha: (c.a * 12).round() / 12);
 
 TextPainter _layoutText(String text, double size, Color color, String family, FontWeight weight, double maxWidth,
     List<Shadow>? shadows) {
