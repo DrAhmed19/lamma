@@ -22,7 +22,9 @@ grep -q 'screenOrientation' "$M" || sed -i 's/android:name=".MainActivity"/andro
 grep -q 'android.permission.INTERNET' "$M" || sed -i 's|<application|<uses-permission android:name="android.permission.INTERNET"/>\n    <application|' "$M"
 # تحديث التطبيق من داخله (تثبيت الـ APK)
 grep -q 'android.permission.REQUEST_INSTALL_PACKAGES' "$M" || sed -i 's|<application|<uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES"/>\n    <application|' "$M"
-grep -n "INTERNET\|REQUEST_INSTALL" "$M"
+# اللعب على نفس الشبكة: الاتصال بتلفون صاحب الغرفة يكون http/ws عادي (بدون https)
+grep -q 'usesCleartextTraffic' "$M" || sed -i 's/<application/<application android:usesCleartextTraffic="true"/' "$M"
+grep -n "INTERNET\|REQUEST_INSTALL\|usesCleartextTraffic" "$M"
 
 KT=$(find android/app/src/main -name MainActivity.kt | head -1)
 PKG=$(grep -m1 '^package' "$KT")

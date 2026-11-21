@@ -430,8 +430,26 @@ export class Room {
         if (!meta.started || meta.endAt || !playing) return;
         const g = await this.ensureGame(meta);
         if (!g || !g.over()) return;
-        g.again();
+        // اللي طلعوا ورجعوا يدخلون ويانا. إذا تغيّر المشاركين نبدي مباراة جديدة،
+        // غير هيچ جولة جديدة بنفس المباراة (النتيجة التراكمية تبقى).
+        const on = this.online();
+        const keep = meta.seats.filter((s) => meta.players[s] && (!meta.out.includes(s) || on.has(s)));
+        const changed = keep.length !== meta.seats.length || meta.out.some((s) => keep.includes(s));
+        if (changed && keep.length >= 2) {
+          meta.seats = keep;
+          meta.out = [];
+          meta.offlineSince = {};
+          const seed = Math.floor(Math.random() * 2 ** 31);
+          this.game = globalThis.lamma.create(meta.game, keep.length, meta.crazy, seed);
+        } else {
+          g.again();
+        }
+        // رقم الجولة يتغير حتى اللي رجع للغرفة ينفتح عنده اللعب هم
+        meta.round += 1;
+        await this.saveMeta(meta);
+        this.broadcast(this.roomState(meta));
         await this.flush();
+        await this.syncLoop(meta);
         return;
       }
 

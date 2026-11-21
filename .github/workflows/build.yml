@@ -121,6 +121,16 @@ jobs:
       - name: Prepare platforms
         run: bash tools/prepare.sh
 
+      # نسخة ويب داخل الـ APK: تلفون صاحب الغرفة المحلية يقدّمها للآيفون والمتصفحات بدون إنترنت
+      # (بدون CDN حتى كل ملفاتها تكون داخلها)
+      - name: LAN web bundle
+        run: |
+          flutter pub get
+          flutter build web --release --no-web-resources-cdn --output build/lanweb --dart-define=BUILD=${GITHUB_SHA::7} --dart-define=SERVER=${{ needs.server.outputs.url }}
+          # بدون ملفات التصحيح وبدون محرك skwasm/wimp (هاي النسخة تستخدم canvaskit بس)
+          (cd build/lanweb && zip -qr -9 ../../assets/lan/web.zip . -x '*.map' '*.symbols' 'canvaskit/skwasm*' 'canvaskit/wimp*')
+          ls -la assets/lan
+
       - name: Build APK
         run: |
           flutter pub get

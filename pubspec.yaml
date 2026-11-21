@@ -7,6 +7,7 @@ environment:
   sdk: ">=3.5.0 <4.0.0"
 
 dependencies:
+  archive: ^4.7.1
   audioplayers: ^6.8.1
   crypto: ^3.0.8
   flutter:
@@ -16,6 +17,7 @@ dependencies:
   http: ^1.6.0
   open_filex: ^5.0.0
   path_provider: ^2.1.6
+  qr_flutter: ^4.1.0
   share_plus: ^13.3.1
   web_socket_channel: ^3.0.3
 
@@ -23,6 +25,7 @@ flutter:
   uses-material-design: true
   assets:
     - assets/sfx/
+    - assets/lan/
   fonts:
     - family: Tajawal
       fonts:

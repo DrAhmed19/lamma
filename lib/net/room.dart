@@ -11,7 +11,11 @@ import '../logic/models.dart';
 
 /// عنوان سيرفر الغرف. ينحط بالبناء (--dart-define=SERVER=...).
 /// إذا فاضي، الأونلاين ما يشتغل.
-const kServer = String.fromEnvironment('SERVER', defaultValue: '');
+const _kServerDefine = String.fromEnvironment('SERVER', defaultValue: '');
+
+/// الويب اللي ينفتح من تلفون صاحب غرفة محلية (?lan=1): السيرفر هو نفس العنوان
+final String? lanOrigin = kIsWeb && Uri.base.queryParameters['lan'] == '1' ? Uri.base.origin : null;
+String get kServer => lanOrigin ?? _kServerDefine;
 bool get onlineAvailable => kServer.isNotEmpty;
 
 /// رابط نسخة الويب (حتى الدعوة من التطبيق تفتح للآيفون هم)
@@ -53,10 +57,14 @@ double get netNow => _clock.elapsedMicroseconds / 1e6;
 /// الاتصال بغرفة. السيرفر هو اللي يدير اللعبة؛ هنا بس نعرض ونرسل الحركات.
 /// يرجع يتصل تلقائياً إذا انقطع، وبنفس المقعد.
 class RoomConn extends ChangeNotifier {
-  RoomConn._(this.code, this.name);
+  RoomConn._(this.code, this.name, this.server);
 
   final String code;
   final String name;
+
+  /// عنوان السيرفر لهالغرفة (الإنترنت، أو تلفون صاحب الغرفة بنفس الشبكة)
+  final String server;
+  bool get isLan => server != _kServerDefine || lanOrigin != null;
   final String _token = _randomToken();
 
   RoomStatus status = RoomStatus.connecting;
@@ -88,9 +96,15 @@ class RoomConn extends ChangeNotifier {
 
   WebSocketChannel? _ch;
   StreamSubscription? _sub;
-  Timer? _ping, _retry;
+  Timer? _ping, _retry, _watch;
   int _attempt = 0;
   bool _left = false;
+
+  /// آخر مرة وصلنا شي من السيرفر (حتى نكشف الاتصال الميت)
+  DateTime _lastRx = DateTime.now();
+
+  /// رسائل مهمة انرسلت والاتصال مقطوع: تنرسل أول ما نرجع
+  final List<Map<String, dynamic>> _pending = [];
 
   bool get isHost => mySeat >= 0 && mySeat == host;
 
@@ -111,53 +125,90 @@ class RoomConn extends ChangeNotifier {
       player >= 0 && player < seats.length && seatOn(seats[player]) && !out.contains(seats[player]);
 
   /// يسوّي غرفة جديدة ويرجع كودها
-  static Future<String> createRoom() async {
-    final r = await http.get(Uri.parse('$kServer/new')).timeout(const Duration(seconds: 10));
+  static Future<String> createRoom({String? server}) async {
+    final r = await http.get(Uri.parse('${server ?? kServer}/new')).timeout(const Duration(seconds: 10));
     if (r.statusCode != 200) throw Exception('server ${r.statusCode}');
     return (jsonDecode(r.body) as Map)['code'] as String;
   }
 
-  static RoomConn join(String code, String name) {
-    final c = RoomConn._(code.toUpperCase(), name);
+  static RoomConn join(String code, String name, {String? server}) {
+    final c = RoomConn._(code.toUpperCase(), name, server ?? kServer);
     c._connect();
     return c;
   }
 
   void _connect() {
     if (_left) return;
-    final ws = kServer.replaceFirst(RegExp('^http'), 'ws');
+    _retry?.cancel();
+    final ws = server.replaceFirst(RegExp('^http'), 'ws');
     try {
       final ch = WebSocketChannel.connect(Uri.parse('$ws/ws/$code'));
       _ch = ch;
-      _sub = ch.stream.listen(_onData, onDone: _onDrop, onError: (_) => _onDrop());
-      ch.ready.then((_) {
+      _sub = ch.stream.listen(
+        (d) {
+          if (identical(ch, _ch)) _onData(d);
+        },
+        onDone: () => _onDrop(ch),
+        onError: (_) => _onDrop(ch),
+      );
+      ch.ready.timeout(const Duration(seconds: 8)).then((_) {
+        if (!identical(ch, _ch)) return;
         _attempt = 0;
+        _lastRx = DateTime.now();
         _send({'t': 'join', 'name': name, 'token': _token});
-      }).catchError((_) => _onDrop());
+      }).catchError((_) => _onDrop(ch));
       _ping?.cancel();
-      _ping = Timer.periodic(const Duration(seconds: 15), (_) => _send({'t': 'ping'}));
+      _ping = Timer.periodic(const Duration(seconds: 8), (_) => _send({'t': 'ping'}));
+      // اتصال ميت (النت تبدّل، التلفون نام...): إذا ماكو شي وصل 20 ثانية نرجع نتصل
+      _watch?.cancel();
+      _watch = Timer.periodic(const Duration(seconds: 4), (_) {
+        if (identical(ch, _ch) && DateTime.now().difference(_lastRx) > const Duration(seconds: 20)) _onDrop(ch);
+      });
     } catch (_) {
-      _onDrop();
+      _onDrop(null);
     }
   }
 
-  void _onDrop() {
+  void _onDrop(WebSocketChannel? from) {
+    if (from != null && !identical(from, _ch)) return; // اتصال قديم
+    final old = _ch;
     _sub?.cancel();
     _sub = null;
     _ch = null;
     _ping?.cancel();
+    _watch?.cancel();
+    try {
+      old?.sink.close();
+    } catch (_) {}
     if (_left || status == RoomStatus.closed) return;
     status = RoomStatus.reconnecting;
     notifyListeners();
     _retry?.cancel();
     // نرجع نحاول بسرعة أول مرات (حتى اللي انقطع ثواني يلحق)
-    final wait = [300, 800, 1500, 3000, 5000][math.min(_attempt, 4)];
+    final wait = [200, 600, 1200, 2500, 4000][math.min(_attempt, 4)];
     _attempt++;
     _retry = Timer(Duration(milliseconds: wait), _connect);
   }
 
+  /// التطبيق رجع للواجهة (من الواتساب مثلاً): إذا الاتصال مشكوك بيه نرجع نتصل فوراً
+  void wake() {
+    if (_left || status == RoomStatus.closed) return;
+    final stale = DateTime.now().difference(_lastRx) > const Duration(seconds: 6);
+    if (_ch == null || status != RoomStatus.online || stale) {
+      _attempt = 0;
+      if (_ch != null) {
+        _onDrop(_ch);
+      } else {
+        _connect();
+      }
+    } else {
+      _send({'t': 'ping'});
+    }
+  }
+
   void _onData(dynamic raw) {
     final Map<String, dynamic> m;
+    _lastRx = DateTime.now();
     try {
       m = jsonDecode(raw as String) as Map<String, dynamic>;
     } catch (_) {
@@ -168,6 +219,12 @@ class RoomConn extends ChangeNotifier {
         mySeat = m['seat'] as int;
         status = RoomStatus.online;
         error = null;
+        // اللي انرسل والاتصال مقطوع
+        final q = List.of(_pending);
+        _pending.clear();
+        for (final x in q) {
+          _send(x);
+        }
       case 'room':
         host = m['host'] as int;
         game = m['game'] as String?;
@@ -205,9 +262,17 @@ class RoomConn extends ChangeNotifier {
     notifyListeners();
   }
 
+  static const _important = {'cfg', 'start', 'again', 'lobby', 'kick', 'host', 'quit', 'leave'};
+
   void _send(Map<String, dynamic> m) {
+    final ch = _ch;
+    final ready = ch != null && (status == RoomStatus.online || m['t'] == 'join' || m['t'] == 'ping');
+    if (!ready) {
+      if (_important.contains(m['t']) && !_pending.any((x) => x['t'] == m['t'])) _pending.add(m);
+      return;
+    }
     try {
-      _ch?.sink.add(jsonEncode(m));
+      ch.sink.add(jsonEncode(m));
     } catch (_) {}
   }
 
@@ -237,6 +302,7 @@ class RoomConn extends ChangeNotifier {
     status = RoomStatus.closed;
     _retry?.cancel();
     _ping?.cancel();
+    _watch?.cancel();
     _sub?.cancel();
     _ch?.sink.close();
   }

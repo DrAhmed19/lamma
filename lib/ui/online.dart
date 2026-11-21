@@ -4,9 +4,11 @@ import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../games/registry.dart';
+import '../net/lan.dart';
 import '../net/room.dart';
 import '../net/session.dart';
 import 'background.dart';
@@ -28,13 +30,21 @@ class OnlineScreen extends StatefulWidget {
 class _OnlineScreenState extends State<OnlineScreen> {
   late final _name = TextEditingController(text: playerName);
   late final _code = TextEditingController(text: widget.code ?? '');
+  final _addr = TextEditingController();
   bool _busy = false;
   String? _err;
+
+  // نفس الشبكة
+  bool _scanning = false;
+  bool _scanned = false;
+  List<LanFound> _found = const [];
+  String? _lanErr;
 
   @override
   void dispose() {
     _name.dispose();
     _code.dispose();
+    _addr.dispose();
     super.dispose();
   }
 
@@ -50,7 +60,7 @@ class _OnlineScreenState extends State<OnlineScreen> {
       if (!mounted) return;
       _enter(code);
     } catch (_) {
-      setState(() => _err = 'ما گدرنا نوصل للسيرفر. تأكد من النت وجرّب مرة ثانية.');
+      setState(() => _err = 'ما گدرنا نوصل للسيرفر. تأكد من النت وجرّب مرة ثانية، أو العبوا على نفس الشبكة.');
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -65,16 +75,75 @@ class _OnlineScreenState extends State<OnlineScreen> {
     _enter(code);
   }
 
-  void _enter(String code) {
+  void _enter(String code, {String? server, LanHost? lan}) {
     playerName = _cleanName;
-    final room = RoomConn.join(code, playerName);
+    final room = RoomConn.join(code, playerName, server: server);
     Navigator.of(context).pushReplacement(MaterialPageRoute(
-      builder: (_) => LobbyScreen(room: room, preferGame: widget.game),
+      builder: (_) => LobbyScreen(room: room, preferGame: widget.game, lanHost: lan),
     ));
+  }
+
+  Future<void> _hostLan() async {
+    setState(() {
+      _busy = true;
+      _lanErr = null;
+    });
+    try {
+      final h = await LanHost.start();
+      if (!mounted) {
+        await h.stop();
+        return;
+      }
+      if (h.ips.isEmpty) {
+        setState(() => _lanErr = 'ما لگيت شبكة. اتصل بواي فاي (حتى لو بدون نت) أو شغّل الهوتسبوت، وجرّب مرة ثانية.');
+        await h.stop();
+        return;
+      }
+      _enter(h.code, server: h.selfServer, lan: h);
+    } catch (_) {
+      if (mounted) setState(() => _lanErr = 'ما گدرت أشغّل الغرفة المحلية.');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _scan() async {
+    setState(() {
+      _scanning = true;
+      _lanErr = null;
+    });
+    final f = await scanLan();
+    if (!mounted) return;
+    setState(() {
+      _scanning = false;
+      _scanned = true;
+      _found = f;
+    });
+  }
+
+  /// عنوان مكتوب باليد (192.168.1.5 أو 192.168.1.5:8787)
+  Future<void> _joinAddr() async {
+    var a = _addr.text.trim();
+    if (a.isEmpty) return;
+    if (!a.contains(':')) a = '$a:$lanPort';
+    final server = 'http://$a';
+    setState(() {
+      _busy = true;
+      _lanErr = null;
+    });
+    try {
+      final code = await RoomConn.createRoom(server: server);
+      if (mounted) _enter(code, server: server);
+    } catch (_) {
+      if (mounted) setState(() => _lanErr = 'ما لگيت غرفة على هذا العنوان. تأكد إنكم على نفس الواي فاي.');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    final viaLan = lanOrigin != null;
     return Scaffold(
       body: Stack(
         children: [
@@ -90,39 +159,54 @@ class _OnlineScreenState extends State<OnlineScreen> {
                       icon: const Icon(Icons.arrow_forward_rounded, color: Colors.white),
                     ),
                     const SizedBox(width: 4),
-                    Text('أونلاين', style: display(34)),
+                    Text(viaLan ? 'نفس الشبكة' : 'العب ويا ربعك', style: display(34)),
                   ],
                 ),
                 const SizedBox(height: 6),
-                Text('كل واحد يلعب بتلفونه من أي مكان. سوّي غرفة وانطي الكود لربعك.',
+                Text(
+                    viaLan
+                        ? 'انت متصل بتلفون صاحب الغرفة على نفس الشبكة. اكتب اسمك وادخل.'
+                        : 'كل واحد يلعب بتلفونه: بالإنترنت من أي مكان، أو على نفس الواي فاي بدون إنترنت.',
                     style: body(15, color: C.muted)),
                 const SizedBox(height: 22),
-                if (!onlineAvailable)
-                  _note('الأونلاين بعده مو مفعّل بهالنسخة. حدّث التطبيق أو جرّب الويب.')
-                else ...[
-                  Text('اسمك', style: body(15, weight: FontWeight.w700, color: C.muted)),
-                  const SizedBox(height: 8),
-                  _field(_name, hint: 'شسمك؟', maxLength: 14),
-                  const SizedBox(height: 22),
-                  BigButton(
-                    label: _busy ? 'لحظة...' : 'سوّي غرفة جديدة',
-                    icon: Icons.add_rounded,
-                    onTap: _busy ? () {} : _create,
-                  ),
-                  const SizedBox(height: 26),
-                  Text('عندك كود؟', style: body(15, weight: FontWeight.w700, color: C.muted)),
-                  const SizedBox(height: 8),
+                Text('اسمك', style: body(15, weight: FontWeight.w700, color: C.muted)),
+                const SizedBox(height: 8),
+                _field(_name, hint: 'شسمك؟', maxLength: 14),
+                const SizedBox(height: 22),
+                if (viaLan) ...[
                   Row(
                     children: [
                       Expanded(child: _field(_code, hint: 'ABCD', maxLength: 4, code: true)),
                       const SizedBox(width: 10),
-                      BigButton(label: 'ادخل', icon: Icons.login_rounded, filled: false, onTap: _join),
+                      BigButton(label: 'ادخل', icon: Icons.login_rounded, onTap: _join),
                     ],
                   ),
-                  if (_err != null) ...[
-                    const SizedBox(height: 16),
-                    _note(_err!, color: const Color(0xFFFF4D6A)),
+                ] else ...[
+                  _section(Icons.public_rounded, 'بالإنترنت'),
+                  if (!onlineAvailable)
+                    _note('الأونلاين بعده مو مفعّل بهالنسخة. حدّث التطبيق أو جرّب الويب.')
+                  else ...[
+                    BigButton(
+                      label: _busy ? 'لحظة...' : 'سوّي غرفة جديدة',
+                      icon: Icons.add_rounded,
+                      onTap: _busy ? () {} : _create,
+                    ),
+                    const SizedBox(height: 14),
+                    Row(
+                      children: [
+                        Expanded(child: _field(_code, hint: 'ABCD', maxLength: 4, code: true)),
+                        const SizedBox(width: 10),
+                        BigButton(label: 'ادخل', icon: Icons.login_rounded, filled: false, onTap: _join),
+                      ],
+                    ),
                   ],
+                  const SizedBox(height: 28),
+                  _section(Icons.wifi_rounded, 'نفس الشبكة (بدون إنترنت)'),
+                  if (lanHostSupported) ..._lanApp() else _lanWebHelp(),
+                ],
+                if (_err != null) ...[
+                  const SizedBox(height: 16),
+                  _note(_err!, color: const Color(0xFFFF4D6A)),
                 ],
               ],
             ),
@@ -132,11 +216,104 @@ class _OnlineScreenState extends State<OnlineScreen> {
     );
   }
 
-  Widget _field(TextEditingController c, {required String hint, int? maxLength, bool code = false}) {
+  Widget _section(IconData icon, String title) => Padding(
+        padding: const EdgeInsets.only(bottom: 10),
+        child: Row(
+          children: [
+            Icon(icon, size: 18, color: C.muted),
+            const SizedBox(width: 6),
+            Text(title, style: body(15, weight: FontWeight.w800, color: C.muted)),
+          ],
+        ),
+      );
+
+  List<Widget> _lanApp() => [
+        Text('كلكم على نفس الواي فاي (حتى لو ما بيه نت)، أو على هوتسبوت تلفون واحد منكم.',
+            style: body(14, color: alpha(Colors.white, 0.7))),
+        const SizedBox(height: 12),
+        BigButton(
+          label: _busy ? 'لحظة...' : 'سوّي غرفة محلية',
+          icon: Icons.router_rounded,
+          color: const Color(0xFF16B46A),
+          onTap: _busy ? () {} : _hostLan,
+        ),
+        const SizedBox(height: 10),
+        BigButton(
+          label: _scanning ? 'دا أدوّر...' : 'دوّر على غرف قريبة',
+          icon: Icons.radar_rounded,
+          filled: false,
+          onTap: _scanning ? () {} : _scan,
+        ),
+        if (_scanning)
+          const Padding(
+            padding: EdgeInsets.only(top: 12),
+            child: LinearProgressIndicator(minHeight: 3),
+          ),
+        if (_scanned && !_scanning) ...[
+          const SizedBox(height: 12),
+          if (_found.isEmpty)
+            _note('ما لگيت غرف. تأكد إن صاحب الغرفة سوّاها وإنكم على نفس الشبكة، أو اكتب عنوانه تحت.')
+          else
+            for (final f in _found) _foundTile(f),
+        ],
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(child: _field(_addr, hint: 'عنوان: 192.168.1.5', ltr: true)),
+            const SizedBox(width: 10),
+            BigButton(label: 'اتصل', icon: Icons.link_rounded, filled: false, onTap: _busy ? () {} : _joinAddr),
+          ],
+        ),
+        if (_lanErr != null) ...[
+          const SizedBox(height: 12),
+          _note(_lanErr!, color: const Color(0xFFFF4D6A)),
+        ],
+      ];
+
+  Widget _foundTile(LanFound f) => Padding(
+        padding: const EdgeInsets.only(bottom: 8),
+        child: Pressable(
+          onTap: () => _enter(f.code, server: f.server),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: alpha(const Color(0xFF16B46A), 0.14),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: alpha(const Color(0xFF16B46A), 0.55)),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.wifi_tethering_rounded, color: Color(0xFF22D37E)),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(f.hostName.isEmpty ? 'غرفة ${f.code}' : 'غرفة ${f.hostName}', style: body(17, weight: FontWeight.w800)),
+                      Text('${f.code} · ${f.players} لاعبين${f.started ? ' · يلعبون هسه' : ''}', style: body(13, color: C.muted)),
+                    ],
+                  ),
+                ),
+                const Icon(Icons.login_rounded, color: Colors.white),
+              ],
+            ),
+          ),
+        ),
+      );
+
+  Widget _lanWebHelp() => _note(
+        'بدون إنترنت، لازم واحد منكم عنده تطبيق لمّة على أندرويد: يسوّي "غرفة محلية"، '
+        'وانت امسح الـ QR اللي يطلع عنده بكاميرة تلفونك (أو افتح العنوان اللي تحته بالمتصفح). '
+        'لازم تكونون على نفس الواي فاي أو على الهوتسبوت مالته.',
+      );
+
+  Widget _field(TextEditingController c, {required String hint, int? maxLength, bool code = false, bool ltr = false}) {
     return TextField(
       controller: c,
       maxLength: maxLength,
       textAlign: code ? TextAlign.center : TextAlign.start,
+      textDirection: ltr ? TextDirection.ltr : null,
+      keyboardType: ltr ? const TextInputType.numberWithOptions(decimal: true) : null,
       textCapitalization: code ? TextCapitalization.characters : TextCapitalization.none,
       inputFormatters: code ? [FilteringTextInputFormatter.allow(RegExp('[a-zA-Z]')), _Upper()] : null,
       style: code ? display(28, color: Colors.white) : body(18, weight: FontWeight.w700),
@@ -176,9 +353,12 @@ Widget _note(String text, {Color color = C.muted}) {
 
 /// شاشة الغرفة: الكود، اللاعبين، وصاحب الغرفة يختار اللعبة ويبدي
 class LobbyScreen extends StatefulWidget {
-  const LobbyScreen({super.key, required this.room, this.preferGame});
+  const LobbyScreen({super.key, required this.room, this.preferGame, this.lanHost});
   final RoomConn room;
   final GameInfo? preferGame;
+
+  /// إذا آني صاحب غرفة محلية: السيرفر شغّال بتلفوني
+  final LanHost? lanHost;
 
   @override
   State<LobbyScreen> createState() => _LobbyScreenState();
@@ -200,21 +380,52 @@ class _LobbyScreenState extends State<LobbyScreen> {
   static List<GameInfo> get onlineGames => games.where((g) => g.online != null).toList();
 
   StreamSubscription<NetNotice>? _noticeSub;
+  AppLifecycleListener? _life;
 
   @override
   void initState() {
     super.initState();
     room.addListener(_onRoom);
     _noticeSub = room.notices.listen(_onNotice);
+    // رجع للتطبيق (من الواتساب مثلاً): نتأكد إن الاتصال حي
+    _life = AppLifecycleListener(onResume: room.wake);
   }
 
   @override
   void dispose() {
+    _life?.dispose();
     _noticeSub?.cancel();
     room.removeListener(_onRoom);
     room.leave();
     room.dispose();
+    // صاحب الغرفة المحلية طلع: الغرفة تنسد (بعد شوية حتى توصل رسالة الطلوع)
+    final h = widget.lanHost;
+    if (h != null) Future.delayed(const Duration(milliseconds: 300), h.stop);
     super.dispose();
+  }
+
+  /// صاحب الغرفة المحلية: الطلوع يسد الغرفة على الكل، فنتأكد أول
+  Future<void> _leave() async {
+    if (widget.lanHost == null || room.players.length < 2) {
+      Navigator.of(context).pop();
+      return;
+    }
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: C.surface,
+        title: Text('تسد الغرفة؟', style: display(26)),
+        content: Text('الغرفة شغالة على تلفونك. إذا طلعت تنسد على الكل.', style: body(15, color: C.muted)),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text('ابقى', style: body(16, weight: FontWeight.w800))),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text('سدّها', style: body(16, weight: FontWeight.w800, color: const Color(0xFFFF4D6A))),
+          ),
+        ],
+      ),
+    );
+    if (ok == true && mounted) Navigator.of(context).pop();
   }
 
   /// تنبيهات الغرفة تطلع كشريط تحت (حتى وانت باللعبة)
@@ -291,33 +502,56 @@ class _LobbyScreenState extends State<LobbyScreen> {
       final g = widget.preferGame?.online != null ? widget.preferGame! : onlineGames.first;
       room.setGame(g.id, false);
     }
-    // بدت مباراة وأني بيها → نفتح اللعبة
+    if (room.started && _gameOpen && !_closing) {
+      if (!listEquals(room.seats, _openSeats)) {
+        // تغيّر المشاركين (مباراة جديدة): نسد اللعبة ونرجع نفتحها بالترتيب الجديد
+        _closing = true;
+        Navigator.of(context).popUntil((r) => r == _self || r.isFirst);
+      } else {
+        // جولة جديدة وأني داخل اللعبة: هي نفسها المعروضة
+        _shownRound = room.round;
+      }
+    }
+    // بدت مباراة (أو جولة جديدة) وأني بيها → نفتح اللعبة، حتى لو كنت راجع للغرفة
     if (room.started && room.me >= 0 && room.round != _shownRound && !_gameOpen) {
       _shownRound = room.round;
       _openGame();
     }
     // صاحب الغرفة رجّع الكل → نسد اللعبة
-    if (!room.started && _gameOpen) {
+    if (!room.started && _gameOpen && !_closing) {
+      _closing = true;
       Navigator.of(context).popUntil((r) => r == _self || r.isFirst);
     }
     setState(() {});
   }
 
+  List<int> _openSeats = const [];
+  bool _closing = false;
+
   Future<void> _openGame() async {
     final g = games.where((x) => x.id == room.game).firstOrNull;
-    if (g?.online == null) return;
+    if (g?.online == null || _gameOpen) return;
     _gameOpen = true;
+    _openSeats = List.of(room.seats);
+    _shownRound = room.round;
     await Navigator.of(context).push(MaterialPageRoute(builder: (_) => g!.online!(room)));
     _gameOpen = false;
+    final closedByUs = _closing;
+    _closing = false;
     if (!mounted) return;
-    // صاحب الغرفة طلع من شاشة النتيجة → الكل يرجع للغرفة
-    if (room.isHost && room.started && (room.state?.model.over ?? true)) room.toLobby();
+    // صاحب الغرفة طلع بنفسه من شاشة النتيجة → الكل يرجع للغرفة
+    if (!closedByUs && room.isHost && room.started && (room.state?.model.over ?? true)) room.toLobby();
     setState(() {});
+    if (closedByUs) _onRoom();
   }
 
   @override
   Widget build(BuildContext context) {
     return PopScope(
+      canPop: widget.lanHost == null || room.players.length < 2,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _leave();
+      },
       child: Scaffold(
         body: Stack(
           children: [
@@ -340,7 +574,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
         'notfound' => 'ما لگينا غرفة بهالكود. تأكد منه.',
         'full' => 'الغرفة مليانة (4 لاعبين).',
         'kicked' => 'صاحب الغرفة طلّعك من الغرفة.',
-        _ => 'صار خلل بالاتصال.',
+        _ => room.isLan ? 'انسدت الغرفة المحلية.' : 'صار خلل بالاتصال.',
       };
       return Padding(
         padding: const EdgeInsets.all(20),
@@ -366,11 +600,30 @@ class _LobbyScreenState extends State<LobbyScreen> {
         Row(
           children: [
             IconButton(
-              onPressed: () => Navigator.of(context).pop(),
+              onPressed: _leave,
               icon: const Icon(Icons.arrow_forward_rounded, color: Colors.white),
             ),
             const SizedBox(width: 4),
             Text('الغرفة', style: display(34)),
+            if (room.isLan) ...[
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: alpha(const Color(0xFF16B46A), 0.2),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: alpha(const Color(0xFF16B46A), 0.6)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.wifi_rounded, size: 14, color: Color(0xFF22D37E)),
+                    const SizedBox(width: 4),
+                    Text('نفس الشبكة', style: body(12, weight: FontWeight.w800)),
+                  ],
+                ),
+              ),
+            ],
             const Spacer(),
             if (room.status != RoomStatus.online)
               Text(room.status == RoomStatus.connecting ? 'دا نتصل...' : 'دا نرجع نتصل...',
@@ -401,7 +654,16 @@ class _LobbyScreenState extends State<LobbyScreen> {
           Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              _note(room.isHost ? 'المباراة بعدها مفتوحة.' : 'ننتظر صاحب الغرفة يرجّع الكل للغرفة...'),
+              _note(room.isHost
+                  ? 'المباراة بعدها مفتوحة. ارجع للعب، أو رجّع الكل للغرفة حتى تختار لعبة ثانية.'
+                  : 'المباراة بعدها مفتوحة. ارجع للعب، وإذا صاحب الغرفة بدى جولة جديدة تنفتح عندك تلقائياً.'),
+              const SizedBox(height: 12),
+              BigButton(
+                label: room.playing ? 'ارجع للعبة' : 'تفرّج على اللعبة',
+                icon: Icons.sports_esports_rounded,
+                color: chosen?.colors.first ?? C.accent,
+                onTap: _openGame,
+              ),
               if (room.isHost) ...[
                 const SizedBox(height: 12),
                 BigButton(label: 'رجّع الكل للغرفة', icon: Icons.meeting_room_rounded, onTap: room.toLobby),
@@ -453,8 +715,16 @@ class _LobbyScreenState extends State<LobbyScreen> {
   }
 
   /// رابط الدعوة يفتح الويب ويحط الكود (يشتغل للآيفون والأندرويد)
-  String get _link => '${kIsWeb ? Uri.base.origin : kWebUrl}/?room=${room.code}';
-  String get _invite => 'تعال العب وياي بلمّة 🎮\nكود الغرفة: ${room.code}\n$_link';
+  String get _link {
+    final lan = widget.lanHost?.joinUrl;
+    if (lan != null) return lan;
+    if (lanOrigin != null) return '$lanOrigin/?room=${room.code}&lan=1';
+    return '${kIsWeb ? Uri.base.origin : kWebUrl}/?room=${room.code}';
+  }
+
+  String get _invite => room.isLan
+      ? 'تعال العب وياي بلمّة 🎮 (على نفس الواي فاي)\nافتح: $_link\nأو بالتطبيق: نفس الشبكة ← دوّر على غرف قريبة'
+      : 'تعال العب وياي بلمّة 🎮\nكود الغرفة: ${room.code}\n$_link';
 
   void _toast(String text) {
     ScaffoldMessenger.of(context)
@@ -496,6 +766,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
         children: [
           Text('كود الغرفة', style: body(14, color: C.muted)),
           Text(room.code, style: display(54, color: Colors.white).copyWith(letterSpacing: 10)),
+          if (widget.lanHost != null) _lanCard(widget.lanHost!),
           const SizedBox(height: 10),
           Row(
             children: [
@@ -506,6 +777,30 @@ class _LobbyScreenState extends State<LobbyScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  /// غرفة محلية: QR للآيفون والمتصفحات، والعناوين
+  Widget _lanCard(LanHost h) {
+    final url = h.joinUrl;
+    return Column(
+      children: [
+        const SizedBox(height: 8),
+        if (url != null)
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(18)),
+            child: QrImageView(data: url, size: 180, padding: EdgeInsets.zero),
+          ),
+        const SizedBox(height: 10),
+        Text('امسح بالكاميرة، أو افتح بالمتصفح:', style: body(13.5, color: C.muted)),
+        for (final ip in h.ips.take(2))
+          SelectableText(h.urlFor(ip).replaceFirst('http://', ''),
+              textDirection: TextDirection.ltr, style: body(15, weight: FontWeight.w800)),
+        const SizedBox(height: 6),
+        Text('اللي عنده التطبيق: "نفس الشبكة" ← "دوّر على غرف قريبة".\nخلي التطبيق مفتوح طول اللعب.',
+            textAlign: TextAlign.center, style: body(13, color: C.muted)),
+      ],
     );
   }
 
