@@ -111,6 +111,7 @@ class _TugState extends LoopState<TugGame> {
   Widget build(BuildContext context) {
     return GameScaffold(
       onPause: openPause,
+      room: widget.room,
       child: LayoutBuilder(builder: (context, box) {
         size = box.biggest;
         if (!ready) return const NetWaiting();
@@ -142,6 +143,9 @@ class _TugState extends LoopState<TugGame> {
                   dual: !online,
                   menuLabel: online ? 'الغرفة' : null,
                   onMenu: roomMenu(context, session),
+                  againLabel: againLabelOf(session),
+                  footer: tourFooter(session),
+                  names: namesOf(session),
                   subtitle: m.winner >= 0 ? '${m.taps[m.winner]} ضغطة' : null,
                   onAgain: restart,
                 ),

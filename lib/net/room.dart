@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:web_socket_channel/web_socket_channel.dart';
 
+import '../core/profile.dart';
 import '../logic/game_model.dart';
 import '../logic/models.dart';
 
@@ -25,11 +26,33 @@ const kWebUrl = String.fromEnvironment('WEB', defaultValue: 'https://lamma-dk0.p
 String playerName = '';
 
 class NetPlayer {
-  const NetPlayer(this.seat, this.name, this.on);
+  const NetPlayer(this.seat, this.name, this.on, [this.avatar = '']);
   final int seat;
   final String name;
   final bool on;
+  final String avatar;
 }
+
+/// بطولة: ألعاب ورا بعض، والنقاط لكل مقعد
+class NetTour {
+  NetTour(this.games, this.idx, this.pts, this.done);
+  final List<String> games;
+  final int idx;
+  final Map<int, int> pts;
+  final bool done;
+
+  /// الترتيب: أكثر نقاط أول
+  List<MapEntry<int, int>> get ranking => pts.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
+}
+
+/// تفاعل سريع من لاعب (رقم من [kReactions])
+class NetEmo {
+  const NetEmo(this.seat, this.i);
+  final int seat, i;
+}
+
+/// التفاعلات السريعة (نفس الترتيب بالسيرفر: يرسل رقمها بس)
+const kReactions = ['👏', '😂', '😮', '😡', '❤️', '🔥', '👍', '😢', 'أحسنت!', 'هيا!', 'مرة أخرى؟', 'حظًا موفقًا'];
 
 /// حالة لعبة جديدة جت من السيرفر
 class NetState {
@@ -75,6 +98,17 @@ class RoomConn extends ChangeNotifier {
   String? game;
   bool crazy = false;
   bool started = false;
+
+  /// غرفة عامة (لعب سريع ويا ناس ثانين): ماكو صاحب غرفة يتحكم، واللعب يبدي لحاله
+  bool isPublic = false;
+
+  /// الغرف العامة: متى تبدي (بساعة هذا الجهاز)
+  DateTime? autoAt;
+
+  NetTour? tour;
+
+  final _emos = StreamController<NetEmo>.broadcast();
+  Stream<NetEmo> get emos => _emos.stream;
   int round = 0;
 
   /// مقاعد المشاركين بالمباراة الحالية بالترتيب (اللاعب i = seats[i])
@@ -125,6 +159,25 @@ class RoomConn extends ChangeNotifier {
       player >= 0 && player < seats.length && seatOn(seats[player]) && !out.contains(seats[player]);
 
   /// يسوّي غرفة جديدة ويرجع كودها
+  /// هل أكو غرفة بهالكود على سيرفر الإنترنت؟ null = ما گدرنا نوصل للسيرفر
+  static Future<bool?> roomExists(String code) async {
+    if (kServer.isEmpty) return null;
+    try {
+      final r = await http.get(Uri.parse('$kServer/info/${code.toUpperCase()}')).timeout(const Duration(seconds: 6));
+      if (r.statusCode != 200) return null;
+      return (jsonDecode(r.body) as Map)['exists'] == true;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// لعب سريع: السيرفر يلگي غرفة عامة تنتظر بهاللعبة أو يسوّي وحدة
+  static Future<String> quickRoom(String game) async {
+    final r = await http.get(Uri.parse('$kServer/quick?game=$game')).timeout(const Duration(seconds: 10));
+    if (r.statusCode != 200) throw Exception('server ${r.statusCode}');
+    return (jsonDecode(r.body) as Map)['code'] as String;
+  }
+
   static Future<String> createRoom({String? server}) async {
     final r = await http.get(Uri.parse('${server ?? kServer}/new')).timeout(const Duration(seconds: 10));
     if (r.statusCode != 200) throw Exception('server ${r.statusCode}');
@@ -155,7 +208,7 @@ class RoomConn extends ChangeNotifier {
         if (!identical(ch, _ch)) return;
         _attempt = 0;
         _lastRx = DateTime.now();
-        _send({'t': 'join', 'name': name, 'token': _token});
+        _send({'t': 'join', 'name': name, 'token': _token, 'avatar': Profile.I.avatar});
       }).catchError((_) => _onDrop(ch));
       _ping?.cancel();
       _ping = Timer.periodic(const Duration(seconds: 8), (_) => _send({'t': 'ping'}));
@@ -226,6 +279,18 @@ class RoomConn extends ChangeNotifier {
           _send(x);
         }
       case 'room':
+        isPublic = m['public'] == true;
+        final ai = (m['autoIn'] as num?)?.toInt() ?? 0;
+        autoAt = ai > 0 ? DateTime.now().add(Duration(milliseconds: ai)) : null;
+        final t = m['tour'];
+        tour = t is Map
+            ? NetTour(
+                [for (final g in t['games'] as List) g as String],
+                (t['idx'] as num).toInt(),
+                {for (final e in (t['pts'] as Map).entries) int.parse('${e.key}'): (e.value as num).toInt()},
+                t['done'] == true,
+              )
+            : null;
         host = m['host'] as int;
         game = m['game'] as String?;
         crazy = m['crazy'] == true;
@@ -236,7 +301,8 @@ class RoomConn extends ChangeNotifier {
         out = [for (final s in m['out'] as List) s as int];
         ending = m['ending'] == true;
         players = [
-          for (final p in m['players'] as List) NetPlayer(p['seat'] as int, p['name'] as String, p['on'] == true),
+          for (final p in m['players'] as List)
+            NetPlayer(p['seat'] as int, p['name'] as String, p['on'] == true, p['avatar'] as String? ?? ''),
         ];
         if (!started && wasStarted) state = null;
       case 'state':
@@ -248,6 +314,9 @@ class RoomConn extends ChangeNotifier {
           _states.add(st);
         } catch (_) {}
         return; // الحالة تتحدث كثير، ما نعيد بناء الواجهات كل مرة
+      case 'emo':
+        _emos.add(NetEmo((m['seat'] as num).toInt(), (m['i'] as num).toInt()));
+        return;
       case 'notice':
         _notices.add(NetNotice(m['m'] as String, (m['seat'] as num?)?.toInt() ?? -1, m['name'] as String? ?? 'لاعب'));
         return;
@@ -285,6 +354,20 @@ class RoomConn extends ChangeNotifier {
 
   /// صاحب الغرفة: يطرد لاعب، أو يسلّمه الغرفة
   void kick(int seat) => _send({'t': 'kick', 'seat': seat});
+
+  /// بطولة بهالألعاب (صاحب الغرفة)
+  void startTour(List<String> games) => _send({'t': 'tour', 'games': games});
+
+  /// تفاعل سريع
+  void emo(int i) => _send({'t': 'emo', 'i': i});
+
+  /// المقعد → الصورة الرمزية
+  String avatarOfSeat(int seat) {
+    for (final p in players) {
+      if (p.seat == seat) return p.avatar;
+    }
+    return '';
+  }
   void makeHost(int seat) => _send({'t': 'host', 'seat': seat});
 
   bool get hostOn => seatOn(host);
@@ -312,6 +395,7 @@ class RoomConn extends ChangeNotifier {
     _left = true;
     _close();
     _states.close();
+    _emos.close();
     _notices.close();
     super.dispose();
   }

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../core/draw.dart';
 import '../core/fx.dart';
+import '../core/profile.dart';
 import '../core/loop.dart';
 import '../logic/reaction_logic.dart';
 import '../net/room.dart';
@@ -102,6 +103,8 @@ class _ReactionState extends LoopState<ReactionGame> {
           Fx.hit();
         case 'tap':
           Fx.mid();
+          // أسرع استجابة (ألقاب الملف الشخصي)
+          if (!online || e['p'] == session.me) Profile.I.recordReaction((e['ms'] as num).toInt());
         case 'foul':
           Fx.hit();
         case 'win':
@@ -136,6 +139,7 @@ class _ReactionState extends LoopState<ReactionGame> {
   Widget build(BuildContext context) {
     return GameScaffold(
       onPause: openPause,
+      room: widget.room,
       child: LayoutBuilder(builder: (context, box) {
         size = box.biggest;
         if (!ready) return const NetWaiting();
@@ -166,6 +170,9 @@ class _ReactionState extends LoopState<ReactionGame> {
                   dual: !online,
                   menuLabel: online ? 'الغرفة' : null,
                   onMenu: roomMenu(context, session),
+                  againLabel: againLabelOf(session),
+                  footer: tourFooter(session),
+                  names: namesOf(session),
                   onAgain: restart,
                 ),
               ),
@@ -250,7 +257,7 @@ class _ReactionPainter extends CustomPainter {
       var ls = small ? 30.0 : 40.0;
       if (playing) {
         if (s.fouled[i]) {
-          label = 'مبكر!';
+          label = 'مبكّر!';
           lc = alpha(Colors.white, 0.5);
         } else if (isWin) {
           label = s.wonByFoul ? 'فزت!' : 'فزت!\n${s.reactionMs} ms';

@@ -7,339 +7,17 @@ import 'package:flutter/services.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:share_plus/share_plus.dart';
 
+import '../core/profile.dart';
 import '../games/registry.dart';
 import '../net/lan.dart';
 import '../net/room.dart';
 import '../net/session.dart';
 import 'background.dart';
 import 'kit.dart';
+import 'react.dart';
 import 'theme.dart';
 
-/// شاشة الدخول للأونلاين: تسوّي غرفة أو تدخل بكود
-class OnlineScreen extends StatefulWidget {
-  const OnlineScreen({super.key, this.game, this.code});
-
-  /// اللعبة اللي جاي منها (صاحب الغرفة يختارها تلقائياً)
-  final GameInfo? game;
-  final String? code;
-
-  @override
-  State<OnlineScreen> createState() => _OnlineScreenState();
-}
-
-class _OnlineScreenState extends State<OnlineScreen> {
-  late final _name = TextEditingController(text: playerName);
-  late final _code = TextEditingController(text: widget.code ?? '');
-  final _addr = TextEditingController();
-  bool _busy = false;
-  String? _err;
-
-  // نفس الشبكة
-  bool _scanning = false;
-  bool _scanned = false;
-  List<LanFound> _found = const [];
-  String? _lanErr;
-
-  @override
-  void dispose() {
-    _name.dispose();
-    _code.dispose();
-    _addr.dispose();
-    super.dispose();
-  }
-
-  String get _cleanName => _name.text.trim().isEmpty ? 'لاعب' : _name.text.trim();
-
-  Future<void> _create() async {
-    setState(() {
-      _busy = true;
-      _err = null;
-    });
-    try {
-      final code = await RoomConn.createRoom();
-      if (!mounted) return;
-      _enter(code);
-    } catch (_) {
-      setState(() => _err = 'ما گدرنا نوصل للسيرفر. تأكد من النت وجرّب مرة ثانية، أو العبوا على نفس الشبكة.');
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
-
-  void _join() {
-    final code = _code.text.trim().toUpperCase();
-    if (code.length != 4) {
-      setState(() => _err = 'الكود 4 حروف');
-      return;
-    }
-    _enter(code);
-  }
-
-  void _enter(String code, {String? server, LanHost? lan}) {
-    playerName = _cleanName;
-    final room = RoomConn.join(code, playerName, server: server);
-    Navigator.of(context).pushReplacement(MaterialPageRoute(
-      builder: (_) => LobbyScreen(room: room, preferGame: widget.game, lanHost: lan),
-    ));
-  }
-
-  Future<void> _hostLan() async {
-    setState(() {
-      _busy = true;
-      _lanErr = null;
-    });
-    try {
-      final h = await LanHost.start();
-      if (!mounted) {
-        await h.stop();
-        return;
-      }
-      if (h.ips.isEmpty) {
-        setState(() => _lanErr = 'ما لگيت شبكة. اتصل بواي فاي (حتى لو بدون نت) أو شغّل الهوتسبوت، وجرّب مرة ثانية.');
-        await h.stop();
-        return;
-      }
-      _enter(h.code, server: h.selfServer, lan: h);
-    } catch (_) {
-      if (mounted) setState(() => _lanErr = 'ما گدرت أشغّل الغرفة المحلية.');
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
-
-  Future<void> _scan() async {
-    setState(() {
-      _scanning = true;
-      _lanErr = null;
-    });
-    final f = await scanLan();
-    if (!mounted) return;
-    setState(() {
-      _scanning = false;
-      _scanned = true;
-      _found = f;
-    });
-  }
-
-  /// عنوان مكتوب باليد (192.168.1.5 أو 192.168.1.5:8787)
-  Future<void> _joinAddr() async {
-    var a = _addr.text.trim();
-    if (a.isEmpty) return;
-    if (!a.contains(':')) a = '$a:$lanPort';
-    final server = 'http://$a';
-    setState(() {
-      _busy = true;
-      _lanErr = null;
-    });
-    try {
-      final code = await RoomConn.createRoom(server: server);
-      if (mounted) _enter(code, server: server);
-    } catch (_) {
-      if (mounted) setState(() => _lanErr = 'ما لگيت غرفة على هذا العنوان. تأكد إنكم على نفس الواي فاي.');
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final viaLan = lanOrigin != null;
-    return Scaffold(
-      body: Stack(
-        children: [
-          const Positioned.fill(child: LammaBackground()),
-          SafeArea(
-            child: ListView(
-              padding: EdgeInsets.fromLTRB(sidePad(context), 8, sidePad(context), 24),
-              children: [
-                Row(
-                  children: [
-                    IconButton(
-                      onPressed: () => Navigator.of(context).pop(),
-                      icon: const Icon(Icons.arrow_forward_rounded, color: Colors.white),
-                    ),
-                    const SizedBox(width: 4),
-                    Text(viaLan ? 'نفس الشبكة' : 'العب ويا ربعك', style: display(34)),
-                  ],
-                ),
-                const SizedBox(height: 6),
-                Text(
-                    viaLan
-                        ? 'انت متصل بتلفون صاحب الغرفة على نفس الشبكة. اكتب اسمك وادخل.'
-                        : 'كل واحد يلعب بتلفونه: بالإنترنت من أي مكان، أو على نفس الواي فاي بدون إنترنت.',
-                    style: body(15, color: C.muted)),
-                const SizedBox(height: 22),
-                Text('اسمك', style: body(15, weight: FontWeight.w700, color: C.muted)),
-                const SizedBox(height: 8),
-                _field(_name, hint: 'شسمك؟', maxLength: 14),
-                const SizedBox(height: 22),
-                if (viaLan) ...[
-                  Row(
-                    children: [
-                      Expanded(child: _field(_code, hint: 'ABCD', maxLength: 4, code: true)),
-                      const SizedBox(width: 10),
-                      BigButton(label: 'ادخل', icon: Icons.login_rounded, onTap: _join),
-                    ],
-                  ),
-                ] else ...[
-                  _section(Icons.public_rounded, 'بالإنترنت'),
-                  if (!onlineAvailable)
-                    _note('الأونلاين بعده مو مفعّل بهالنسخة. حدّث التطبيق أو جرّب الويب.')
-                  else ...[
-                    BigButton(
-                      label: _busy ? 'لحظة...' : 'سوّي غرفة جديدة',
-                      icon: Icons.add_rounded,
-                      onTap: _busy ? () {} : _create,
-                    ),
-                    const SizedBox(height: 14),
-                    Row(
-                      children: [
-                        Expanded(child: _field(_code, hint: 'ABCD', maxLength: 4, code: true)),
-                        const SizedBox(width: 10),
-                        BigButton(label: 'ادخل', icon: Icons.login_rounded, filled: false, onTap: _join),
-                      ],
-                    ),
-                  ],
-                  const SizedBox(height: 28),
-                  _section(Icons.wifi_rounded, 'نفس الشبكة (بدون إنترنت)'),
-                  if (lanHostSupported) ..._lanApp() else _lanWebHelp(),
-                ],
-                if (_err != null) ...[
-                  const SizedBox(height: 16),
-                  _note(_err!, color: const Color(0xFFFF4D6A)),
-                ],
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _section(IconData icon, String title) => Padding(
-        padding: const EdgeInsets.only(bottom: 10),
-        child: Row(
-          children: [
-            Icon(icon, size: 18, color: C.muted),
-            const SizedBox(width: 6),
-            Text(title, style: body(15, weight: FontWeight.w800, color: C.muted)),
-          ],
-        ),
-      );
-
-  List<Widget> _lanApp() => [
-        Text('كلكم على نفس الواي فاي (حتى لو ما بيه نت)، أو على هوتسبوت تلفون واحد منكم.',
-            style: body(14, color: alpha(Colors.white, 0.7))),
-        const SizedBox(height: 12),
-        BigButton(
-          label: _busy ? 'لحظة...' : 'سوّي غرفة محلية',
-          icon: Icons.router_rounded,
-          color: const Color(0xFF16B46A),
-          onTap: _busy ? () {} : _hostLan,
-        ),
-        const SizedBox(height: 10),
-        BigButton(
-          label: _scanning ? 'دا أدوّر...' : 'دوّر على غرف قريبة',
-          icon: Icons.radar_rounded,
-          filled: false,
-          onTap: _scanning ? () {} : _scan,
-        ),
-        if (_scanning)
-          const Padding(
-            padding: EdgeInsets.only(top: 12),
-            child: LinearProgressIndicator(minHeight: 3),
-          ),
-        if (_scanned && !_scanning) ...[
-          const SizedBox(height: 12),
-          if (_found.isEmpty)
-            _note('ما لگيت غرف. تأكد إن صاحب الغرفة سوّاها وإنكم على نفس الشبكة، أو اكتب عنوانه تحت.')
-          else
-            for (final f in _found) _foundTile(f),
-        ],
-        const SizedBox(height: 12),
-        Row(
-          children: [
-            Expanded(child: _field(_addr, hint: 'عنوان: 192.168.1.5', ltr: true)),
-            const SizedBox(width: 10),
-            BigButton(label: 'اتصل', icon: Icons.link_rounded, filled: false, onTap: _busy ? () {} : _joinAddr),
-          ],
-        ),
-        if (_lanErr != null) ...[
-          const SizedBox(height: 12),
-          _note(_lanErr!, color: const Color(0xFFFF4D6A)),
-        ],
-      ];
-
-  Widget _foundTile(LanFound f) => Padding(
-        padding: const EdgeInsets.only(bottom: 8),
-        child: Pressable(
-          onTap: () => _enter(f.code, server: f.server),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            decoration: BoxDecoration(
-              color: alpha(const Color(0xFF16B46A), 0.14),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: alpha(const Color(0xFF16B46A), 0.55)),
-            ),
-            child: Row(
-              children: [
-                const Icon(Icons.wifi_tethering_rounded, color: Color(0xFF22D37E)),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(f.hostName.isEmpty ? 'غرفة ${f.code}' : 'غرفة ${f.hostName}', style: body(17, weight: FontWeight.w800)),
-                      Text('${f.code} · ${f.players} لاعبين${f.started ? ' · يلعبون هسه' : ''}', style: body(13, color: C.muted)),
-                    ],
-                  ),
-                ),
-                const Icon(Icons.login_rounded, color: Colors.white),
-              ],
-            ),
-          ),
-        ),
-      );
-
-  Widget _lanWebHelp() => _note(
-        'بدون إنترنت، لازم واحد منكم عنده تطبيق لمّة على أندرويد: يسوّي "غرفة محلية"، '
-        'وانت امسح الـ QR اللي يطلع عنده بكاميرة تلفونك (أو افتح العنوان اللي تحته بالمتصفح). '
-        'لازم تكونون على نفس الواي فاي أو على الهوتسبوت مالته.',
-      );
-
-  Widget _field(TextEditingController c, {required String hint, int? maxLength, bool code = false, bool ltr = false}) {
-    return TextField(
-      controller: c,
-      maxLength: maxLength,
-      textAlign: code ? TextAlign.center : TextAlign.start,
-      textDirection: ltr ? TextDirection.ltr : null,
-      keyboardType: ltr ? const TextInputType.numberWithOptions(decimal: true) : null,
-      textCapitalization: code ? TextCapitalization.characters : TextCapitalization.none,
-      inputFormatters: code ? [FilteringTextInputFormatter.allow(RegExp('[a-zA-Z]')), _Upper()] : null,
-      style: code ? display(28, color: Colors.white) : body(18, weight: FontWeight.w700),
-      decoration: InputDecoration(
-        hintText: hint,
-        counterText: '',
-        hintStyle: body(18, color: alpha(C.muted, 0.5)),
-        filled: true,
-        fillColor: alpha(Colors.white, 0.06),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: C.line)),
-        enabledBorder:
-            OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: C.line)),
-        focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: alpha(C.accent, 0.8))),
-      ),
-    );
-  }
-}
-
-class _Upper extends TextInputFormatter {
-  @override
-  TextEditingValue formatEditUpdate(TextEditingValue o, TextEditingValue n) =>
-      n.copyWith(text: n.text.toUpperCase());
-}
-
-Widget _note(String text, {Color color = C.muted}) {
+Widget _note(String text, {Color color = C.muted, IconData? icon}) {
   return Container(
     padding: const EdgeInsets.all(14),
     decoration: BoxDecoration(
@@ -347,11 +25,19 @@ Widget _note(String text, {Color color = C.muted}) {
       borderRadius: BorderRadius.circular(16),
       border: Border.all(color: alpha(color, 0.4)),
     ),
-    child: Text(text, style: body(15, color: Colors.white)),
+    child: Row(
+      children: [
+        if (icon != null) ...[
+          Icon(icon, color: color, size: 22),
+          const SizedBox(width: 10),
+        ],
+        Expanded(child: Text(text, style: body(15, color: Colors.white))),
+      ],
+    ),
   );
 }
 
-/// شاشة الغرفة: الكود، اللاعبين، وصاحب الغرفة يختار اللعبة ويبدي
+/// شاشة الغرفة: الدعوة، اللاعبين، وصاحب الغرفة يبدأ اللعب
 class LobbyScreen extends StatefulWidget {
   const LobbyScreen({super.key, required this.room, this.preferGame, this.lanHost});
   final RoomConn room;
@@ -370,6 +56,10 @@ class _LobbyScreenState extends State<LobbyScreen> {
   bool _gameOpen = false;
   bool _cfgSent = false;
   ModalRoute<dynamic>? _self;
+  StreamSubscription<NetNotice>? _noticeSub;
+  AppLifecycleListener? _life;
+  Timer? _clock;
+  String? _tourCounted;
 
   @override
   void didChangeDependencies() {
@@ -379,9 +69,6 @@ class _LobbyScreenState extends State<LobbyScreen> {
 
   static List<GameInfo> get onlineGames => games.where((g) => g.online != null).toList();
 
-  StreamSubscription<NetNotice>? _noticeSub;
-  AppLifecycleListener? _life;
-
   @override
   void initState() {
     super.initState();
@@ -389,22 +76,26 @@ class _LobbyScreenState extends State<LobbyScreen> {
     _noticeSub = room.notices.listen(_onNotice);
     // رجع للتطبيق (من الواتساب مثلاً): نتأكد إن الاتصال حي
     _life = AppLifecycleListener(onResume: room.wake);
+    // عدّاد البداية التلقائية بالغرف العامة
+    _clock = Timer.periodic(const Duration(milliseconds: 500), (_) {
+      if (mounted && room.autoAt != null && !_gameOpen) setState(() {});
+    });
   }
 
   @override
   void dispose() {
+    _clock?.cancel();
     _life?.dispose();
     _noticeSub?.cancel();
     room.removeListener(_onRoom);
     room.leave();
     room.dispose();
-    // صاحب الغرفة المحلية طلع: الغرفة تنسد (بعد شوية حتى توصل رسالة الطلوع)
     final h = widget.lanHost;
     if (h != null) Future.delayed(const Duration(milliseconds: 300), h.stop);
     super.dispose();
   }
 
-  /// صاحب الغرفة المحلية: الطلوع يسد الغرفة على الكل، فنتأكد أول
+  /// صاحب الغرفة المحلية: الخروج يغلق الغرفة على الجميع، فنتأكد أولًا
   Future<void> _leave() async {
     if (widget.lanHost == null || room.players.length < 2) {
       Navigator.of(context).pop();
@@ -414,13 +105,13 @@ class _LobbyScreenState extends State<LobbyScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: C.surface,
-        title: Text('تسد الغرفة؟', style: display(26)),
-        content: Text('الغرفة شغالة على تلفونك. إذا طلعت تنسد على الكل.', style: body(15, color: C.muted)),
+        title: Text('إغلاق الغرفة؟', style: display(26)),
+        content: Text('الغرفة تعمل على هاتفك. إذا خرجت ستُغلق على الجميع.', style: body(15, color: C.muted)),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text('ابقى', style: body(16, weight: FontWeight.w800))),
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text('البقاء', style: body(16, weight: FontWeight.w800))),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: Text('سدّها', style: body(16, weight: FontWeight.w800, color: const Color(0xFFFF4D6A))),
+            child: Text('إغلاق', style: body(16, weight: FontWeight.w800, color: const Color(0xFFFF4D6A))),
           ),
         ],
       ),
@@ -428,16 +119,15 @@ class _LobbyScreenState extends State<LobbyScreen> {
     if (ok == true && mounted) Navigator.of(context).pop();
   }
 
-  /// تنبيهات الغرفة تطلع كشريط تحت (حتى وانت باللعبة)
   void _onNotice(NetNotice n) {
-    if (!mounted) return;
+    if (!mounted || room.isPublic && n.kind == 'host') return;
     final me = n.seat == room.mySeat;
     final text = switch (n.kind) {
-      'joined' => 'دخل ${n.name}',
-      'left' => 'طلع ${n.name} من الغرفة',
-      'kicked' => 'انطرد ${n.name}',
-      'quit' => '${n.name} طلع من اللعبة',
-      'host' => me ? 'صرت انت صاحب الغرفة' : '${n.name} صار صاحب الغرفة',
+      'joined' => 'انضمّ ${n.name}',
+      'left' => 'غادر ${n.name} الغرفة',
+      'kicked' => 'تم إخراج ${n.name}',
+      'quit' => 'خرج ${n.name} من اللعبة',
+      'host' => me ? 'أصبحت أنت مدير الغرفة' : 'أصبح ${n.name} مدير الغرفة',
       _ => null,
     };
     if (text == null || (me && n.kind != 'host')) return;
@@ -452,7 +142,6 @@ class _LobbyScreenState extends State<LobbyScreen> {
       ));
   }
 
-  /// قائمة صاحب الغرفة على كل لاعب: يسلّمه الغرفة أو يطرده
   Future<void> _seatMenu(NetPlayer p) async {
     final action = await showModalBottomSheet<String>(
       context: context,
@@ -460,28 +149,19 @@ class _LobbyScreenState extends State<LobbyScreen> {
       builder: (ctx) => Container(
         margin: const EdgeInsets.all(10),
         padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
-        decoration: BoxDecoration(
-          color: C.surface,
-          borderRadius: BorderRadius.circular(26),
-          border: Border.all(color: C.line),
-        ),
+        decoration: BoxDecoration(color: C.surface, borderRadius: BorderRadius.circular(26), border: Border.all(color: C.line)),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(p.name, textAlign: TextAlign.center, style: display(28)),
+            Text('${p.avatar} ${p.name}', textAlign: TextAlign.center, style: display(28)),
             const SizedBox(height: 14),
             if (p.on) ...[
-              BigButton(
-                label: 'خليه صاحب الغرفة',
-                icon: Icons.star_rounded,
-                filled: false,
-                onTap: () => Navigator.pop(ctx, 'host'),
-              ),
+              BigButton(label: 'اجعله مدير الغرفة', icon: Icons.star_rounded, filled: false, onTap: () => Navigator.pop(ctx, 'host')),
               const SizedBox(height: 10),
             ],
             BigButton(
-              label: 'اطرده من الغرفة',
+              label: 'إخراجه من الغرفة',
               icon: Icons.block_rounded,
               color: const Color(0xFFFF4D6A),
               onTap: () => Navigator.pop(ctx, 'kick'),
@@ -496,51 +176,64 @@ class _LobbyScreenState extends State<LobbyScreen> {
 
   void _onRoom() {
     if (!mounted) return;
-    // صاحب الغرفة: نختار اللعبة اللي جاي منها
-    if (room.isHost && !_cfgSent && room.game == null) {
+    // مدير الغرفة: نختار اللعبة اللي جاء منها
+    if (room.isHost && !room.isPublic && !_cfgSent && room.game == null) {
       _cfgSent = true;
       final g = widget.preferGame?.online != null ? widget.preferGame! : onlineGames.first;
       room.setGame(g.id, false);
     }
     if (room.started && _gameOpen && !_closing) {
-      if (!listEquals(room.seats, _openSeats)) {
-        // تغيّر المشاركين (مباراة جديدة): نسد اللعبة ونرجع نفتحها بالترتيب الجديد
+      if (!listEquals(room.seats, _openSeats) || room.game != _openGameId) {
+        // تغيّر المشاركون أو اللعبة (بطولة): نغلق اللعبة ونفتحها من جديد
         _closing = true;
         Navigator.of(context).popUntil((r) => r == _self || r.isFirst);
       } else {
-        // جولة جديدة وأني داخل اللعبة: هي نفسها المعروضة
         _shownRound = room.round;
       }
     }
-    // بدت مباراة (أو جولة جديدة) وأني بيها → نفتح اللعبة، حتى لو كنت راجع للغرفة
+    // بدأت مباراة (أو جولة جديدة) وأنا فيها → نفتح اللعبة
     if (room.started && room.me >= 0 && room.round != _shownRound && !_gameOpen) {
       _shownRound = room.round;
       _openGame();
     }
-    // صاحب الغرفة رجّع الكل → نسد اللعبة
+    // مدير الغرفة أعاد الجميع → نغلق اللعبة
     if (!room.started && _gameOpen && !_closing) {
       _closing = true;
       Navigator.of(context).popUntil((r) => r == _self || r.isFirst);
+    }
+    // فزت بالبطولة؟
+    final t = room.tour;
+    if (t != null && t.done) {
+      final key = '${t.games.join(',')}@${room.round}';
+      if (_tourCounted != key) {
+        _tourCounted = key;
+        final r = t.ranking;
+        if (r.isNotEmpty && r.first.key == room.mySeat && (r.length < 2 || r[1].value < r.first.value)) {
+          Profile.I.recordTournamentWin();
+        }
+      }
     }
     setState(() {});
   }
 
   List<int> _openSeats = const [];
+  String? _openGameId;
   bool _closing = false;
 
   Future<void> _openGame() async {
-    final g = games.where((x) => x.id == room.game).firstOrNull;
+    final g = gameById(room.game);
     if (g?.online == null || _gameOpen) return;
     _gameOpen = true;
     _openSeats = List.of(room.seats);
+    _openGameId = room.game;
     _shownRound = room.round;
     await Navigator.of(context).push(MaterialPageRoute(builder: (_) => g!.online!(room)));
     _gameOpen = false;
     final closedByUs = _closing;
     _closing = false;
     if (!mounted) return;
-    // صاحب الغرفة طلع بنفسه من شاشة النتيجة → الكل يرجع للغرفة
-    if (!closedByUs && room.isHost && room.started && (room.state?.model.over ?? true)) room.toLobby();
+    // مدير الغرفة خرج بنفسه من شاشة النتيجة → الجميع يعودون للغرفة
+    if (!closedByUs && room.isHost && !room.isPublic && room.started && (room.state?.model.over ?? true)) room.toLobby();
     setState(() {});
     if (closedByUs) _onRoom();
   }
@@ -562,6 +255,10 @@ class _LobbyScreenState extends State<LobbyScreen> {
                 builder: (context, _) => _body(context),
               ),
             ),
+            if (room.status == RoomStatus.online && room.mySeat >= 0) ...[
+              Positioned.fill(child: IgnorePointer(child: ReactLayer(room: room))),
+              Positioned(left: 14, bottom: 14 + MediaQuery.paddingOf(context).bottom, child: ReactButton(room: room, size: 52)),
+            ],
           ],
         ),
       ),
@@ -571,10 +268,10 @@ class _LobbyScreenState extends State<LobbyScreen> {
   Widget _body(BuildContext context) {
     if (room.status == RoomStatus.closed && room.error != null) {
       final msg = switch (room.error) {
-        'notfound' => 'ما لگينا غرفة بهالكود. تأكد منه.',
-        'full' => 'الغرفة مليانة (4 لاعبين).',
-        'kicked' => 'صاحب الغرفة طلّعك من الغرفة.',
-        _ => room.isLan ? 'انسدت الغرفة المحلية.' : 'صار خلل بالاتصال.',
+        'notfound' => 'لم نجد غرفة بهذا الرمز. تأكّد منه.',
+        'full' => 'الغرفة ممتلئة.',
+        'kicked' => 'أخرجك مدير الغرفة.',
+        _ => room.isLan ? 'أُغلقت الغرفة.' : 'حدث خلل في الاتصال.',
       };
       return Padding(
         padding: const EdgeInsets.all(20),
@@ -582,7 +279,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
           mainAxisAlignment: MainAxisAlignment.center,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _note(msg, color: const Color(0xFFFF4D6A)),
+            _note(msg, color: const Color(0xFFFF4D6A), icon: Icons.error_outline_rounded),
             const SizedBox(height: 16),
             BigButton(label: 'رجوع', onTap: () => Navigator.of(context).pop()),
           ],
@@ -590,131 +287,55 @@ class _LobbyScreenState extends State<LobbyScreen> {
       );
     }
 
-    final chosen = games.where((g) => g.id == room.game).firstOrNull;
-    final onCount = room.players.where((p) => p.on).length;
-    final canStart = chosen != null && onCount >= chosen.minPlayers && onCount <= chosen.maxPlayers;
-
+    final chosen = gameById(room.game);
     return ListView(
-      padding: EdgeInsets.fromLTRB(sidePad(context), 8, sidePad(context), 24),
+      padding: EdgeInsets.fromLTRB(sidePad(context), 8, sidePad(context), 90),
       children: [
-        Row(
-          children: [
-            IconButton(
-              onPressed: _leave,
-              icon: const Icon(Icons.arrow_forward_rounded, color: Colors.white),
-            ),
-            const SizedBox(width: 4),
-            Text('الغرفة', style: display(34)),
-            if (room.isLan) ...[
-              const SizedBox(width: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: alpha(const Color(0xFF16B46A), 0.2),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: alpha(const Color(0xFF16B46A), 0.6)),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.wifi_rounded, size: 14, color: Color(0xFF22D37E)),
-                    const SizedBox(width: 4),
-                    Text('نفس الشبكة', style: body(12, weight: FontWeight.w800)),
-                  ],
-                ),
-              ),
-            ],
-            const Spacer(),
-            if (room.status != RoomStatus.online)
-              Text(room.status == RoomStatus.connecting ? 'دا نتصل...' : 'دا نرجع نتصل...',
-                  style: body(13, color: const Color(0xFFFFB627))),
-          ],
-        ),
+        _topBar(chosen),
         const SizedBox(height: 10),
-        _codeCard(),
-        const SizedBox(height: 20),
-        Text('اللاعبين', style: body(15, weight: FontWeight.w700, color: C.muted)),
-        const SizedBox(height: 8),
-        for (var s = 0; s < 4; s++) _seat(s),
-        if (room.isHost && room.players.length > 1)
-          Padding(
-            padding: const EdgeInsets.only(top: 2),
-            child: Text('اضغط على لاعب حتى تطرده أو تسلّمه الغرفة', style: body(13, color: C.muted)),
-          ),
-        if (!room.isHost && room.host >= 0 && !room.hostOn)
-          Padding(
-            padding: const EdgeInsets.only(top: 8),
-            child: _note('صاحب الغرفة انقطع... إذا ما رجع خلال ثواني، الغرفة تنتقل للي بعده.',
-                color: const Color(0xFFFFB627)),
-          ),
-        const SizedBox(height: 20),
-        if (room.started && room.me < 0)
-          _note('أكو مباراة شغالة. تگدر تدخل بالجولة الجاية.')
-        else if (room.started && room.me >= 0 && !_gameOpen)
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              _note(room.isHost
-                  ? 'المباراة بعدها مفتوحة. ارجع للعب، أو رجّع الكل للغرفة حتى تختار لعبة ثانية.'
-                  : 'المباراة بعدها مفتوحة. ارجع للعب، وإذا صاحب الغرفة بدى جولة جديدة تنفتح عندك تلقائياً.'),
-              const SizedBox(height: 12),
-              BigButton(
-                label: room.playing ? 'ارجع للعبة' : 'تفرّج على اللعبة',
-                icon: Icons.sports_esports_rounded,
-                color: chosen?.colors.first ?? C.accent,
-                onTap: _openGame,
-              ),
-              if (room.isHost) ...[
-                const SizedBox(height: 12),
-                BigButton(label: 'رجّع الكل للغرفة', icon: Icons.meeting_room_rounded, onTap: room.toLobby),
-              ],
-            ],
-          )
-        else if (room.isHost) ...[
-          Text('اختار اللعبة', style: body(15, weight: FontWeight.w700, color: C.muted)),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              for (final g in onlineGames) _gameChip(g, g.id == room.game),
-            ],
-          ),
-          if (chosen?.crazyHowTo != null) ...[
+        if (room.status != RoomStatus.online && room.mySeat < 0)
+          const Padding(padding: EdgeInsets.symmetric(vertical: 40), child: NetWaiting())
+        else ...[
+          if (room.tour != null) ...[
+            _tourCard(room.tour!),
             const SizedBox(height: 14),
-            Row(
-              children: [
-                Expanded(child: _modeChip('عادي', !room.crazy, () => room.setGame(chosen!.id, false))),
-                const SizedBox(width: 8),
-                Expanded(child: _modeChip('مجنون', room.crazy, () => room.setGame(chosen!.id, true))),
-              ],
-            ),
           ],
-          const SizedBox(height: 20),
-          Opacity(
-            opacity: canStart ? 1 : 0.45,
-            child: BigButton(
-              label: canStart ? 'ابدأ اللعب' : _needText(chosen, onCount),
-              icon: Icons.play_arrow_rounded,
-              color: chosen?.colors.first ?? C.accent,
-              onTap: canStart ? room.start : () {},
-            ),
-          ),
-        ] else
-          _note(chosen == null
-              ? 'ننتظر صاحب الغرفة يختار اللعبة...'
-              : 'اللعبة: ${chosen.title}${room.crazy ? ' (مجنون)' : ''}\nننتظر صاحب الغرفة يبدي...'),
+          if (!room.isPublic) ...[
+            _inviteCard(),
+            const SizedBox(height: 18),
+          ],
+          _players(),
+          const SizedBox(height: 18),
+          _actions(chosen),
+        ],
       ],
     );
   }
 
-  String _needText(GameInfo? g, int on) {
-    if (g == null) return 'اختار لعبة';
-    if (on < g.minPlayers) return 'تحتاج ${g.minPlayers} لاعبين';
-    return 'هاي اللعبة لـ ${g.maxPlayers} لاعبين بس';
+  Widget _topBar(GameInfo? chosen) {
+    return Row(
+      children: [
+        IconButton(onPressed: _leave, icon: const Icon(Icons.arrow_forward_rounded, color: Colors.white)),
+        const SizedBox(width: 4),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(room.isPublic ? 'لعب مع الآخرين' : 'الغرفة', style: display(30)),
+              if (room.status != RoomStatus.online)
+                Text(room.status == RoomStatus.connecting ? 'جارٍ الاتصال...' : 'انقطع الاتصال، جارٍ إعادة الاتصال...',
+                    style: body(13, color: const Color(0xFFFFB627)))
+              else if (room.isLan)
+                Text('بدون إنترنت · على شبكة Wi‑Fi نفسها', style: body(13, color: const Color(0xFF22D37E))),
+            ],
+          ),
+        ),
+      ],
+    );
   }
 
-  /// رابط الدعوة يفتح الويب ويحط الكود (يشتغل للآيفون والأندرويد)
+  // ------------------------------------------------------------ الدعوة
+
   String get _link {
     final lan = widget.lanHost?.joinUrl;
     if (lan != null) return lan;
@@ -723,8 +344,8 @@ class _LobbyScreenState extends State<LobbyScreen> {
   }
 
   String get _invite => room.isLan
-      ? 'تعال العب وياي بلمّة 🎮 (على نفس الواي فاي)\nافتح: $_link\nأو بالتطبيق: نفس الشبكة ← دوّر على غرف قريبة'
-      : 'تعال العب وياي بلمّة 🎮\nكود الغرفة: ${room.code}\n$_link';
+      ? 'تعال العب معي في لمّة 🎮\nافتح هذا الرابط وأنت على شبكة Wi‑Fi نفسها:\n$_link\nأو من التطبيق: انضمام ← الرمز ${room.code}'
+      : 'تعال العب معي في لمّة 🎮\nرمز الغرفة: ${room.code}\n$_link';
 
   void _toast(String text) {
     ScaffoldMessenger.of(context)
@@ -740,9 +361,9 @@ class _LobbyScreenState extends State<LobbyScreen> {
   Future<void> _copy() async {
     try {
       await Clipboard.setData(ClipboardData(text: _link));
-      _toast('نسخت الرابط');
+      _toast('تم نسخ الرابط');
     } catch (_) {
-      _toast('ما گدرت أنسخ. الكود: ${room.code}');
+      _toast('تعذّر النسخ. الرمز هو: ${room.code}');
     }
   }
 
@@ -754,143 +375,299 @@ class _LobbyScreenState extends State<LobbyScreen> {
     }
   }
 
-  Widget _codeCard() {
+  Widget _inviteCard() {
     return Container(
       padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: C.surface,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: C.line),
-      ),
+      decoration: BoxDecoration(color: C.surface, borderRadius: BorderRadius.circular(24), border: Border.all(color: C.line)),
       child: Column(
         children: [
-          Text('كود الغرفة', style: body(14, color: C.muted)),
-          Text(room.code, style: display(54, color: Colors.white).copyWith(letterSpacing: 10)),
-          if (widget.lanHost != null) _lanCard(widget.lanHost!),
-          const SizedBox(height: 10),
+          Text('ادعُ أصدقاءك', style: body(16, weight: FontWeight.w800, color: C.muted)),
+          const SizedBox(height: 4),
+          Text(room.code, style: display(58, color: Colors.white).copyWith(letterSpacing: 12)),
+          Text('هذا رمز الغرفة', style: body(13, color: C.muted)),
+          const SizedBox(height: 14),
           Row(
             children: [
-              Expanded(child: _cardButton(Icons.share_rounded, 'شارك الدعوة', _share, filled: true)),
+              Expanded(child: BigButton(label: 'إرسال الدعوة', icon: Icons.share_rounded, onTap: _share)),
               const SizedBox(width: 8),
-              Expanded(child: _cardButton(Icons.copy_rounded, 'انسخ الرابط', _copy)),
+              Pressable(
+                onTap: _copy,
+                child: Container(
+                  width: 56,
+                  height: 56,
+                  decoration: BoxDecoration(color: alpha(Colors.white, 0.06), borderRadius: BorderRadius.circular(18), border: Border.all(color: C.line)),
+                  child: const Icon(Icons.copy_rounded, color: Colors.white),
+                ),
+              ),
             ],
           ),
+          const SizedBox(height: 14),
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(18)),
+            child: QrImageView(data: _link, size: 150, padding: EdgeInsets.zero),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            room.isLan ? 'لمن بجانبك: امسح الرمز بكاميرا الهاتف (يجب أن تكونوا على شبكة Wi‑Fi نفسها)' : 'لمن بجانبك: امسح الرمز بكاميرا الهاتف',
+            textAlign: TextAlign.center,
+            style: body(13, color: C.muted),
+          ),
+          if (widget.lanHost != null) ...[
+            const SizedBox(height: 4),
+            Text('أبقِ التطبيق مفتوحًا طوال اللعب.', textAlign: TextAlign.center, style: body(13, color: const Color(0xFFFFB627))),
+          ],
         ],
       ),
     );
   }
 
-  /// غرفة محلية: QR للآيفون والمتصفحات، والعناوين
-  Widget _lanCard(LanHost h) {
-    final url = h.joinUrl;
+  // ------------------------------------------------------------ اللاعبون
+
+  Widget _players() {
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        Text('اللاعبون (${room.players.length})', style: body(15, weight: FontWeight.w800, color: C.muted)),
         const SizedBox(height: 8),
-        if (url != null)
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(18)),
-            child: QrImageView(data: url, size: 180, padding: EdgeInsets.zero),
+        for (final p in room.players) _seat(p),
+        if (room.players.length < 2)
+          Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Row(
+              children: [
+                const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
+                const SizedBox(width: 10),
+                Text(room.isPublic ? 'جارٍ البحث عن لاعبين...' : 'بانتظار انضمام أصدقائك...', style: body(14, color: C.muted)),
+              ],
+            ),
           ),
-        const SizedBox(height: 10),
-        Text('امسح بالكاميرة، أو افتح بالمتصفح:', style: body(13.5, color: C.muted)),
-        for (final ip in h.ips.take(2))
-          SelectableText(h.urlFor(ip).replaceFirst('http://', ''),
-              textDirection: TextDirection.ltr, style: body(15, weight: FontWeight.w800)),
-        const SizedBox(height: 6),
-        Text('اللي عنده التطبيق: "نفس الشبكة" ← "دوّر على غرف قريبة".\nخلي التطبيق مفتوح طول اللعب.',
-            textAlign: TextAlign.center, style: body(13, color: C.muted)),
       ],
     );
   }
 
-  Widget _cardButton(IconData icon, String label, VoidCallback onTap, {bool filled = false}) {
-    return Pressable(
-      onTap: onTap,
-      child: Container(
-        height: 46,
-        decoration: BoxDecoration(
-          color: filled ? alpha(C.accent, 0.28) : alpha(Colors.white, 0.05),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: filled ? alpha(C.accent, 0.8) : C.line),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, size: 18, color: Colors.white),
-            const SizedBox(width: 6),
-            Text(label, style: body(15, weight: FontWeight.w700)),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _seat(int seat) {
-    final p = room.players.where((x) => x.seat == seat).firstOrNull;
-    final col = C.players[seat];
-    final canManage = p != null && room.isHost && seat != room.mySeat;
+  Widget _seat(NetPlayer p) {
+    final col = C.players[p.seat];
+    final canManage = room.isHost && !room.isPublic && p.seat != room.mySeat;
     return Pressable(
       onTap: canManage ? () => _seatMenu(p) : null,
       scale: 0.98,
       child: Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: BoxDecoration(
-        color: alpha(col, p == null ? 0.04 : 0.14),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: alpha(col, p == null ? 0.15 : 0.5)),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 14,
-            height: 14,
-            decoration: BoxDecoration(color: p == null ? alpha(col, 0.3) : col, shape: BoxShape.circle),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              p == null ? 'فاضي' : '${p.name}${seat == room.mySeat ? ' (انت)' : ''}',
-              style: body(17, weight: FontWeight.w800, color: p == null ? C.muted : Colors.white),
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: alpha(col, 0.12),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: alpha(col, 0.5)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 42,
+              height: 42,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(color: alpha(col, 0.25), shape: BoxShape.circle, border: Border.all(color: col, width: 2)),
+              child: Text(p.avatar.isEmpty ? '🙂' : p.avatar, style: const TextStyle(fontSize: 22)),
             ),
-          ),
-          if (p != null && seat == room.host) const Icon(Icons.star_rounded, color: Color(0xFFFFB627), size: 20),
-          if (p != null && !p.on) ...[
-            const SizedBox(width: 6),
-            Text('انقطع', style: body(13, color: const Color(0xFFFF8A8A))),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                '${p.name}${p.seat == room.mySeat ? ' (أنت)' : ''}',
+                style: body(17, weight: FontWeight.w800),
+              ),
+            ),
+            if (p.seat == room.host && !room.isPublic) ...[
+              const Icon(Icons.star_rounded, color: Color(0xFFFFB627), size: 20),
+              const SizedBox(width: 2),
+              Text('المدير', style: body(12, color: const Color(0xFFFFB627), weight: FontWeight.w700)),
+            ],
+            if (!p.on) ...[
+              const SizedBox(width: 8),
+              Text('غير متصل', style: body(12, color: const Color(0xFFFF8A8A))),
+            ],
+            if (canManage) const Icon(Icons.more_vert_rounded, color: C.muted, size: 20),
           ],
-          if (canManage) ...[
-            const SizedBox(width: 6),
-            const Icon(Icons.more_vert_rounded, color: C.muted, size: 20),
-          ],
-        ],
-      ),
+        ),
       ),
     );
   }
 
-  Widget _gameChip(GameInfo g, bool selected) {
-    return Pressable(
-      onTap: () => room.setGame(g.id, false),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
-          gradient: selected ? LinearGradient(colors: g.colors) : null,
-          color: selected ? null : alpha(Colors.white, 0.05),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: selected ? alpha(Colors.white, 0.4) : C.line),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            SizedBox(width: 28, height: 28, child: CustomPaint(painter: g.icon())),
-            const SizedBox(width: 8),
-            Text(g.title, style: body(16, weight: FontWeight.w800)),
+  // ------------------------------------------------------------ البطولة
+
+  Widget _tourCard(NetTour t) {
+    final ranking = t.ranking;
+    final champion = t.done && ranking.isNotEmpty ? ranking.first.key : -1;
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(colors: [alpha(const Color(0xFFFFB627), 0.22), alpha(const Color(0xFFFF8A1F), 0.08)]),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: alpha(const Color(0xFFFFB627), 0.6)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(t.done ? '🏆 انتهت البطولة' : '🏆 البطولة: اللعبة ${t.idx + 1} من ${t.games.length}',
+              style: body(17, weight: FontWeight.w800)),
+          if (champion >= 0) ...[
+            const SizedBox(height: 4),
+            Text('البطل: ${room.avatarOfSeat(champion)} ${room.nameOfSeat(champion)}', style: display(26, color: const Color(0xFFFFD34D))),
           ],
-        ),
+          const SizedBox(height: 10),
+          for (var i = 0; i < ranking.length; i++)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Row(
+                children: [
+                  SizedBox(width: 26, child: Text('${i + 1}', style: display(20, color: C.muted))),
+                  Text(room.avatarOfSeat(ranking[i].key), style: const TextStyle(fontSize: 18)),
+                  const SizedBox(width: 6),
+                  Expanded(child: Text(room.nameOfSeat(ranking[i].key), style: body(15, weight: FontWeight.w700))),
+                  Text('${ranking[i].value} نقطة', style: body(15, weight: FontWeight.w800, color: const Color(0xFFFFD34D))),
+                ],
+              ),
+            ),
+          if (ranking.isEmpty) Text('الفوز بأي لعبة = 3 نقاط، والتعادل = نقطة للجميع.', style: body(13, color: C.muted)),
+        ],
       ),
     );
+  }
+
+  // ------------------------------------------------------------ البدء
+
+  Widget _gameCard(GameInfo g, {VoidCallback? onChange}) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(colors: [alpha(g.colors[0], 0.5), alpha(g.colors[1], 0.5)]),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: alpha(Colors.white, 0.18)),
+      ),
+      child: Row(
+        children: [
+          SizedBox(width: 52, height: 52, child: CustomPaint(painter: g.icon())),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(g.title, style: display(26)),
+                Text(room.crazy && g.crazyHowTo != null ? 'الوضع المجنون' : g.tagline, style: body(13, color: alpha(Colors.white, 0.8))),
+              ],
+            ),
+          ),
+          if (onChange != null)
+            TextButton(
+              onPressed: onChange,
+              child: Text('تغيير', style: body(15, weight: FontWeight.w800, color: Colors.white)),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _actions(GameInfo? chosen) {
+    final onCount = room.players.where((p) => p.on).length;
+
+    // مباراة جارية وأنا لست داخلها
+    if (room.started && !_gameOpen) {
+      if (room.me < 0) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _note('توجد مباراة جارية الآن. يمكنك مشاهدتها، وستشارك في الجولة القادمة.', icon: Icons.visibility_rounded),
+            const SizedBox(height: 12),
+            BigButton(label: 'مشاهدة المباراة', icon: Icons.visibility_rounded, filled: false, onTap: _openGame),
+          ],
+        );
+      }
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          BigButton(
+            label: room.playing ? 'العودة إلى اللعبة' : 'مشاهدة اللعبة',
+            icon: Icons.sports_esports_rounded,
+            color: chosen?.colors.first ?? C.accent,
+            onTap: _openGame,
+          ),
+          if (room.isHost && !room.isPublic) ...[
+            const SizedBox(height: 10),
+            BigButton(label: 'إعادة الجميع إلى الغرفة', icon: Icons.meeting_room_rounded, filled: false, onTap: room.toLobby),
+          ],
+        ],
+      );
+    }
+
+    // لعب سريع: يبدأ تلقائيًا
+    if (room.isPublic) {
+      final at = room.autoAt;
+      final left = at == null ? null : math.max(0, at.difference(DateTime.now()).inMilliseconds / 1000).ceil();
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (chosen != null) _gameCard(chosen),
+          const SizedBox(height: 12),
+          _note(
+            left != null ? 'تبدأ المباراة خلال $left ${left == 1 ? 'ثانية' : 'ثوانٍ'}...' : 'ستبدأ المباراة تلقائيًا عند انضمام لاعب آخر.',
+            icon: Icons.timer_outlined,
+          ),
+        ],
+      );
+    }
+
+    if (!room.isHost) {
+      final host = room.nameOfSeat(room.host);
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (chosen != null) _gameCard(chosen),
+          const SizedBox(height: 12),
+          _note(
+            room.host >= 0 && !room.hostOn ? 'انقطع اتصال $host. إذا لم يعد خلال لحظات ستنتقل الإدارة إلى غيره.' : 'بانتظار $host ليبدأ اللعب...',
+            icon: Icons.hourglass_top_rounded,
+          ),
+        ],
+      );
+    }
+
+    // مدير الغرفة
+    final canStart = chosen != null && onCount >= chosen.minPlayers && onCount <= chosen.maxPlayers;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (chosen != null) _gameCard(chosen, onChange: () => _pickGame(onCount)),
+        if (chosen?.crazyHowTo != null) ...[
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(child: _modeChip('عادي', !room.crazy, () => room.setGame(chosen!.id, false))),
+              const SizedBox(width: 8),
+              Expanded(child: _modeChip('مجنون', room.crazy, () => room.setGame(chosen!.id, true))),
+            ],
+          ),
+        ],
+        const SizedBox(height: 14),
+        Opacity(
+          opacity: canStart ? 1 : 0.5,
+          child: BigButton(
+            label: canStart ? 'ابدأ اللعب' : _needText(chosen, onCount),
+            icon: Icons.play_arrow_rounded,
+            color: chosen?.colors.first ?? C.accent,
+            onTap: canStart ? room.start : () {},
+          ),
+        ),
+        if (onCount >= 2) ...[
+          const SizedBox(height: 10),
+          BigButton(label: 'بطولة (عدة ألعاب)', icon: Icons.emoji_events_rounded, filled: false, onTap: () => _pickTour(onCount)),
+        ],
+      ],
+    );
+  }
+
+  String _needText(GameInfo? g, int on) {
+    if (g == null) return 'اختر لعبة';
+    if (on < g.minPlayers) return 'تحتاج إلى ${g.minPlayers == 2 ? 'لاعبَين' : '${g.minPlayers} لاعبين'} على الأقل';
+    return 'هذه اللعبة لـ ${g.maxPlayers == 2 ? 'لاعبَين' : '${g.maxPlayers} لاعبين'} فقط';
   }
 
   Widget _modeChip(String label, bool selected, VoidCallback onTap) {
@@ -908,18 +685,191 @@ class _LobbyScreenState extends State<LobbyScreen> {
       ),
     );
   }
+
+  /// اختيار لعبة أخرى (تظهر الألعاب المناسبة لعدد اللاعبين أولًا)
+  Future<void> _pickGame(int on) async {
+    final pick = await showModalBottomSheet<GameInfo>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) => _sheet(
+        title: 'اختر لعبة',
+        child: Column(
+          children: [
+            for (final g in onlineGames)
+              Opacity(
+                opacity: on <= g.maxPlayers ? 1 : 0.4,
+                child: Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Pressable(
+                    onTap: on <= g.maxPlayers ? () => Navigator.pop(ctx, g) : null,
+                    child: _gameCard(g),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+    if (pick != null) room.setGame(pick.id, false);
+  }
+
+  /// بطولة: اختيار الألعاب (2 إلى 6)
+  Future<void> _pickTour(int on) async {
+    final options = onlineGames.where((g) => g.maxPlayers >= on).toList();
+    final picked = <String>{for (final g in options.take(4)) g.id};
+    final ok = await showModalBottomSheet<bool>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, set) => _sheet(
+          title: 'بطولة',
+          subtitle: 'اختر الألعاب (من 2 إلى 6). الفوز بلعبة = 3 نقاط، والتعادل = نقطة.',
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final g in options)
+                    Pressable(
+                      onTap: () => set(() {
+                        if (picked.contains(g.id)) {
+                          picked.remove(g.id);
+                        } else if (picked.length < 6) {
+                          picked.add(g.id);
+                        }
+                      }),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        decoration: BoxDecoration(
+                          gradient: picked.contains(g.id) ? LinearGradient(colors: g.colors) : null,
+                          color: picked.contains(g.id) ? null : alpha(Colors.white, 0.05),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: picked.contains(g.id) ? alpha(Colors.white, 0.5) : C.line),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(picked.contains(g.id) ? Icons.check_circle_rounded : Icons.circle_outlined, size: 18, color: Colors.white),
+                            const SizedBox(width: 6),
+                            Text(g.title, style: body(15, weight: FontWeight.w800)),
+                          ],
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Opacity(
+                opacity: picked.length >= 2 ? 1 : 0.5,
+                child: BigButton(
+                  label: 'ابدأ البطولة (${picked.length} ألعاب)',
+                  icon: Icons.emoji_events_rounded,
+                  color: const Color(0xFFFF8A1F),
+                  onTap: () {
+                    if (picked.length >= 2) Navigator.pop(ctx, true);
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (ok == true) room.startTour([for (final g in options) if (picked.contains(g.id)) g.id]);
+  }
+
+  Widget _sheet({required String title, String? subtitle, required Widget child}) {
+    return Align(
+      alignment: Alignment.bottomCenter,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: 560, maxHeight: MediaQuery.sizeOf(context).height * 0.85),
+        child: Container(
+          margin: const EdgeInsets.all(10),
+          padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
+          decoration: BoxDecoration(color: C.surface, borderRadius: BorderRadius.circular(28), border: Border.all(color: C.line)),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(title, textAlign: TextAlign.center, style: display(28)),
+                if (subtitle != null) ...[
+                  const SizedBox(height: 4),
+                  Text(subtitle, textAlign: TextAlign.center, style: body(14, color: C.muted)),
+                ],
+                const SizedBox(height: 14),
+                child,
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
-/// زر "الغرفة" بشاشة النتيجة أونلاين: صاحب الغرفة يرجّع الكل، والباقي يرجع لحاله
+// ================================================================ أدوات تستعملها الألعاب
+
+/// زر "الغرفة" بشاشة النتيجة أونلاين: المدير يعيد الجميع، والباقون يعودون وحدهم
 VoidCallback? roomMenu(BuildContext context, Session s) {
   if (s is! OnlineSession) return null;
   return () {
-    if (s.room.isHost) {
+    if (s.room.isHost && !s.room.isPublic) {
       s.room.toLobby();
     } else {
       Navigator.of(context).pop();
     }
   };
+}
+
+/// نص زر الإعادة: بالبطولة "اللعبة التالية"
+String? againLabelOf(Session s) {
+  if (s is! OnlineSession) return null;
+  final t = s.room.tour;
+  if (t == null) return null;
+  if (t.done || t.idx >= t.games.length - 1) return 'عرض نتيجة البطولة';
+  final next = gameById(t.games[t.idx + 1]);
+  return next == null ? 'اللعبة التالية' : 'التالي: ${next.title}';
+}
+
+/// ترتيب البطولة تحت النتيجة
+Widget? tourFooter(Session s) {
+  if (s is! OnlineSession) return null;
+  final room = s.room;
+  final t = room.tour;
+  if (t == null) return null;
+  return Container(
+    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+    decoration: BoxDecoration(
+      color: alpha(const Color(0xFFFFB627), 0.12),
+      borderRadius: BorderRadius.circular(16),
+      border: Border.all(color: alpha(const Color(0xFFFFB627), 0.5)),
+    ),
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text('🏆 البطولة: ${t.idx + 1} من ${t.games.length}', style: body(14, weight: FontWeight.w800)),
+        const SizedBox(height: 4),
+        Wrap(
+          spacing: 12,
+          children: [
+            for (final e in t.ranking)
+              Text('${room.avatarOfSeat(e.key)} ${room.nameOfSeat(e.key)}: ${e.value}', style: body(13, weight: FontWeight.w700)),
+          ],
+        ),
+      ],
+    ),
+  );
+}
+
+/// أسماء اللاعبين أونلاين (لشاشة النتيجة)
+List<String>? namesOf(Session s) {
+  if (s is! OnlineSession) return null;
+  return [for (var p = 0; p < s.room.seats.length; p++) s.nameOf(p)];
 }
 
 /// بانتظار أول حالة من السيرفر
@@ -934,14 +884,14 @@ class NetWaiting extends StatelessWidget {
         children: [
           const SizedBox(width: 34, height: 34, child: CircularProgressIndicator(strokeWidth: 3)),
           const SizedBox(height: 14),
-          Text('دا نتصل باللعبة...', style: body(16, color: C.muted)),
+          Text('جارٍ الاتصال...', style: body(16, color: C.muted)),
         ],
       ),
     );
   }
 }
 
-/// شريط فوگ اللعبة: إذا أني انقطعت، أو واحد من اللاعبين انقطع
+/// شريط أعلى اللعبة: إذا انقطع اتصالي، أو انقطع أحد اللاعبين
 class NetBanner extends StatelessWidget {
   const NetBanner({super.key, required this.session, required this.players});
   final Session session;
@@ -961,10 +911,10 @@ class NetBanner extends StatelessWidget {
           builder: (context, _) {
             String? text;
             if (s.room.status != RoomStatus.online) {
-              text = 'انقطع النت... دا نرجع نتصل';
+              text = 'انقطع الاتصال... جارٍ إعادة الاتصال';
             } else {
               final gone = [for (var p = 0; p < players; p++) if (p != s.me && !s.isOn(p)) s.nameOf(p)];
-              if (gone.isNotEmpty) text = '${gone.join('، ')} انقطع... اللعبة تكمل';
+              if (gone.isNotEmpty) text = 'انقطع اتصال ${gone.join('، ')}... تستمر اللعبة';
             }
             if (text == null) return const SizedBox.shrink();
             return Center(

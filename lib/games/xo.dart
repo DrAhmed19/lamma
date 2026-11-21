@@ -98,6 +98,7 @@ class _XoState extends LoopState<XoGame> {
   Widget build(BuildContext context) {
     return GameScaffold(
       onPause: openPause,
+      room: widget.room,
       child: LayoutBuilder(builder: (context, box) {
         final s = box.biggest;
         final side = math.min(s.width * 0.88, s.height * 0.52);
@@ -136,6 +137,9 @@ class _XoState extends LoopState<XoGame> {
                   dual: !online,
                   menuLabel: online ? 'الغرفة' : null,
                   onMenu: roomMenu(context, session),
+                  againLabel: againLabelOf(session),
+                  footer: tourFooter(session),
+                  names: namesOf(session),
                   onAgain: restart,
                 ),
               ),
@@ -149,7 +153,7 @@ class _XoState extends LoopState<XoGame> {
     final active = !m.over && m.turn == p;
     String? label;
     if (session.online) {
-      label = p == session.me ? (active ? 'دورك' : 'انت') : session.nameOf(p);
+      label = p == session.me ? (active ? 'دورك' : 'أنت') : session.nameOf(p);
     }
     return TurnBadge(player: p, active: active, score: m.wins[p], label: label);
   }

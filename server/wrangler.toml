@@ -12,3 +12,12 @@ class_name = "Room"
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["Room"]
+
+# قائمة اللعب السريع (غرف عامة تنتظر لاعبين)
+[[durable_objects.bindings]]
+name = "MATCH"
+class_name = "Match"
+
+[[migrations]]
+tag = "v2"
+new_sqlite_classes = ["Match"]

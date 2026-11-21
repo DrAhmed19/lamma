@@ -150,7 +150,7 @@ class LanHost {
       res.headers.contentType = ContentType.html;
       res.write('<html dir="rtl"><meta charset="utf-8"><meta name="viewport" content="width=device-width">'
           '<body style="font-family:sans-serif;background:#090C18;color:#fff;padding:24px">'
-          '<h2>لمّة</h2><p>نسخة الويب مو موجودة بهالتطبيق. حمّل تطبيق لمّة على أندرويد وادخل الغرفة <b>${room.code}</b> من "نفس الشبكة".</p></body></html>');
+          '<h2>لمّة</h2><p>نسخة الويب غير متوفرة في هذا التطبيق. ثبّت تطبيق لمّة على أندرويد وانضم إلى الغرفة <b>${room.code}</b>.</p></body></html>');
       await res.close();
       return;
     }

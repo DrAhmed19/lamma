@@ -3,7 +3,9 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../core/fx.dart';
+import '../net/room.dart';
 import 'icons.dart';
+import 'react.dart';
 import 'theme.dart';
 
 /// زر يصغر شوية عند الضغط.
@@ -135,9 +137,12 @@ class GlassIconButton extends StatelessWidget {
 
 /// غلاف كل لعبة: خلفية + زر إيقاف + زر رجوع الجهاز يفتح الإيقاف.
 class GameScaffold extends StatelessWidget {
-  const GameScaffold({super.key, required this.child, required this.onPause});
+  const GameScaffold({super.key, required this.child, required this.onPause, this.room});
   final Widget child;
   final VoidCallback onPause;
+
+  /// أونلاين: زر التفاعلات السريعة، وتظهر تفاعلات الباقين فوق اللعبة
+  final RoomConn? room;
 
   @override
   Widget build(BuildContext context) {
@@ -156,13 +161,23 @@ class GameScaffold extends StatelessWidget {
               top: 0,
               bottom: 0,
               child: Center(
-                child: GlassIconButton(
-                  icon: Icons.pause_rounded,
-                  onTap: onPause,
-                  size: 42,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    GlassIconButton(
+                      icon: Icons.pause_rounded,
+                      onTap: onPause,
+                      size: 42,
+                    ),
+                    if (room != null) ...[
+                      const SizedBox(height: 10),
+                      ReactButton(room: room!),
+                    ],
+                  ],
                 ),
               ),
             ),
+            if (room != null) Positioned.fill(child: IgnorePointer(child: ReactLayer(room: room!))),
           ],
         ),
       ),
@@ -214,23 +229,23 @@ class _PauseMenu extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text('استراحة', textAlign: TextAlign.center, style: display(38)),
+              Text('إيقاف مؤقت', textAlign: TextAlign.center, style: display(38)),
               const SizedBox(height: 18),
               BigButton(
-                label: 'كمّل',
+                label: 'متابعة',
                 icon: Icons.play_arrow_rounded,
                 onTap: () => Navigator.pop(context, PauseAction.resume),
               ),
               const SizedBox(height: 10),
               BigButton(
-                label: 'من جديد',
+                label: 'إعادة اللعبة',
                 icon: Icons.replay_rounded,
                 filled: false,
                 onTap: () => Navigator.pop(context, PauseAction.restart),
               ),
               const SizedBox(height: 10),
               BigButton(
-                label: 'القائمة',
+                label: 'الخروج',
                 icon: Icons.grid_view_rounded,
                 filled: false,
                 onTap: () => Navigator.pop(context, PauseAction.exit),
@@ -259,7 +274,7 @@ class Countdown extends StatefulWidget {
 class _CountdownState extends State<Countdown> with SingleTickerProviderStateMixin {
   late final AnimationController _c;
   int _lastStep = -1;
-  static const _labels = ['3', '2', '1', 'يلا!'];
+  static const _labels = ['3', '2', '1', 'انطلق!'];
 
   @override
   void initState() {
@@ -354,7 +369,19 @@ class ResultOverlay extends StatelessWidget {
     this.seats,
     this.menuLabel,
     this.onMenu,
+    this.againLabel,
+    this.footer,
+    this.names,
   });
+
+  /// نص زر الإعادة (بالبطولة: "اللعبة التالية")
+  final String? againLabel;
+
+  /// شي إضافي تحت النتيجة (ترتيب البطولة مثلاً)
+  final Widget? footer;
+
+  /// أسماء اللاعبين (أونلاين). إذا null نستخدم أسماء الألوان.
+  final List<String>? names;
 
   /// الزر الثاني (افتراضياً يرجع للقائمة). أونلاين: يرجع للغرفة.
   final String? menuLabel;
@@ -372,7 +399,7 @@ class ResultOverlay extends StatelessWidget {
   final bool dual;
   final String? subtitle;
 
-  String get _title => winner < 0 ? 'تعادل!' : 'فاز ${C.playerNames[_seat(winner)]}!';
+  String get _title => winner < 0 ? 'تعادل!' : 'فاز ${names != null && winner < names!.length ? names![winner] : C.playerNames[_seat(winner)]}!';
   Color get _color => winner < 0 ? Colors.white : C.players[_seat(winner)];
 
   Widget _banner() {
@@ -440,14 +467,18 @@ class ResultOverlay extends StatelessWidget {
         _banner(),
         const SizedBox(height: 16),
         _scores(),
+        if (footer != null) ...[
+          const SizedBox(height: 14),
+          footer!,
+        ],
         const SizedBox(height: 22),
         Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            BigButton(label: 'مرة ثانية', icon: Icons.replay_rounded, onTap: onAgain, color: winner >= 0 ? _color : C.accent),
+            BigButton(label: againLabel ?? 'العب مرة أخرى', icon: Icons.replay_rounded, onTap: onAgain, color: winner >= 0 ? _color : C.accent),
             const SizedBox(width: 10),
             BigButton(
-              label: menuLabel ?? 'القائمة',
+              label: menuLabel ?? 'الرئيسية',
               filled: false,
               onTap: onMenu ?? () => Navigator.of(context).pop(),
             ),

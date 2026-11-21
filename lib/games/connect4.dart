@@ -136,6 +136,7 @@ class _C4State extends LoopState<Connect4Game> {
   Widget build(BuildContext context) {
     return GameScaffold(
       onPause: openPause,
+      room: widget.room,
       child: LayoutBuilder(builder: (context, box) {
         final s = box.biggest;
         final cw = math.min(s.width * 0.94 / cols, s.height * 0.56 / rows);
@@ -174,6 +175,9 @@ class _C4State extends LoopState<Connect4Game> {
                   dual: !online,
                   menuLabel: online ? 'الغرفة' : null,
                   onMenu: roomMenu(context, session),
+                  againLabel: againLabelOf(session),
+                  footer: tourFooter(session),
+                  names: namesOf(session),
                   onAgain: restart,
                 ),
               ),
@@ -187,7 +191,7 @@ class _C4State extends LoopState<Connect4Game> {
     final active = !m.over && m.turn == p;
     String? label;
     if (session.online) {
-      label = p == session.me ? (active ? 'دورك' : 'انت') : session.nameOf(p);
+      label = p == session.me ? (active ? 'دورك' : 'أنت') : session.nameOf(p);
     }
     return TurnBadge(player: pc[p], active: active, score: m.wins[p], label: label);
   }

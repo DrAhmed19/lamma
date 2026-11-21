@@ -32,7 +32,7 @@ class Client {
       if (m['t'] == 'state') state = m['s'] as Map<String, dynamic>;
       if (m['t'] == 'you') seat = m['seat'] as int;
     });
-    send({'t': 'join', 'name': name, 'token': '$name-tok'});
+    send({'t': 'join', 'name': name, 'token': '$name-tok', 'avatar': '🦁'});
   }
 
   void send(Map<String, dynamic> m) => ws.add(jsonEncode(m));
@@ -101,6 +101,29 @@ Future<void> main() async {
   a.send({'t': 'lobby'});
   await wait();
   check(b2.room?['started'] == false, 'lobby ends match');
+
+  // صورة رمزية + تفاعل
+  check(b2.room?['players'].any((p) => p['avatar'] == '🦁') == true, 'avatar shared');
+  a.send({'t': 'emo', 'i': 3});
+  await wait();
+  check(b2.msgs.any((m) => m['t'] == 'emo' && m['i'] == 3 && m['seat'] == 0), 'emoji relayed');
+  a.send({'t': 'emo', 'i': 99});
+  await wait();
+  check(!b2.msgs.any((m) => m['t'] == 'emo' && m['i'] == 99), 'bad emoji rejected');
+
+  // بطولة: إكس أو ثم أربعة بالصف
+  a.send({'t': 'tour', 'games': ['xo', 'connect4']});
+  await wait();
+  check(b2.room?['tour'] != null && b2.room?['game'] == 'xo', 'tour starts with first game');
+  for (final mv in [[a, 0], [b2, 3], [a, 1], [b2, 4], [a, 2]]) {
+    (mv[0] as Client).send({'t': 'in', 'd': {'m': 'put', 'i': mv[1]}});
+    await wait(60);
+  }
+  await wait();
+  check(b2.room?['tour']['pts']['0'] == 3, 'winner of game 1 gets 3 points');
+  a.send({'t': 'again'});
+  await wait();
+  check(b2.room?['game'] == 'connect4' && b2.room?['tour']['idx'] == 1, 'again moves tour to next game');
 
   room.dispose();
   await http.close(force: true);

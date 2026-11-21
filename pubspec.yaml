@@ -19,6 +19,7 @@ dependencies:
   path_provider: ^2.1.6
   qr_flutter: ^4.1.0
   share_plus: ^13.3.1
+  shared_preferences: ^2.5.6
   web_socket_channel: ^3.0.3
 
 flutter:
@@ -27,16 +28,16 @@ flutter:
     - assets/sfx/
     - assets/lan/
   fonts:
-    - family: Tajawal
+    - family: Vazirmatn
       fonts:
-        - asset: assets/fonts/Tajawal-Regular.ttf
-        - asset: assets/fonts/Tajawal-Medium.ttf
+        - asset: assets/fonts/Vazirmatn-Regular.ttf
+        - asset: assets/fonts/Vazirmatn-Medium.ttf
           weight: 500
-        - asset: assets/fonts/Tajawal-Bold.ttf
+        - asset: assets/fonts/Vazirmatn-Bold.ttf
           weight: 700
-        - asset: assets/fonts/Tajawal-ExtraBold.ttf
+        - asset: assets/fonts/Vazirmatn-ExtraBold.ttf
           weight: 800
-        - asset: assets/fonts/Tajawal-Black.ttf
+        - asset: assets/fonts/Vazirmatn-Black.ttf
           weight: 900
     - family: Lalezar
       fonts:

@@ -108,7 +108,7 @@ class Updater extends ChangeNotifier {
       _lastCheck = DateTime.now();
       _set(hasUpdate ? UpdateStatus.available : UpdateStatus.upToDate);
     } catch (e) {
-      _set(UpdateStatus.error, err: 'ما گدرت أتحقق من التحديث. تأكد من النت وجرب مرة ثانية.');
+      _set(UpdateStatus.error, err: 'تعذّر التحقق من التحديث. تحقّق من اتصالك بالإنترنت ثم حاول مرة أخرى.');
     }
   }
 
@@ -148,9 +148,9 @@ class Updater extends ChangeNotifier {
       if (e.toString() == 'cancelled') {
         _set(UpdateStatus.available);
       } else if (e.toString().contains('checksum')) {
-        _set(UpdateStatus.error, err: 'الملف النازل تالف. جرب تنزّله مرة ثانية.');
+        _set(UpdateStatus.error, err: 'الملف الذي تم تنزيله تالف. حاول تنزيله مرة أخرى.');
       } else {
-        _set(UpdateStatus.error, err: 'انقطع التنزيل. تأكد من النت وجرب مرة ثانية.');
+        _set(UpdateStatus.error, err: 'انقطع التنزيل. تحقّق من اتصالك بالإنترنت ثم حاول مرة أخرى.');
       }
     } finally {
       _dl = null;

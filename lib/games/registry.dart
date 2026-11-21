@@ -5,6 +5,7 @@ import '../ui/icons.dart';
 import 'connect4.dart';
 import 'hockey.dart';
 import 'pigeon.dart';
+import 'quiz.dart';
 import 'reaction.dart';
 import 'tug.dart';
 import 'xo.dart';
@@ -32,6 +33,7 @@ class GameInfo {
   final int maxPlayers;
   final List<Color> colors;
   final CustomPainter Function() icon;
+
   /// crazy = الوضع المجنون (بس للألعاب اللي عندها crazyHowTo)
   final Widget Function(int players, bool crazy) build;
 
@@ -41,17 +43,19 @@ class GameInfo {
   /// اللعب أونلاين (كل واحد بتلفونه). إذا null اللعبة بعدها ما تدعم الأونلاين.
   final Widget Function(RoomConn room)? online;
 
-  String get playersLabel =>
-      minPlayers == maxPlayers ? '$minPlayers لاعبين' : '$minPlayers - $maxPlayers لاعبين';
+  String get playersLabel => minPlayers == maxPlayers ? 'لاعبان' : 'من $minPlayers إلى $maxPlayers لاعبين';
 }
+
+GameInfo? gameById(String? id) => games.where((g) => g.id == id).firstOrNull;
 
 final games = <GameInfo>[
   GameInfo(
     id: 'pigeon',
     title: 'الحمامة',
-    tagline: 'نيشن واصطاد الحمامة',
-    howTo: 'كل واحد عنده مصيادة بزاويته. اسحب لورا وعوف حتى ترمي الحجارة على الحمامة. أول واحد يوصل 10 إصابات يفوز.',
-    crazyHowTo: 'دقيقة وحدة والأكثر نقاط يفوز! الذهبية بنقطتين، الغراب الأسود ينقّصك نقطة، وأسراب تمر بسرعة. التقط الصناديق بالحجارة: نار تخترق، ثلاثية، وتجميد للخصوم. ثلاث إصابات ورا بعض = كومبو!',
+    tagline: 'صوّب واصطد الحمامة',
+    howTo: 'لكل لاعب مقلاع في زاويته. اسحب إلى الخلف ثم اترك لترمي الحجارة على الحمامة. أول من يصل إلى 10 إصابات يفوز.',
+    crazyHowTo:
+        'دقيقة واحدة، والأكثر نقاطًا يفوز! الحمامة الذهبية بنقطتين، والغراب الأسود يُنقص نقطة، وأسراب تمر بسرعة. أصب الصناديق لتحصل على قوة: نار تخترق، أو ثلاث حجارة، أو تجميد للخصوم. ثلاث إصابات متتالية تمنحك نقطة إضافية.',
     minPlayers: 2,
     maxPlayers: 4,
     colors: const [Color(0xFF2EB8E6), Color(0xFF0B4566)],
@@ -60,10 +64,22 @@ final games = <GameInfo>[
     online: (room) => PigeonGame(players: room.seats.length, crazy: room.crazy, room: room),
   ),
   GameInfo(
+    id: 'quiz',
+    title: 'سؤال وجواب',
+    tagline: 'من يعرف أكثر؟',
+    howTo: 'عشرة أسئلة في المعلومات العامة. اختر الإجابة الصحيحة قبل انتهاء الوقت. كل إجابة صحيحة بنقطة، وأسرع إجابة صحيحة تحصل على نقطة إضافية.',
+    minPlayers: 2,
+    maxPlayers: 4,
+    colors: const [Color(0xFF8B5CF6), Color(0xFF3B1C8C)],
+    icon: QuizIcon.new,
+    build: (n, _) => QuizGame(players: n),
+    online: (room) => QuizGame(players: room.seats.length, room: room),
+  ),
+  GameInfo(
     id: 'hockey',
-    title: 'هوكي',
-    tagline: 'دافع عن هدفك وسجّل',
-    howTo: 'كل واحد يحرك مضربه بإصبعه بنصّه من الشاشة. ضرب القرص لهدف خصمك. أول واحد يوصل 7 أهداف يفوز.',
+    title: 'الهوكي',
+    tagline: 'دافع عن مرماك وسجّل',
+    howTo: 'حرّك مضربك بإصبعك في نصفك من الشاشة، واضرب القرص نحو مرمى خصمك. أول من يسجّل 7 أهداف يفوز.',
     minPlayers: 2,
     maxPlayers: 2,
     colors: const [Color(0xFF1E6BFF), Color(0xFF0B2A6B)],
@@ -74,8 +90,8 @@ final games = <GameInfo>[
   GameInfo(
     id: 'reaction',
     title: 'أسرع إصبع',
-    tagline: 'لا تضغط قبل الأخضر!',
-    howTo: 'انتظر لما الدائرة بالنص تصير خضراء، وبعدها اضغط على منطقتك بأسرع ما يمكن. إذا ضغطت قبلها تنطرد من الجولة. انتبه للبرتقالي، هو خدعة! أول واحد يوصل 5 نقاط يفوز.',
+    tagline: 'لا تضغط قبل اللون الأخضر!',
+    howTo: 'انتظر حتى تصبح الدائرة في المنتصف خضراء، ثم اضغط بأسرع ما يمكن. إذا ضغطت قبلها تخرج من الجولة. احذر من اللون البرتقالي فهو خدعة! أول من يصل إلى 5 نقاط يفوز.',
     minPlayers: 2,
     maxPlayers: 4,
     colors: const [Color(0xFF16B46A), Color(0xFF0A4A33)],
@@ -85,9 +101,9 @@ final games = <GameInfo>[
   ),
   GameInfo(
     id: 'tug',
-    title: 'شد الحبل',
+    title: 'شدّ الحبل',
     tagline: 'اضغط أسرع من خصمك',
-    howTo: 'كل واحد يضغط على نصّه من الشاشة بأسرع ما يگدر. كل ضغطة تسحب الحبل صوبك. اللي يوصل الحبل لخطه يفوز.',
+    howTo: 'اضغط على الشاشة بأسرع ما تستطيع. كل ضغطة تسحب الحبل نحوك، ومن يوصل الحبل إلى خطّه يفوز.',
     minPlayers: 2,
     maxPlayers: 2,
     colors: const [Color(0xFFFF5A5F), Color(0xFF7A1630)],
@@ -97,9 +113,9 @@ final games = <GameInfo>[
   ),
   GameInfo(
     id: 'connect4',
-    title: 'أربعة بالصف',
-    tagline: 'رتّب أربعة قبل خصمك',
-    howTo: 'بالدور، اختار عمود حتى تنزل قطعتك. أول واحد يصفّ أربع قطع بخط واحد (عمودي، أفقي أو مايل) يفوز.',
+    title: 'أربعة في صف',
+    tagline: 'رتّب أربعًا قبل خصمك',
+    howTo: 'بالتناوب، اختر عمودًا لتُسقط قطعتك فيه. أول من يصفّ أربع قطع في خط واحد (عمودي أو أفقي أو مائل) يفوز.',
     minPlayers: 2,
     maxPlayers: 2,
     colors: const [Color(0xFFFFB627), Color(0xFF7A4A06)],
@@ -110,8 +126,8 @@ final games = <GameInfo>[
   GameInfo(
     id: 'xo',
     title: 'إكس أو',
-    tagline: 'الكلاسيكية الأصلية',
-    howTo: 'بالدور، كل واحد يحط علامته. أول واحد يصفّ ثلاثة بخط واحد يفوز.',
+    tagline: 'اللعبة الكلاسيكية',
+    howTo: 'بالتناوب، يضع كل لاعب علامته. أول من يصفّ ثلاث علامات في خط واحد يفوز.',
     minPlayers: 2,
     maxPlayers: 2,
     colors: const [Color(0xFF8B6CFF), Color(0xFF34207A)],

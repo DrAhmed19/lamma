@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import '../core/profile.dart';
 import '../logic/game_model.dart';
 import 'room.dart';
 
@@ -39,6 +40,21 @@ abstract class Session<M extends GameModel> {
   void dispose() {}
 
   /// قيمة بين الحالة السابقة والحالية (للحركة الناعمة أونلاين)
+  bool _wasOver = false;
+
+  /// لمّن تخلص مباراة نسجّلها بإحصائيات اللاعب
+  void watchResult({bool silent = false}) {
+    final m = model;
+    if (m.over && !_wasOver && !silent) {
+      if (!online) {
+        Profile.I.recordGame(m.id);
+      } else if (me >= 0) {
+        Profile.I.recordGame(m.id, won: m.winner == me, online: true);
+      }
+    }
+    _wasOver = m.over;
+  }
+
   double lerp(double Function(M m) f) {
     final p = prev;
     if (p == null) return f(model);
@@ -69,7 +85,10 @@ class LocalSession<M extends GameModel> extends Session<M> {
   bool isOn(int player) => true;
 
   @override
-  void input(int player, Map<String, dynamic> d) => model.input(player, d);
+  void input(int player, Map<String, dynamic> d) {
+    model.input(player, d);
+    watchResult();
+  }
 
   @override
   void again() => model.again();
@@ -85,6 +104,7 @@ class LocalSession<M extends GameModel> extends Session<M> {
       model.advance(step);
       _acc -= step;
     }
+    watchResult();
   }
 
   @override
@@ -138,6 +158,7 @@ class OnlineSession<M extends GameModel> extends Session<M> {
     _model = m;
     _recvAt = st.at;
     if (!firstTime) _events.addAll(st.events);
+    watchResult(silent: firstTime);
   }
 
   @override

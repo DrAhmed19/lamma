@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
-const kFont = 'Tajawal';
+// Vazirmatn: بيه كل الحروف العربية والفارسية (گ چ پ ژ)، Tajawal ما بيه گ وچ
+const kFont = 'Vazirmatn';
 const kDisplay = 'Lalezar';
 
 /// ألوان التطبيق

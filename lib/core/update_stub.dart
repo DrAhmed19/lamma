@@ -11,4 +11,4 @@ class ApkDownload {
 Future<bool> verifySha256(String path, String expected) async => true;
 
 /// يرجع null إذا تمام، أو رسالة خطأ
-Future<String?> installApk(String path) async => 'مو مدعوم هنا';
+Future<String?> installApk(String path) async => 'غير مدعوم هنا';

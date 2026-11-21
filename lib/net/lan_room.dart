@@ -1,6 +1,7 @@
 // غرفة على نفس الشبكة (بدون إنترنت): نفس منطق سيرفر الإنترنت (server/src/index.js)
 // بس تشتغل داخل تطبيق صاحب الغرفة. نفس الرسائل بالضبط، فالتطبيقات والويب يتصلون بيها
-// مثل ما يتصلون بالسيرفر.
+// مثل ما يتصلون بالسيرفر. أي تغيير بواحد لازم ينعمل بالثاني.
+// (اللعب السريع ويا الغرباء بس بالإنترنت، مو هنا.)
 //
 // Dart صافي (بدون dart:io) حتى الاتصالات تنربط من برّه (lan_io.dart).
 
@@ -19,10 +20,14 @@ abstract class LanPeer {
 }
 
 class _Player {
-  _Player(this.name, this.token);
-  String name;
+  _Player(this.name, this.token, this.avatar);
+  String name, avatar;
   final String token;
 }
+
+/// أكثر عدد لاعبين لكل لعبة (نفس GAME_MAX بالسيرفر)
+const gameMax = {'xo': 2, 'connect4': 2, 'tug': 2, 'hockey': 2, 'pigeon': 4, 'reaction': 4, 'quiz': 4};
+const _emojis = 12;
 
 class LanRoom {
   LanRoom(this.code) {
@@ -50,8 +55,13 @@ class LanRoom {
   final players = <int, _Player>{};
   final peers = <LanPeer>[];
 
+  /// البطولة: {games, idx, pts, scored, done}
+  Map<String, dynamic>? tour;
+
   GameModel? g;
   Timer? _tick, _house;
+  bool _overSeen = false;
+  final _lastEmo = <int, int>{};
   final _rnd = math.Random();
 
   int get _now => DateTime.now().millisecondsSinceEpoch;
@@ -90,7 +100,9 @@ class LanRoom {
 
   Map<String, dynamic> _roomState() {
     final on = _online();
-    final list = players.entries.map((e) => {'seat': e.key, 'name': e.value.name, 'on': on.contains(e.key)}).toList()
+    final list = players.entries
+        .map((e) => {'seat': e.key, 'name': e.value.name, 'avatar': e.value.avatar, 'on': on.contains(e.key)})
+        .toList()
       ..sort((a, b) => (a['seat'] as int).compareTo(b['seat'] as int));
     return {
       't': 'room',
@@ -98,18 +110,22 @@ class LanRoom {
       'host': host,
       'game': game,
       'crazy': crazy,
+      'public': false,
       'started': started,
       'round': round,
       'seats': seats,
       'out': out,
       'ending': endAt != 0,
+      'autoIn': 0,
+      'tour': tour == null
+          ? null
+          : {...tour!, 'pts': {for (final e in (tour!['pts'] as Map<int, int>).entries) '${e.key}': e.value}},
       'players': list,
     };
   }
 
   void _sendRoom() => _broadcast(_roomState());
 
-  /// صاحب الغرفة يبقى صاحبها إذا انقطع شوية. إذا طوّل أو طلع، أقدم واحد متصل ياخذ مكانه.
   bool _fixHost({bool force = false}) {
     final on = _online();
     final exists = players.containsKey(host);
@@ -157,6 +173,7 @@ class LanRoom {
         steps++;
       }
       if (steps > 0) _broadcast(_stateMsg());
+      _watchOver();
     });
   }
 
@@ -165,7 +182,6 @@ class LanRoom {
     _tick = null;
   }
 
-  /// التكّات تمشي بس إذا أكو واحد مشارك متصل
   void _syncLoop() {
     if (!started || g == null) return _stopLoop();
     final on = _online();
@@ -177,6 +193,52 @@ class LanRoom {
     }
   }
 
+  void _watchOver() {
+    final over = g?.over ?? false;
+    if (over && !_overSeen) {
+      _overSeen = true;
+      if (_scoreTour()) _sendRoom();
+    } else if (!over) {
+      _overSeen = false;
+    }
+  }
+
+  /// نقاط البطولة لهالجولة (مرة وحدة)
+  bool _scoreTour() {
+    final t = tour;
+    if (t == null || t['done'] == true || g == null || !g!.over || t['scored'] == round) return false;
+    final pts = t['pts'] as Map<int, int>;
+    final w = g!.winner;
+    if (w >= 0 && w < seats.length) {
+      pts[seats[w]] = (pts[seats[w]] ?? 0) + 3;
+    } else {
+      for (final s in seats) {
+        if (!out.contains(s)) pts[s] = (pts[s] ?? 0) + 1;
+      }
+    }
+    t['scored'] = round;
+    if ((t['idx'] as int) >= (t['games'] as List).length - 1) t['done'] = true;
+    return true;
+  }
+
+  void _newMatch(List<int> s) {
+    started = true;
+    round += 1;
+    seats = s;
+    out = [];
+    offlineSince.clear();
+    endAt = 0;
+    _stopLoop();
+    _overSeen = false;
+    g = createModel(game!, players: s.length, crazy: crazy, seed: _rnd.nextInt(1 << 31));
+  }
+
+  void _afterChange() {
+    _sendRoom();
+    _flush();
+    _syncLoop();
+  }
+
   void _playerGone(int seat, bool forever) {
     final p = _playerOf(seat);
     if (!started || p < 0 || out.contains(seat) || g == null) return;
@@ -184,6 +246,7 @@ class LanRoom {
       out.add(seat);
       offlineSince.remove(seat);
       g!.forfeit(p);
+      _scoreTour();
     } else {
       offlineSince[seat] = _now;
       g!.connection(p, false);
@@ -235,6 +298,8 @@ class LanRoom {
     _checkMatch();
   }
 
+  List<int> _onlineSeats() => _online().where(players.containsKey).toList()..sort();
+
   // ------------------------------------------------------------ الاتصالات
 
   void connect(LanPeer p) => peers.add(p);
@@ -261,51 +326,70 @@ class LanRoom {
         final gm = msg['game'];
         game = gm is String ? (gm.length > 20 ? gm.substring(0, 20) : gm) : null;
         crazy = msg['crazy'] == true;
+        tour = null;
         _sendRoom();
 
       case 'start':
         if (!isHost || started || game == null) return;
         if (!onlineGames.contains(game)) return _send(peer, {'t': 'err', 'm': 'unsupported'});
-        final s = _online().where(players.containsKey).toList()..sort();
+        final s = _onlineSeats();
         if (s.length < 2) return _send(peer, {'t': 'err', 'm': 'few'});
-        started = true;
-        round += 1;
-        seats = s;
-        out = [];
-        offlineSince.clear();
-        endAt = 0;
-        _stopLoop();
-        g = createModel(game!, players: s.length, crazy: crazy, seed: _rnd.nextInt(1 << 31));
-        _sendRoom();
-        _flush();
-        _syncLoop();
+        tour = null;
+        _newMatch(s);
+        _afterChange();
+
+      case 'tour':
+        final list = msg['games'];
+        if (!isHost || started || list is! List) return;
+        final s = _onlineSeats();
+        if (s.length < 2) return _send(peer, {'t': 'err', 'm': 'few'});
+        final games = [
+          for (final x in list)
+            if (x is String && (gameMax[x] ?? 0) >= s.length && onlineGames.contains(x)) x
+        ].take(6).toList();
+        if (games.length < 2) return _send(peer, {'t': 'err', 'm': 'tour'});
+        tour = {'games': games, 'idx': 0, 'pts': <int, int>{}, 'scored': -1, 'done': false};
+        game = games.first;
+        crazy = false;
+        _newMatch(s);
+        _afterChange();
 
       case 'in':
         final d = msg['d'];
         if (!playing || endAt != 0 || d is! Map || g == null) return;
         g!.input(p, Map<String, dynamic>.from(d));
-        if (g!.tickHz <= 0) _flush();
+        if (g!.tickHz <= 0) {
+          _flush();
+          _watchOver();
+        }
 
       case 'again':
         if (!started || endAt != 0 || !playing || g == null || !g!.over) return;
+        _scoreTour();
+        final t = tour;
+        if (t != null && t['done'] == true) {
+          _endMatch();
+          return;
+        }
         final on = _online();
         final keep = seats.where((s) => players.containsKey(s) && (!out.contains(s) || on.contains(s))).toList();
         final changed = keep.length != seats.length || out.any(keep.contains);
-        if (changed && keep.length >= 2) {
-          seats = keep;
-          out = [];
-          offlineSince.clear();
-          g = createModel(game!, players: keep.length, crazy: crazy, seed: _rnd.nextInt(1 << 31));
+        if (t != null) {
+          t['idx'] = (t['idx'] as int) + 1;
+          game = (t['games'] as List)[t['idx'] as int] as String;
+          _newMatch(keep.length >= 2 ? keep : seats);
+        } else if (changed && keep.length >= 2) {
+          _newMatch(keep);
         } else {
           g!.again();
+          round += 1;
+          _overSeen = false;
         }
-        round += 1;
-        _sendRoom();
-        _flush();
-        _syncLoop();
+        _afterChange();
 
       case 'lobby':
         if (!isHost || !started) return;
+        if (tour != null && tour!['done'] != true) tour = null;
         _endMatch();
 
       case 'kick':
@@ -321,6 +405,13 @@ class LanRoom {
         host = s;
         _notice('host', s);
         _sendRoom();
+
+      case 'emo':
+        final i = msg['i'];
+        if (i is! int || i < 0 || i >= _emojis) return;
+        if (_now - (_lastEmo[seat] ?? 0) < 600) return;
+        _lastEmo[seat] = _now;
+        _broadcast({'t': 'emo', 'seat': seat, 'i': i});
 
       case 'quit':
         if (!playing) return;
@@ -345,6 +436,8 @@ class LanRoom {
     var name = '${msg['name'] ?? ''}'.trim();
     if (name.length > 14) name = name.substring(0, 14);
     if (name.isEmpty) name = 'لاعب';
+    var avatar = '${msg['avatar'] ?? ''}';
+    if (avatar.length > 8) avatar = avatar.substring(0, 8);
     var token = '${msg['token'] ?? ''}';
     if (token.length > 40) token = token.substring(0, 40);
     if (token.isNotEmpty && banned.contains(token)) return _send(peer, {'t': 'err', 'm': 'kicked'});
@@ -353,7 +446,6 @@ class LanRoom {
       if (token.isNotEmpty && p.token == token) seat = s;
     });
     if (seat >= 0) {
-      // رجع: نسد أي اتصال قديم إله
       for (final other in List.of(peers)) {
         if (!identical(other, peer) && other.seat == seat) {
           other.seat = -1;
@@ -362,13 +454,15 @@ class LanRoom {
           } catch (_) {}
         }
       }
-      players[seat]!.name = name;
+      players[seat]!
+        ..name = name
+        ..avatar = avatar;
     } else {
       for (var s = 0; s < maxPlayers && seat < 0; s++) {
         if (!players.containsKey(s)) seat = s;
       }
       if (seat < 0) return _send(peer, {'t': 'err', 'm': 'full'});
-      players[seat] = _Player(name, token);
+      players[seat] = _Player(name, token, avatar);
       if (host >= 0) _notice('joined', seat);
     }
     gone.remove(seat);

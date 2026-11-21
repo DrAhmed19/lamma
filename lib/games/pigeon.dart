@@ -376,7 +376,7 @@ class _PigeonState extends LoopState<PigeonGame> {
     } else {
       pops.add(_Pop(pos, '+$pts', kind == BirdKind.gold ? const Color(0xFFFFD34D) : Colors.white, flip, time));
       if (e['bonus'] == true) {
-        pops.add(_Pop(pos + Offset(0, (flip ? 1 : -1) * 34 * k), 'كومبو! +1', const Color(0xFFFF9F1C), flip, time + 0.08, big: true));
+        pops.add(_Pop(pos + Offset(0, (flip ? 1 : -1) * 34 * k), 'سلسلة! +1', const Color(0xFFFF9F1C), flip, time + 0.08, big: true));
         Sfx.play('combo');
       }
       shake = kind == BirdKind.gold ? 10 : 6;
@@ -517,6 +517,7 @@ class _PigeonState extends LoopState<PigeonGame> {
   Widget build(BuildContext context) {
     return GameScaffold(
       onPause: openPause,
+      room: widget.room,
       child: LayoutBuilder(builder: (context, box) {
         size = box.biggest;
         dpr = MediaQuery.devicePixelRatioOf(context);
@@ -560,9 +561,12 @@ class _PigeonState extends LoopState<PigeonGame> {
                   winner: m.winner,
                   scores: m.score,
                   dual: !online,
-                  subtitle: crazy ? 'خلص الوقت!' : null,
+                  subtitle: crazy ? 'انتهى الوقت!' : null,
                   menuLabel: online ? 'الغرفة' : null,
                   onMenu: roomMenu(context, session),
+                  againLabel: againLabelOf(session),
+                  footer: tourFooter(session),
+                  names: namesOf(session),
                   onAgain: restart,
                 ),
               ),

@@ -20,6 +20,7 @@ class JsGame {
   final GameModel m;
 
   int tickHz() => m.tickHz;
+  int winner() => m.winner;
   bool over() => m.over;
   void input(int player, String json) => m.input(player, jsonDecode(json) as Map<String, dynamic>);
   void step(double dt) => m.advance(dt);

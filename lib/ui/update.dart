@@ -18,9 +18,9 @@ String fmtBytes(num b) {
 String ago(DateTime? d) {
   if (d == null) return '';
   final s = DateTime.now().difference(d).inSeconds;
-  if (s < 60) return 'هسه';
+  if (s < 60) return 'الآن';
   final m = s ~/ 60;
-  if (m < 60) return m == 1 ? 'قبل دقيقة' : (m == 2 ? 'قبل دقيقتين' : (m <= 10 ? 'قبل $m دقايق' : 'قبل $m دقيقة'));
+  if (m < 60) return m == 1 ? 'قبل دقيقة' : (m == 2 ? 'قبل دقيقتين' : (m <= 10 ? 'قبل $m دقائق' : 'قبل $m دقيقة'));
   final h = m ~/ 60;
   if (h < 24) return h == 1 ? 'قبل ساعة' : (h == 2 ? 'قبل ساعتين' : (h <= 10 ? 'قبل $h ساعات' : 'قبل $h ساعة'));
   final dd = h ~/ 24;
@@ -101,7 +101,7 @@ class _UpdateBannerState extends State<UpdateBanner> with SingleTickerProviderSt
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Text('نسخة جديدة متوفرة!', style: body(17, weight: FontWeight.w800)),
+                                    Text('يتوفر إصدار جديد!', style: body(17, weight: FontWeight.w800)),
                                     Text(
                                       u.newChanges.isEmpty
                                           ? 'اضغط لتحديث التطبيق'
@@ -114,7 +114,7 @@ class _UpdateBannerState extends State<UpdateBanner> with SingleTickerProviderSt
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                                 decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14)),
-                                child: Text('حدّث', style: body(15, weight: FontWeight.w800, color: _violet)),
+                                child: Text('تحديث', style: body(15, weight: FontWeight.w800, color: _violet)),
                               ),
                             ],
                           ),
@@ -203,12 +203,12 @@ class _UpdateSheetState extends State<_UpdateSheet> with SingleTickerProviderSta
 
   Widget _header(Updater u) {
     final (String title, String sub) = switch (u.status) {
-      UpdateStatus.checking => ('دا أفحص...', 'ندوّر على نسخة جديدة'),
-      UpdateStatus.upToDate => ('كلشي تمام', 'عندك آخر نسخة'),
-      UpdateStatus.available => ('نسخة جديدة!', 'جاهزة للتحديث'),
-      UpdateStatus.downloading => ('دا ننزّل التحديث', 'لا تسكّر التطبيق'),
-      UpdateStatus.ready => ('التحديث جاهز', 'باقي التثبيت بس'),
-      UpdateStatus.error => ('صارت مشكلة', 'جرب مرة ثانية'),
+      UpdateStatus.checking => ('جارٍ التحقق...', 'نبحث عن إصدار جديد'),
+      UpdateStatus.upToDate => ('كل شيء محدَّث', 'لديك أحدث إصدار'),
+      UpdateStatus.available => ('إصدار جديد!', 'جاهز للتحديث'),
+      UpdateStatus.downloading => ('جارٍ تنزيل التحديث', 'لا تغلق التطبيق'),
+      UpdateStatus.ready => ('التحديث جاهز', 'بقي التثبيت فقط'),
+      UpdateStatus.error => ('حدثت مشكلة', 'حاول مرة أخرى'),
       UpdateStatus.idle => ('التحديثات', ''),
     };
     final ok = u.status == UpdateStatus.upToDate;
@@ -278,7 +278,7 @@ class _UpdateSheetState extends State<_UpdateSheet> with SingleTickerProviderSta
           children: [
             _versionCard(u, same: true),
             const SizedBox(height: 14),
-            BigButton(label: 'تحقق مرة ثانية', icon: Icons.refresh_rounded, filled: false, onTap: () => u.check(force: true)),
+            BigButton(label: 'التحقق مرة أخرى', icon: Icons.refresh_rounded, filled: false, onTap: () => u.check(force: true)),
           ],
         );
       case UpdateStatus.available:
@@ -289,7 +289,7 @@ class _UpdateSheetState extends State<_UpdateSheet> with SingleTickerProviderSta
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _note(Icons.shield_outlined, 'إذا طلعلك تنبيه "السماح بالتثبيت من هذا المصدر"، فعّله وارجع للتطبيق واضغط تثبيت.', C.go),
+            _note(Icons.shield_outlined, 'إذا ظهر تنبيه "السماح بالتثبيت من هذا المصدر"، ففعّله ثم ارجع إلى التطبيق واضغط تثبيت.', C.go),
             const SizedBox(height: 14),
             BigButton(label: 'ثبّت الآن', icon: Icons.install_mobile_rounded, color: C.go, onTap: u.install),
           ],
@@ -298,10 +298,10 @@ class _UpdateSheetState extends State<_UpdateSheet> with SingleTickerProviderSta
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _note(Icons.wifi_off_rounded, u.error ?? 'صار خطأ', const Color(0xFFFF4D6A)),
+            _note(Icons.wifi_off_rounded, u.error ?? 'حدث خطأ', const Color(0xFFFF4D6A)),
             const SizedBox(height: 14),
             BigButton(
-              label: 'حاول مرة ثانية',
+              label: 'حاول مرة أخرى',
               icon: Icons.refresh_rounded,
               onTap: () {
                 final had = u.hasUpdate;
@@ -361,16 +361,16 @@ class _UpdateSheetState extends State<_UpdateSheet> with SingleTickerProviderSta
           ),
         );
     if (same) {
-      return Row(children: [col('نسختك', i?.version ?? '', u.current, C.go)]);
+      return Row(children: [col('إصدارك', i?.version ?? '', u.current, C.go)]);
     }
     return Row(
       children: [
-        col('نسختك', i == null ? '' : '', u.current, C.muted),
+        col('إصدارك', i == null ? '' : '', u.current, C.muted),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 8),
           child: Icon(Icons.arrow_back_rounded, color: alpha(Colors.white, 0.5)),
         ),
-        col('الجديدة', i?.version ?? '', i?.sha ?? '', _violet),
+        col('الجديد', i?.version ?? '', i?.sha ?? '', _violet),
       ],
     );
   }
@@ -400,7 +400,7 @@ class _UpdateSheetState extends State<_UpdateSheet> with SingleTickerProviderSta
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('شنو الجديد', style: body(15, weight: FontWeight.w800, color: C.muted)),
+              Text('ما الجديد', style: body(15, weight: FontWeight.w800, color: C.muted)),
               const SizedBox(height: 10),
               if (changes.isEmpty)
                 Padding(padding: const EdgeInsets.only(bottom: 8), child: Text('تحسينات وإصلاحات عامة.', style: body(15)))

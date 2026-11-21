@@ -207,6 +207,7 @@ class _HockeyState extends LoopState<HockeyGame> {
   Widget build(BuildContext context) {
     return GameScaffold(
       onPause: openPause,
+      room: widget.room,
       child: LayoutBuilder(builder: (context, box) {
         _layout(box.biggest);
         if (!ready) return const NetWaiting();
@@ -240,6 +241,9 @@ class _HockeyState extends LoopState<HockeyGame> {
                   dual: !online,
                   menuLabel: online ? 'الغرفة' : null,
                   onMenu: roomMenu(context, session),
+                  againLabel: againLabelOf(session),
+                  footer: tourFooter(session),
+                  names: namesOf(session),
                   onAgain: restart,
                 ),
               ),

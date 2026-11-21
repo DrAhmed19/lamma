@@ -80,7 +80,7 @@ Future<String?> installApk(String path) async {
     case ResultType.done:
       return null;
     case ResultType.permissionDenied:
-      return 'لازم تسمح للتطبيق بالتثبيت. فعّل "السماح من هذا المصدر" وارجع اضغط تثبيت.';
+      return 'يجب السماح للتطبيق بالتثبيت. فعّل خيار "السماح من هذا المصدر" ثم ارجع واضغط تثبيت.';
     default:
       return r.message;
   }
