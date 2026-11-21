@@ -14,7 +14,7 @@ import '../net/lan.dart';
 import '../net/room.dart';
 import '../net/session.dart';
 import 'background.dart';
-import 'flow.dart' show createFriendsRoom;
+import 'flow.dart' show createFriendsRoom, quickMatch;
 import 'invite.dart';
 import 'kit.dart';
 import 'profile_ui.dart' show editProfile;
@@ -237,6 +237,15 @@ class _LobbyScreenState extends State<LobbyScreen> {
     final closedByUs = _closing;
     _closing = false;
     if (!mounted) return;
+    // الغرف العامة: الخروج من اللعبة = خروج من الغرفة كلها (ما يرجع يتفرج على نفس الغرفة)
+    if (room.isPublic && !closedByUs) {
+      final nav = Navigator.of(context);
+      final again = room.wantNew;
+      final g = gameById(room.game);
+      nav.pop(); // الغرفة تنسد وترسل leave
+      if (again && g != null) quickMatch(nav.context, g);
+      return;
+    }
     // مدير الغرفة خرج بنفسه من شاشة النتيجة → الجميع يعودون للغرفة
     if (!closedByUs && room.isHost && !room.isPublic && room.started && (room.state?.model.over ?? true)) room.toLobby();
     setState(() {});
@@ -770,19 +779,19 @@ class _LobbyScreenState extends State<LobbyScreen> {
       );
     }
 
-    // لعب سريع: يبدأ تلقائيًا
+    // لعب ويا الغرباء: لمّن يوصل الخصم عدّ تنازلي 5 ثواني ويا اسمه وصورته، ويگدر يطلع
     if (room.isPublic) {
       final at = room.autoAt;
       final left = at == null ? null : math.max(0, at.difference(DateTime.now()).inMilliseconds / 1000).ceil();
+      final others = [for (final p in room.players) if (p.seat != room.mySeat && p.on) p];
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           if (chosen != null) _gameCard(chosen),
           const SizedBox(height: 12),
-          _note(
-            left != null ? 'تبدأ المباراة خلال $left ${left == 1 ? 'ثانية' : 'ثوانٍ'}...' : 'ستبدأ المباراة تلقائيًا عند انضمام لاعب آخر.',
-            icon: Icons.timer_outlined,
-          ),
+          if (others.isNotEmpty) _opponentCard(others, left) else _note('جارٍ البحث عن خصم...', icon: Icons.search_rounded),
+          const SizedBox(height: 12),
+          BigButton(label: 'خروج', icon: Icons.close_rounded, filled: false, onTap: () => Navigator.of(context).pop()),
         ],
       );
     }
@@ -868,6 +877,56 @@ class _LobbyScreenState extends State<LobbyScreen> {
           btn(Icons.remove_rounded, room.cap - 1),
           SizedBox(width: 44, child: Text('${room.cap}', textAlign: TextAlign.center, style: display(26))),
           btn(Icons.add_rounded, room.cap + 1),
+        ],
+      ),
+    );
+  }
+
+  /// خصمك (أو خصومك) ويا العد التنازلي
+  Widget _opponentCard(List<NetPlayer> others, int? left) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: C.surface,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: alpha(C.accent, 0.6)),
+      ),
+      child: Column(
+        children: [
+          Text(others.length == 1 ? 'خصمك' : 'خصومك', style: body(15, weight: FontWeight.w800, color: C.muted)),
+          const SizedBox(height: 10),
+          Wrap(
+            alignment: WrapAlignment.center,
+            spacing: 18,
+            runSpacing: 10,
+            children: [
+              for (final p in others)
+                Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 64,
+                      height: 64,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: alpha(C.players[p.seat % C.players.length], 0.25),
+                        shape: BoxShape.circle,
+                        border: Border.all(color: C.players[p.seat % C.players.length], width: 3),
+                      ),
+                      child: Text(p.avatar.isEmpty ? '🙂' : p.avatar, style: const TextStyle(fontSize: 34)),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(p.name, style: body(17, weight: FontWeight.w800)),
+                  ],
+                ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          if (left != null) ...[
+            Text('$left', style: display(56, color: const Color(0xFFFFD34D))),
+            Text('تبدأ المباراة...', style: body(14, color: C.muted)),
+          ] else
+            Text('بانتظار لاعبين آخرين...', style: body(14, color: C.muted)),
         ],
       ),
     );
@@ -1039,6 +1098,14 @@ VoidCallback? roomMenu(BuildContext context, Session s) {
 /// نص زر الإعادة: بالبطولة "اللعبة التالية"
 String? againLabelOf(Session s) {
   if (s is! OnlineSession) return null;
+  final room = s.room;
+  if (room.isPublic) {
+    final active = [for (final seat in room.seats) if (room.seatOn(seat) && !room.out.contains(seat)) seat];
+    if (active.length < 2) return 'غادر الخصم';
+    if (room.votes.contains(room.mySeat)) return 'بانتظار موافقة الخصم...';
+    if (room.votes.isNotEmpty) return 'الخصم يريد مرة أخرى!';
+    return 'مرة أخرى';
+  }
   final t = s.room.tour;
   if (t == null) return null;
   if (t.done || t.idx >= t.games.length - 1) return 'عرض نتيجة البطولة';
@@ -1050,6 +1117,20 @@ String? againLabelOf(Session s) {
 Widget? tourFooter(Session s) {
   if (s is! OnlineSession) return null;
   final room = s.room;
+  if (room.isPublic) {
+    return ListenableBuilder(
+      listenable: room,
+      builder: (context, _) => TextButton.icon(
+        onPressed: () {
+          // نطلع من الغرفة وندوّر خصم جديد
+          room.wantNew = true;
+          Navigator.of(context).pop();
+        },
+        icon: const Icon(Icons.person_search_rounded, color: Colors.white),
+        label: Text('خصم جديد', style: body(16, weight: FontWeight.w800)),
+      ),
+    );
+  }
   final t = room.tour;
   if (t == null) return null;
   return Container(

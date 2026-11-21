@@ -7,7 +7,25 @@ import 'dart:io';
 
 Future<void> wait([int ms = 250]) => Future.delayed(Duration(milliseconds: ms));
 
-void check(bool ok, String what) {
+/// ينتظر لحد ما الشرط يتحقق (أو يخلص الوقت)
+Future<bool> until(bool Function() cond, [int ms = 5000]) async {
+  final end = DateTime.now().add(Duration(milliseconds: ms));
+  while (DateTime.now().isBefore(end)) {
+    try {
+      if (cond()) return true;
+    } catch (_) {}
+    await wait(50);
+  }
+  try {
+    return cond();
+  } catch (_) {
+    return false;
+  }
+}
+
+/// يفحص الشرط وينتظره لحد [ms] (الجهاز البطيء ما يخرّب الاختبار)
+Future<void> check(bool Function() cond, String what, [int ms = 5000]) async {
+  final ok = await until(cond, ms);
   print('${ok ? 'OK  ' : 'FAIL'} $what');
   if (!ok) exitCode = 1;
 }
@@ -50,34 +68,35 @@ Future<void> main(List<String> args) async {
   a.send({'t': 'cfg', 'game': 'xo', 'crazy': false});
   a.send({'t': 'start'});
   await wait(500);
-  check(b.room?['started'] == true, 'guest sees match started');
+  await check(() => b.room?['started'] == true, 'guest sees match started');
+  await until(() => b.room?['round'] != null);
   final r1 = b.room!['round'] as int;
   for (final mv in [[a, 0], [b, 3], [a, 1], [b, 4], [a, 2]]) {
     (mv[0] as Client).send({'t': 'in', 'd': {'m': 'put', 'i': mv[1]}});
-    await wait(150);
+    await until(() => ((mv[0] as Client).state?['board'] as List?)?[mv[1] as int] != -1);
   }
   a.send({'t': 'again'});
   await wait(500);
-  check((b.room!['round'] as int) == r1 + 1, 'again bumps round on the internet server');
+  await check(() => (b.room!['round'] as int) == r1 + 1, 'again bumps round on the internet server');
 
   // رجوع للغرفة + تفاعل + بطولة
   a.send({'t': 'lobby'});
   await wait(400);
   a.send({'t': 'emo', 'i': 1});
   await wait(300);
-  check(b.emos.contains(1), 'emoji relayed');
+  await check(() => b.emos.contains(1), 'emoji relayed');
   a.send({'t': 'tour', 'games': ['xo', 'connect4']});
   await wait(500);
-  check(b.room?['tour'] != null && b.room?['game'] == 'xo', 'tour starts');
+  await check(() => b.room?['tour'] != null && b.room?['game'] == 'xo', 'tour starts');
   for (final mv in [[a, 0], [b, 3], [a, 1], [b, 4], [a, 2]]) {
     (mv[0] as Client).send({'t': 'in', 'd': {'m': 'put', 'i': mv[1]}});
-    await wait(150);
+    await until(() => ((mv[0] as Client).state?['board'] as List?)?[mv[1] as int] != -1);
   }
   await wait(500);
-  check(b.room?['tour']?['pts']?['0'] == 3, 'tour winner gets 3 points');
+  await check(() => b.room?['tour']?['pts']?['0'] == 3, 'tour winner gets 3 points');
   a.send({'t': 'again'});
   await wait(500);
-  check(b.room?['game'] == 'connect4', 'tour moves to next game');
+  await check(() => b.room?['game'] == 'connect4', 'tour moves to next game');
   await a.ws.close();
   await b.ws.close();
 
@@ -87,8 +106,9 @@ Future<void> main(List<String> args) async {
     return jsonDecode(await (await rq.close()).transform(utf8.decoder).join()) as Map;
   }
 
-  check((await getJson('/info/$code'))['exists'] == true, '/info finds the room');
-  check((await getJson('/info/ZZZZ'))['exists'] == false, '/info for unknown code');
+  final info1 = await getJson('/info/$code'), info2 = await getJson('/info/ZZZZ');
+  await check(() => info1['exists'] == true, '/info finds the room');
+  await check(() => info2['exists'] == false, '/info for unknown code');
 
   // لعب سريع: اثنين يطلبون نفس اللعبة → نفس الغرفة وتبدي لحالها
   final q1 = (await getJson('/quick?game=xo'))['code'] as String;
@@ -96,18 +116,19 @@ Future<void> main(List<String> args) async {
   await c.connect(base, q1);
   await wait(400);
   final q2 = (await getJson('/quick?game=xo'))['code'] as String;
-  check(q1 == q2, 'quick match pairs into the same room ($q1, $q2)');
+  await check(() => q1 == q2, 'quick match pairs into the same room ($q1, $q2)');
   final d = Client('stranger2');
   await d.connect(base, q2);
-  await wait(800);
-  check(c.room?['public'] == true, 'quick room is public');
-  check(c.room?['started'] == true && c.state != null, 'quick room auto-starts when full');
+  await wait(6200); // عدّ تنازلي 5 ثواني قبل البداية
+  await check(() => c.room?['public'] == true, 'quick room is public');
+  await check(() => c.room?['started'] == true && c.state != null, 'quick room auto-starts when full', 9000);
   await c.ws.close();
   await d.ws.close();
 
   // المحيبس ما يطلع باللعب السريع
   final mq = await hc.getUrl(Uri.parse('$base/quick?game=muhaibes'));
-  check((await mq.close()).statusCode == 400, 'muhaibes not in quick match');
+  final mqs = (await mq.close()).statusCode;
+  await check(() => mqs == 400, 'muhaibes not in quick match');
 
   // المحيبس: غرفة بـ 4، والسيرفر يخفي المحبس عن الفريق الثاني
   final req2 = await hc.getUrl(Uri.parse('$base/new'));
@@ -119,27 +140,28 @@ Future<void> main(List<String> args) async {
   }
   ps[0].send({'t': 'cap', 'n': 4});
   await wait(300);
-  check(ps[1].room?['cap'] == 4, 'host sets room size');
+  await check(() => ps[1].room?['cap'] == 4, 'host sets room size');
   final extra = Client('m4');
   await extra.connect(base, code2);
   await wait(400);
-  check(extra.seat < 0, 'room size enforced');
+  await check(() => extra.seat < 0, 'room size enforced');
   ps[0].send({'t': 'cfg', 'game': 'muhaibes', 'crazy': false});
   ps[0].send({'t': 'start'});
   await wait(800);
+  await until(() => ps[0].room?['started'] == true && ps[0].state != null);
   final seats = [for (final s in ps[0].room!['seats'] as List) s as int];
   Client byPlayer(int p) => ps.firstWhere((x) => x.seat == seats[p]);
-  check(seats.length == 4 && ps[0].state != null, 'muhaibes starts with 4');
+  await check(() => seats.length == 4 && ps[0].state != null, 'muhaibes starts with 4');
   final hider = ps[0].state!['hider'] as int, leader = ps[0].state!['leader'] as int;
   final f = hider * 2;
   byPlayer(hider).send({'t': 'in', 'd': {'a': 'hide', 'f': f}});
   await wait(800);
-  check(byPlayer((hider + 2) % 4).state?['ring'] == f, 'teammate sees the ring');
-  check(byPlayer(leader).state?['ring'] == -1 && byPlayer((leader + 2) % 4).state?['ring'] == -1, 'other team does NOT see the ring');
+  await check(() => byPlayer((hider + 2) % 4).state?['ring'] == f, 'teammate sees the ring');
+  await check(() => byPlayer(leader).state?['ring'] == -1 && byPlayer((leader + 2) % 4).state?['ring'] == -1, 'other team does NOT see the ring');
   byPlayer(leader).send({'t': 'in', 'd': {'a': 'bat', 'f': f}});
   await wait(800);
   final ts = byPlayer(leader).state?['ts'] as List?;
-  check(ts != null && ts[leader % 2] == 3, 'correct bat scores 3');
+  await check(() => ts != null && ts[leader % 2] == 3, 'correct bat scores 3');
   for (final p in [...ps, extra]) {
     await p.ws.close();
   }
@@ -152,12 +174,13 @@ Future<void> main(List<String> args) async {
   final dq2 = (await getJson('/quick?game=domino'))['code'] as String;
   final e2 = Client('dom2');
   await e2.connect(base, dq2);
-  await wait(900);
-  check(dq1 == dq2 && e1.room?['started'] == true, 'domino quick match starts with 2');
+  await wait(6200); // عدّ تنازلي 5 ثواني قبل البداية
+  await check(() => dq1 == dq2 && e1.room?['started'] == true, 'domino quick match starts with 2', 9000);
   final dh = e1.state?['hands'] as List?;
+  await until(() => e1.room?['seats'] != null);
   final me1 = (e1.room!['seats'] as List).indexOf(e1.seat);
-  check(dh != null && (dh[1 - me1] as List).every((t) => t == -1) && (dh[me1] as List).every((t) => (t as int) >= 0), 'domino hides opponent tiles');
-  check((e1.state?['pile'] as List?)?.every((t) => t == -1) == true && (e1.state?['pile'] as List).length == 14, 'domino draw pile hidden (14)');
+  await check(() => dh != null && (dh[1 - me1] as List).every((t) => t == -1) && (dh[me1] as List).every((t) => (t as int) >= 0), 'domino hides opponent tiles');
+  await check(() => (e1.state?['pile'] as List?)?.every((t) => t == -1) == true && (e1.state?['pile'] as List).length == 14, 'domino draw pile hidden (14)');
   await e1.ws.close();
   await e2.ws.close();
 
@@ -172,7 +195,7 @@ Future<void> main(List<String> args) async {
   final rude = Client('شرموطة');
   await rude.connect(base, code2);
   await wait(500);
-  check(rude.seat < 0 && rude.errs.contains('name'), 'bad name rejected');
+  await check(() => rude.seat < 0 && rude.errs.contains('name'), 'bad name rejected');
   await rude.ws.close();
 
   // جولة إبلاغ: الهدف يدخل غرفة عامة، و3 أشخاص مختلفين يبلّغون عنه
@@ -180,17 +203,19 @@ Future<void> main(List<String> args) async {
   final target = Client('target$run');
   Future<void> reportRound(String game, List<String> names) async {
     final q = (await postJson('/quick', {'game': game, 'dev': '${target.name}-tok'}))['code'] as String;
+    target.seat = -1; // المقعد من الجولة اللي فاتت ما ينفع
     await target.connect(base, q);
-    await wait(400);
+    await until(() => target.seat >= 0);
     final rs = <Client>[];
     for (final n in names) {
       final c = Client(n);
       final cq = (await postJson('/quick', {'game': game, 'dev': '$n-tok'}))['code'] as String;
       await c.connect(base, cq);
       rs.add(c);
-      await wait(300);
+      await until(() => c.seat >= 0);
     }
-    await wait(400);
+    // كلهم لازم يكونون بنفس الغرفة ويشوفون الهدف
+    await until(() => rs.every((c) => (c.room?['players'] as List?)?.any((p) => p['seat'] == target.seat) == true));
     for (final c in rs) {
       c.send({'t': 'report', 'seat': target.seat, 'r': 'abuse'});
       await wait(250);
@@ -203,15 +228,15 @@ Future<void> main(List<String> args) async {
 
   await reportRound('quiz', ['ra$run', 'rb$run', 'rc$run']);
   final w = await postJson('/quick', {'game': 'xo', 'dev': '${target.name}-tok'});
-  check(w['warn'] != null && w['code'] != null, 'first strike = warning only');
+  await check(() => w['warn'] != null && w['code'] != null, 'first strike = warning only');
   await reportRound('reaction', ['rd$run', 're$run', 'rf$run']);
   final bn = await postJson('/quick', {'game': 'xo', 'dev': '${target.name}-tok'});
-  check(bn['error'] == 'banned' && (bn['until'] as num) > DateTime.now().millisecondsSinceEpoch, 'second strike = banned from quick match');
+  await check(() => bn['error'] == 'banned' && (bn['until'] as num) > DateTime.now().millisecondsSinceEpoch, 'second strike = banned from quick match');
   final ok = await getJson('/new');
   final friend = Client(target.name);
   await friend.connect(base, ok['code'] as String);
   await wait(400);
-  check(friend.seat >= 0, 'banned player can still play with friends');
+  await check(() => friend.seat >= 0, 'banned player can still play with friends');
   await friend.ws.close();
 
   // الحظر: اللي حاظر واحد ما ينجمع وياه
@@ -219,19 +244,93 @@ Future<void> main(List<String> args) async {
   final xq = (await postJson('/quick', {'game': 'pigeon', 'dev': '${x1.name}-tok'}))['code'] as String;
   await x1.connect(base, xq);
   await wait(500);
+  await until(() => x1.room?['players'] != null);
   final x1pid = (x1.room!['players'] as List).firstWhere((p) => p['seat'] == x1.seat)['pid'] as String;
   final xq2 = (await postJson('/quick', {'game': 'pigeon', 'dev': '${x2.name}-tok', 'avoid': [x1pid]}))['code'] as String;
-  check(x1pid.length == 16 && xq2 != xq, 'blocked player is not matched together');
+  await check(() => x1pid.length == 16 && xq2 != xq, 'blocked player is not matched together');
   await x1.ws.close();
+
+  // ------------------------------------------------ لعب الغرباء: عدّ تنازلي، خروج، مرة ثانية بموافقة الطرفين
+  Future<(Client, Client, String)> pair(String tag) async {
+    final p1 = Client('p1$tag$run'), p2 = Client('p2$tag$run');
+    final q1 = (await postJson('/quick', {'game': 'xo', 'dev': '${p1.name}-tok'}))['code'] as String;
+    await p1.connect(base, q1);
+    await wait(400);
+    final q2 = (await postJson('/quick', {'game': 'xo', 'dev': '${p2.name}-tok'}))['code'] as String;
+    await p2.connect(base, q2);
+    await wait(700);
+    return (p1, p2, q1);
+  }
+
+  Future<void> win(Client p1, Client p2) async {
+    // اللاعب 0 (أول واحد دخل) يكمل الصف الأول
+    for (final mv in [[p1, 0], [p2, 3], [p1, 1], [p2, 4], [p1, 2]]) {
+      (mv[0] as Client).send({'t': 'in', 'd': {'m': 'put', 'i': mv[1]}});
+      await until(() => ((mv[0] as Client).state?['board'] as List?)?[mv[1] as int] != -1);
+    }
+    await wait(400);
+  }
+
+  // 1) عدّ تنازلي 5 ثواني قبل البداية
+  var (p1, p2, room1) = await pair('a');
+  await check(() => p1.room?['started'] == false && (p1.room?['autoIn'] as num? ?? 0) > 0, 'public room waits with a countdown when full');
+  await check(() => p1.room?['started'] == true && p2.room?['started'] == true, 'public match starts after the countdown', 9000);
+
+  // 2) خروج بنص الجولة = خروج كامل، والخصم يفوز ويبقى يشوف النتيجة
+  p2.send({'t': 'quit'});
+  p2.send({'t': 'leave'});
+  await wait(800);
+  await check(() => p1.state?['fin'] == true && p1.state?['win'] == 0, 'leaving mid-match: opponent wins');
+  await wait(4600);
+  await check(() => p1.room?['started'] == true && (p1.room?['players'] as List).length == 1, 'winner stays on the result (no auto restart)');
+  p1.send({'t': 'again'});
+  await wait(500);
+  await check(() => p1.room?['started'] == true && p1.state?['fin'] == true, 'again alone does nothing after opponent left');
+
+  // 3) دخول خصم ثاني: اللي بقى يدوّر خصم جديد، والغرفة القديمة ما تنعرض لأحد
+  p1.send({'t': 'leave'});
+  await wait(400);
+  final nq1 = (await postJson('/quick', {'game': 'xo', 'dev': '${p1.name}-tok'}))['code'] as String;
+  final p3 = Client('p3$run');
+  final p1b = Client(p1.name);
+  await p1b.connect(base, nq1);
+  await wait(400);
+  final nq3 = (await postJson('/quick', {'game': 'xo', 'dev': '${p3.name}-tok'}))['code'] as String;
+  await p3.connect(base, nq3);
+  await wait(700);
+  await check(() => nq1 != room1 && nq3 == nq1 && p3.seat >= 0, 'new opponent is matched into a fresh room');
+  await p1b.ws.close();
+  await p3.ws.close();
+
+  // 4) خروج بعد النتيجة، ومرة ثانية تحتاج موافقة الطرفين
+  final (c1, c2, _) = await pair('b');
+  await until(() => c1.room?['started'] == true && c2.state != null, 9000);
+  await win(c1, c2);
+  await check(() => c1.state?['fin'] == true, 'public match finished normally');
+  final r0 = c1.room!['round'] as int;
+  c1.send({'t': 'again'});
+  await wait(500);
+  await check(() => (c2.room!['votes'] as List).contains(c1.seat), 'rematch vote is shown to the other player');
+  await wait(600);
+  await check(() => c1.room!['round'] == r0, 'rematch waits for the other player', 0);
+  c2.send({'t': 'again'});
+  await wait(600);
+  await check(() => c1.room!['round'] == r0 + 1 && c1.state?['fin'] == false, 'rematch starts when both agree');
+  await win(c1, c2);
+  c2.send({'t': 'leave'});
+  await wait(600);
+  await check(() => c1.room?['started'] == true && (c1.room?['players'] as List).length == 1, 'leaving after the result keeps the winner on the result (started=${c1.room?['started']} players=${(c1.room?['players'] as List?)?.length} fin=${c1.state?['fin']})');
+  await c1.ws.close();
 
   // صفحة الإدارة: مقفولة بدون السر
   final adm = await hc.getUrl(Uri.parse('$base/admin?key=wrong'));
-  check((await adm.close()).statusCode == 404, 'admin page needs the secret key');
+  final admStatus = (await adm.close()).statusCode;
+  await check(() => admStatus == 404, 'admin page needs the secret key');
   if (args.length > 1) {
     final good = await hc.getUrl(Uri.parse('$base/admin?key=${args[1]}'));
     final res = await good.close();
     final html = await res.transform(utf8.decoder).join();
-    check(res.statusCode == 200 && html.contains(target.name.substring(0, 14)), 'admin page lists the reported player');
+    await check(() => res.statusCode == 200 && html.contains(target.name.substring(0, 14)), 'admin page lists the reported player');
   }
   exit(exitCode);
 }

@@ -148,6 +148,12 @@ class RoomConn extends ChangeNotifier {
   /// أكثر عدد لاعبين بالغرفة (صاحب الغرفة يحدده)
   int cap = 8;
 
+  /// الغرف العامة: المقاعد اللي وافقت على "مرة ثانية"
+  List<int> votes = const [];
+
+  /// الغرف العامة: اللاعب طلب "خصم جديد" (الغرفة تنسد ونرجع ندوّر)
+  bool wantNew = false;
+
   /// غرفة عامة (لعب سريع ويا ناس ثانين): ماكو صاحب غرفة يتحكم، واللعب يبدي لحاله
   bool isPublic = false;
 
@@ -365,6 +371,7 @@ class RoomConn extends ChangeNotifier {
       case 'room':
         isPublic = m['public'] == true;
         cap = (m['cap'] as num?)?.toInt() ?? 8;
+        votes = [for (final v in (m['votes'] as List?) ?? const []) (v as num).toInt()];
         final ai = (m['autoIn'] as num?)?.toInt() ?? 0;
         autoAt = ai > 0 ? DateTime.now().add(Duration(milliseconds: ai)) : null;
         final t = m['tour'];

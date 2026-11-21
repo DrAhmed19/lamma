@@ -31,6 +31,7 @@ const LOBBY_DROP_DEFAULT = 3 * 60 * 1000; // بالغرفة: اللي انقطع
 const PUBLIC_DROP_MS = 30 * 1000; // بالغرف العامة أسرع
 const END_DELAY_DEFAULT = 4000; // بعد ما تخلص المباراة لأن طلع لاعب
 const AUTO_START_MS = 12 * 1000; // الغرف العامة: تبدي بعد 12 ثانية من وصول لاعبين
+const FULL_START_MS = 5 * 1000; // الغرف العامة: إذا اكتملت، عدّ تنازلي 5 ثواني (يشوفون الخصم ويگدرون يطلعون)
 const SAVE_EVERY_MS = 2000;
 const EMOJIS = 12; // عدد التفاعلات (القائمة بالتطبيق)
 
@@ -242,6 +243,7 @@ export class Room {
     this.lobbyDropMs = Number(env.LOBBY_DROP_MS ?? LOBBY_DROP_DEFAULT);
     this.endDelayMs = Number(env.END_DELAY_MS ?? END_DELAY_DEFAULT);
     this.autoStartMs = Number(env.AUTO_START_MS ?? AUTO_START_MS);
+    this.fullStartMs = Number(env.FULL_START_MS ?? FULL_START_MS);
   }
 
   // ------------------------------------------------------------ تخزين
@@ -403,6 +405,7 @@ export class Room {
       seats: meta.seats,
       out: meta.out,
       ending: !!meta.endAt,
+      votes: meta.votes ?? [], // الغرف العامة: منو وافق على "مرة ثانية"
       autoIn: meta.autoAt ? Math.max(0, meta.autoAt - Date.now()) : 0,
       tour: meta.tour,
       players,
@@ -453,7 +456,8 @@ export class Room {
     } catch (_) {}
   }
 
-  /// الغرف العامة: إذا اكتملت تبدي فوراً، وإذا بيها اثنين أو أكثر تبدي بعد شوية
+  /// الغرف العامة: إذا اكتملت عدّ تنازلي 5 ثواني (الكل يشوف خصمه ويگدر يطلع)،
+  /// وإذا بيها اثنين أو أكثر ومو كاملة تبدي بعد 12 ثانية
   autoStart(meta) {
     if (!meta.public || meta.started) {
       meta.autoAt = 0;
@@ -462,10 +466,9 @@ export class Room {
     const n = [...this.online()].filter((s) => meta.players[s]).length;
     const max = quickMax(meta.game) ?? 2;
     if (n >= max) {
-      meta.autoAt = Date.now();
-      return true;
-    }
-    if (n >= 2) {
+      const at = Date.now() + this.fullStartMs;
+      if (!meta.autoAt || meta.autoAt > at) meta.autoAt = at;
+    } else if (n >= 2) {
       if (!meta.autoAt) meta.autoAt = Date.now() + this.autoStartMs;
     } else {
       meta.autoAt = 0;
@@ -582,6 +585,7 @@ export class Room {
     meta.offlineSince = {};
     meta.endAt = 0;
     meta.autoAt = 0;
+    meta.votes = [];
     const seed = Math.floor(Math.random() * 2 ** 31);
     this.stopLoop();
     this.overSeen = false;
@@ -616,6 +620,8 @@ export class Room {
 
   checkMatch(meta) {
     if (!meta.started || meta.endAt) return;
+    // الغرف العامة: اللي طلع خسر (forfeit) والباقي يشوف النتيجة ويختار: خصم جديد أو الرئيسية
+    if (meta.public) return;
     const left = meta.seats.filter((s) => !meta.out.includes(s) && meta.players[s]);
     if (left.length < 2) {
       meta.endAt = Date.now() + this.endDelayMs;
@@ -632,7 +638,6 @@ export class Room {
     this.game = null;
     await this.ctx.storage.delete("game");
     this.fixHost(meta);
-    this.autoStart(meta);
     await this.saveMeta(meta);
     this.broadcast(this.roomState(meta));
     await this.report(meta);
@@ -776,6 +781,26 @@ export class Room {
           return;
         }
         const on = this.online();
+        if (meta.public) {
+          // الغرف العامة: مرة ثانية بس إذا الكل وافقوا (والخصم بعده موجود)
+          const active = meta.seats.filter((s) => meta.players[s] && !meta.out.includes(s) && on.has(s));
+          meta.votes = [...new Set([...(meta.votes ?? []), me.seat])].filter((s) => active.includes(s));
+          if (active.length < 2 || !active.every((s) => meta.votes.includes(s))) {
+            await this.saveMeta(meta);
+            this.broadcast(this.roomState(meta));
+            return;
+          }
+          meta.votes = [];
+          if (active.length !== meta.seats.length) {
+            this.newMatch(meta, active);
+          } else {
+            g.again();
+            meta.round += 1;
+            this.overSeen = false;
+          }
+          await this.afterChange(meta);
+          return;
+        }
         const keep = meta.seats.filter((s) => meta.players[s] && (!meta.out.includes(s) || on.has(s)));
         const changed = keep.length !== meta.seats.length || meta.out.some((s) => keep.includes(s));
         if (t) {

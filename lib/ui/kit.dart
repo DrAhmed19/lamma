@@ -8,6 +8,7 @@ import '../net/room.dart';
 import '../net/session.dart';
 import 'icons.dart';
 import 'react.dart';
+import 'online.dart' show againLabelOf;
 import 'share_card.dart';
 import 'theme.dart';
 
@@ -392,6 +393,12 @@ class ResultOverlay extends StatelessWidget {
   /// جلسة اللعبة: لزر "شارك النتيجة" (اسم اللعبة، الصور الرمزية، الإحصائية، البطولة)
   final Session? session;
 
+  /// غرفة عامة (لعب ويا الغرباء)؟
+  RoomConn? get _publicRoom {
+    final s = session;
+    return s is OnlineSession && s.room.isPublic ? s.room : null;
+  }
+
   ShareCardData _shareData() {
     final s = session;
     if (s is OnlineSession) {
@@ -502,10 +509,23 @@ class ResultOverlay extends StatelessWidget {
         Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            BigButton(label: againLabel ?? 'العب مرة أخرى', icon: Icons.replay_rounded, onTap: onAgain, color: winner >= 0 ? _color : C.accent),
+            // الغرف العامة: الزر يتحدث وياه (الخصم وافق؟ طلع؟)
+            if (_publicRoom != null)
+              ListenableBuilder(
+                listenable: _publicRoom!,
+                builder: (context, _) => BigButton(
+                  label: againLabelOf(session!) ?? 'مرة أخرى',
+                  icon: Icons.replay_rounded,
+                  onTap: onAgain,
+                  color: winner >= 0 ? _color : C.accent,
+                ),
+              )
+            else
+              BigButton(label: againLabel ?? 'العب مرة أخرى', icon: Icons.replay_rounded, onTap: onAgain, color: winner >= 0 ? _color : C.accent),
             const SizedBox(width: 10),
             BigButton(
-              label: menuLabel ?? 'الرئيسية',
+              // الغرف العامة: الخروج يرجّع للرئيسية (مو للغرفة)
+              label: _publicRoom != null ? 'الرئيسية' : (menuLabel ?? 'الرئيسية'),
               filled: false,
               onTap: onMenu ?? () => Navigator.of(context).pop(),
             ),
