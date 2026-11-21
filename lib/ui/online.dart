@@ -609,7 +609,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(g.title, style: display(26)),
-                Text(room.crazy && g.crazyHowTo != null ? 'الوضع المجنون' : g.tagline, style: body(13, color: alpha(Colors.white, 0.8))),
+                Text(room.crazy && g.crazyHowTo != null ? (g.modeLabels?[1] ?? 'الوضع المجنون') : g.tagline, style: body(13, color: alpha(Colors.white, 0.8))),
               ],
             ),
           ),
@@ -688,7 +688,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
     }
 
     // مدير الغرفة
-    final canStart = chosen != null && onCount >= chosen.minPlayers && onCount <= chosen.maxPlayers;
+    final canStart = chosen != null && chosen.fits(onCount);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -697,9 +697,9 @@ class _LobbyScreenState extends State<LobbyScreen> {
           const SizedBox(height: 10),
           Row(
             children: [
-              Expanded(child: _modeChip('عادي', !room.crazy, () => room.setGame(chosen!.id, false))),
+              Expanded(child: _modeChip(chosen!.modeLabels?[0] ?? 'عادي', !room.crazy, () => room.setGame(chosen.id, false))),
               const SizedBox(width: 8),
-              Expanded(child: _modeChip('مجنون', room.crazy, () => room.setGame(chosen!.id, true))),
+              Expanded(child: _modeChip(chosen.modeLabels?[1] ?? 'مجنون', room.crazy, () => room.setGame(chosen.id, true))),
             ],
           ),
         ],
@@ -760,6 +760,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
 
   String _needText(GameInfo? g, int on) {
     if (g == null) return 'اختر لعبة';
+    if (g.counts != null && on >= g.minPlayers && on <= g.maxPlayers) return 'هذه اللعبة لـ ${g.playersLabel} فقط';
     if (on < g.minPlayers) return 'تحتاج إلى ${g.minPlayers == 2 ? 'لاعبَين' : '${g.minPlayers} لاعبين'} على الأقل';
     return 'هذه اللعبة لـ ${g.maxPlayers == 2 ? 'لاعبَين' : '${g.maxPlayers} لاعبين'} فقط';
   }
@@ -810,7 +811,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
 
   /// بطولة: اختيار الألعاب (2 إلى 6)
   Future<void> _pickTour(int on) async {
-    final options = onlineGames.where((g) => g.maxPlayers >= on && g.minPlayers <= on).toList();
+    final options = onlineGames.where((g) => g.fits(on)).toList();
     final picked = <String>{for (final g in options.take(4)) g.id};
     final ok = await showModalBottomSheet<bool>(
       context: context,

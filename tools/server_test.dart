@@ -140,5 +140,22 @@ Future<void> main(List<String> args) async {
   for (final p in [...ps, extra]) {
     await p.ws.close();
   }
+
+  // الدومينو ويا الغرباء: لاعبين بس، وتبدي لمّن يكتملون، والقطع مخفية
+  final dq1 = (await getJson('/quick?game=domino'))['code'] as String;
+  final e1 = Client('dom1');
+  await e1.connect(base, dq1);
+  await wait(400);
+  final dq2 = (await getJson('/quick?game=domino'))['code'] as String;
+  final e2 = Client('dom2');
+  await e2.connect(base, dq2);
+  await wait(900);
+  check(dq1 == dq2 && e1.room?['started'] == true, 'domino quick match starts with 2');
+  final dh = e1.state?['hands'] as List?;
+  final me1 = (e1.room!['seats'] as List).indexOf(e1.seat);
+  check(dh != null && (dh[1 - me1] as List).every((t) => t == -1) && (dh[me1] as List).every((t) => (t as int) >= 0), 'domino hides opponent tiles');
+  check((e1.state?['pile'] as List?)?.every((t) => t == -1) == true && (e1.state?['pile'] as List).length == 14, 'domino draw pile hidden (14)');
+  await e1.ws.close();
+  await e2.ws.close();
   exit(exitCode);
 }

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../net/room.dart';
 import '../ui/icons.dart';
 import 'connect4.dart';
+import 'domino.dart';
 import 'hockey.dart';
 import 'muhaibes.dart';
 import 'pigeon.dart';
@@ -26,7 +27,18 @@ class GameInfo {
     this.online,
     this.local = true,
     this.quick = true,
+    this.counts,
+    this.modeLabels,
   });
+
+  /// أعداد اللاعبين المسموحة إذا مو كل الأعداد بين الأقل والأكثر (الدومينو: 2 أو 4)
+  final List<int>? counts;
+
+  /// أسماء الوضعين بدل "عادي/مجنون" (الدومينو: 50 / 100 نقطة)
+  final List<String>? modeLabels;
+
+  List<int> get allowedCounts => counts ?? [for (var k = minPlayers; k <= maxPlayers; k++) k];
+  bool fits(int n) => allowedCounts.contains(n);
 
   /// تنلعب "على هذا الجهاز"؟ (المحيبس لا: بيها أسرار بين الفريقين)
   final bool local;
@@ -52,7 +64,11 @@ class GameInfo {
   /// اللعب أونلاين (كل واحد بتلفونه). إذا null اللعبة بعدها ما تدعم الأونلاين.
   final Widget Function(RoomConn room)? online;
 
-  String get playersLabel => minPlayers == maxPlayers ? 'لاعبان' : 'من $minPlayers إلى $maxPlayers لاعبين';
+  String get playersLabel => minPlayers == maxPlayers
+      ? 'لاعبان'
+      : counts != null
+          ? '${counts!.join(' أو ')} لاعبين'
+          : 'من $minPlayers إلى $maxPlayers لاعبين';
 }
 
 GameInfo? gameById(String? id) => games.where((g) => g.id == id).firstOrNull;
@@ -83,6 +99,23 @@ final games = <GameInfo>[
     icon: QuizIcon.new,
     build: (n, _) => QuizGame(players: n),
     online: (room) => QuizGame(players: room.seats.length, room: room),
+  ),
+  GameInfo(
+    id: 'domino',
+    title: 'الدومينو',
+    tagline: 'صفّ القطع وخلّصها أولًا',
+    howTo: 'كل لاعب معه 7 قطع. ضع قطعة يطابق أحد رقميها طرف السلسلة. من ينهي قطعه أولًا يأخذ مجموع نقاط قطع خصومه، '
+        'وإذا أُغلقت اللعبة يأخذ صاحب المجموع الأقل. بلاعبَين: اسحب إذا لم تجد قطعة مناسبة. بأربعة لاعبين: فريقان، كل شريكين متقابلان. '
+        'الفوز عند 50 نقطة.',
+    crazyHowTo: 'نفس القواعد، لكن الفوز عند 100 نقطة.',
+    modeLabels: const ['50 نقطة', '100 نقطة'],
+    minPlayers: 2,
+    maxPlayers: 4,
+    counts: const [2, 4],
+    colors: const [Color(0xFF1F8A63), Color(0xFF0B3A2A)],
+    icon: DominoIcon.new,
+    build: (n, long) => DominoGame(players: n, long: long),
+    online: (room) => DominoGame(players: room.seats.length, long: room.crazy, room: room),
   ),
   GameInfo(
     id: 'muhaibes',

@@ -170,6 +170,25 @@ Future<void> main() async {
   final ts = foe.state?['ts'] as List?;
   check(ts != null && ts[1 - holding] == 3 && foe.state?['ring'] == f, 'correct bat scores 3 and reveals the ring');
 
+  // الدومينو بأربعة: كل واحد يشوف قطعه بس
+  a.send({'t': 'lobby'});
+  await wait();
+  a.send({'t': 'cfg', 'game': 'domino', 'crazy': true});
+  a.send({'t': 'start'});
+  await wait(400);
+  check(a.room?['game'] == 'domino' && a.room?['started'] == true, 'domino starts with 4');
+  final dseats = [for (final s in a.room!['seats'] as List) s as int];
+  final pa = dseats.indexOf(a.seat);
+  final hands = a.state!['hands'] as List;
+  check((hands[pa] as List).every((t) => (t as int) >= 0) && (hands[pa] as List).length == 7, 'own 7 tiles visible');
+  check([for (var p = 0; p < 4; p++) if (p != pa) hands[p]].every((h) => (h as List).every((t) => t == -1)), 'opponent tiles hidden');
+  // اللي دوره يلعب القطعة الإجبارية
+  final turn = a.state!['turn'] as int, must = a.state!['must'] as int;
+  final tc = [a, b2, c, d2].firstWhere((x) => x.seat == dseats[turn]);
+  tc.send({'t': 'in', 'd': {'a': 'play', 't': must, 's': 'r'}});
+  await wait(500);
+  check((a.state!['chain'] as List).isNotEmpty && a.state!['turn'] == (turn + 1) % 4, 'opening double played, next turn');
+
   room.dispose();
   await http.close(force: true);
   exit(exitCode);

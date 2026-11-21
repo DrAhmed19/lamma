@@ -35,12 +35,18 @@ const SAVE_EVERY_MS = 2000;
 const EMOJIS = 12; // عدد التفاعلات (القائمة بالتطبيق)
 
 /// أكثر عدد لاعبين لكل لعبة
-const GAME_MAX = { xo: 2, connect4: 2, tug: 2, hockey: 2, pigeon: 4, reaction: 4, quiz: 4, muhaibes: 8 };
+const GAME_MAX = { xo: 2, connect4: 2, tug: 2, hockey: 2, pigeon: 4, reaction: 4, quiz: 4, muhaibes: 8, domino: 4 };
 /// أقل عدد لاعبين (الباقي 2)
 const GAME_MIN = { muhaibes: 4 };
 /// ألعاب ما تنلعب ويا الغرباء (اللعب السريع)
 const NO_QUICK = new Set(["muhaibes"]);
-const gameFits = (g, n) => (GAME_MAX[g] ?? 0) >= n && (GAME_MIN[g] ?? 2) <= n;
+/// ألعاب تنلعب بأعداد معينة بس (الدومينو: 2 أو 4)
+const GAME_COUNTS = { domino: [2, 4] };
+/// أكثر عدد باللعب السريع ويا الغرباء (الدومينو: لاعبين بس)
+const QUICK_MAX = { domino: 2 };
+const quickMax = (g) => QUICK_MAX[g] ?? GAME_MAX[g];
+const gameFits = (g, n) =>
+  (GAME_MAX[g] ?? 0) >= n && (GAME_MIN[g] ?? 2) <= n && (!GAME_COUNTS[g] || GAME_COUNTS[g].includes(n));
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -137,7 +143,7 @@ export class Match {
 
     if (url.pathname === "/find") {
       const game = url.searchParams.get("game");
-      const max = GAME_MAX[game];
+      const max = quickMax(game);
       if (!max) return json({ error: "game" }, 400);
       // الغرفة اللي بيها أكثر ناس أول (حتى تبدي أسرع)
       const cands = Object.entries(list)
@@ -373,7 +379,7 @@ export class Room {
   async report(meta) {
     if (!meta.public || !this.env.MATCH) return;
     const n = Object.keys(meta.players).length;
-    const max = GAME_MAX[meta.game] ?? 2;
+    const max = quickMax(meta.game) ?? 2;
     const open = !meta.started && n < max ? "1" : "0";
     try {
       const mm = this.env.MATCH.get(this.env.MATCH.idFromName("mm"));
@@ -388,7 +394,7 @@ export class Room {
       return false;
     }
     const n = [...this.online()].filter((s) => meta.players[s]).length;
-    const max = GAME_MAX[meta.game] ?? 2;
+    const max = quickMax(meta.game) ?? 2;
     if (n >= max) {
       meta.autoAt = Date.now();
       return true;
@@ -643,7 +649,7 @@ export class Room {
         if (!globalThis.lamma.supports(meta.game)) return this.send(ws, { t: "err", m: "unsupported" });
         const seats = [...this.online()].filter((s) => meta.players[s]).sort((a, b) => a - b);
         if (seats.length < (GAME_MIN[meta.game] ?? 2)) return this.send(ws, { t: "err", m: "few" });
-        if (seats.length > (GAME_MAX[meta.game] ?? MAX_PLAYERS)) return this.send(ws, { t: "err", m: "many" });
+        if (!gameFits(meta.game, seats.length)) return this.send(ws, { t: "err", m: "many" });
         meta.tour = null;
         this.newMatch(meta, seats);
         await this.afterChange(meta);
@@ -794,7 +800,7 @@ export class Room {
       meta.players[seat].avatar = avatar;
     } else {
       const taken = new Set(Object.keys(meta.players).map(Number));
-      const max = meta.public ? GAME_MAX[meta.game] ?? MAX_PLAYERS : meta.cap ?? MAX_PLAYERS;
+      const max = meta.public ? quickMax(meta.game) ?? MAX_PLAYERS : meta.cap ?? MAX_PLAYERS;
       if (taken.size >= max) return this.send(ws, { t: "err", m: "full" });
       for (let s = 0; s < MAX_PLAYERS && seat < 0; s++) if (!taken.has(s)) seat = s;
       if (seat < 0) return this.send(ws, { t: "err", m: "full" });

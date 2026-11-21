@@ -26,11 +26,16 @@ class _Player {
 }
 
 /// أكثر عدد لاعبين لكل لعبة (نفس GAME_MAX بالسيرفر)
-const gameMax = {'xo': 2, 'connect4': 2, 'tug': 2, 'hockey': 2, 'pigeon': 4, 'reaction': 4, 'quiz': 4, 'muhaibes': 8};
+const gameMax = {'xo': 2, 'connect4': 2, 'tug': 2, 'hockey': 2, 'pigeon': 4, 'reaction': 4, 'quiz': 4, 'muhaibes': 8, 'domino': 4};
 
 /// أقل عدد لاعبين (نفس GAME_MIN، الباقي 2)
 const gameMin = {'muhaibes': 4};
-bool gameFits(String g, int n) => (gameMax[g] ?? 0) >= n && (gameMin[g] ?? 2) <= n;
+/// ألعاب تنلعب بأعداد معينة بس (نفس GAME_COUNTS)
+const gameCounts = {
+  'domino': [2, 4],
+};
+bool gameFits(String g, int n) =>
+    (gameMax[g] ?? 0) >= n && (gameMin[g] ?? 2) <= n && (gameCounts[g]?.contains(n) ?? true);
 const _emojis = 12;
 
 class LanRoom {
@@ -362,7 +367,7 @@ class LanRoom {
         if (!onlineGames.contains(game)) return _send(peer, {'t': 'err', 'm': 'unsupported'});
         final s = _onlineSeats();
         if (s.length < (gameMin[game] ?? 2)) return _send(peer, {'t': 'err', 'm': 'few'});
-        if (s.length > (gameMax[game] ?? maxPlayers)) return _send(peer, {'t': 'err', 'm': 'many'});
+        if (!gameFits(game!, s.length)) return _send(peer, {'t': 'err', 'm': 'many'});
         tour = null;
         _newMatch(s);
         _afterChange();

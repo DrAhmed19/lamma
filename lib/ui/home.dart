@@ -383,7 +383,7 @@ class _GameSheetState extends State<_GameSheet> {
               const SizedBox(height: 14),
               Row(
                 children: [
-                  for (var k = g.minPlayers; k <= g.maxPlayers; k++)
+                  for (final k in g.allowedCounts)
                     Expanded(
                       child: Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 5),
@@ -520,14 +520,18 @@ class _GameSheetState extends State<_GameSheet> {
                       Expanded(
                         child: Pressable(
                           onTap: () => setState(() => _crazy = false),
-                          child: _ModeTile(icon: Icons.spa_rounded, label: 'عادي', selected: !_crazy),
+                          child: _ModeTile(icon: Icons.spa_rounded, label: g.modeLabels?[0] ?? 'عادي', selected: !_crazy),
                         ),
                       ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Pressable(
                           onTap: () => setState(() => _crazy = true),
-                          child: _ModeTile(icon: Icons.auto_awesome_rounded, label: 'مجنون', selected: _crazy, color: const Color(0xFFFF8A1F)),
+                          child: _ModeTile(
+                              icon: g.modeLabels != null ? Icons.flag_rounded : Icons.auto_awesome_rounded,
+                              label: g.modeLabels?[1] ?? 'مجنون',
+                              selected: _crazy,
+                              color: const Color(0xFFFF8A1F)),
                         ),
                       ),
                     ],

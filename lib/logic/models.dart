@@ -1,4 +1,5 @@
 import 'connect4_logic.dart';
+import 'domino_logic.dart';
 import 'game_model.dart';
 import 'hockey_logic.dart';
 import 'muhaibes_logic.dart';
@@ -9,7 +10,7 @@ import 'tug_logic.dart';
 import 'xo_logic.dart';
 
 /// كل الألعاب اللي قواعدها صارت على الأساس المشترك (تشتغل أونلاين)
-const onlineGames = {'xo', 'connect4', 'tug', 'pigeon', 'hockey', 'reaction', 'quiz', 'muhaibes'};
+const onlineGames = {'xo', 'connect4', 'tug', 'pigeon', 'hockey', 'reaction', 'quiz', 'muhaibes', 'domino'};
 
 GameModel createModel(String id, {required int players, required bool crazy, required int seed}) {
   switch (id) {
@@ -29,6 +30,8 @@ GameModel createModel(String id, {required int players, required bool crazy, req
       return QuizModel(players: players, crazy: crazy, seed: seed);
     case 'muhaibes':
       return MuhaibesModel(players: players, crazy: crazy, seed: seed);
+    case 'domino':
+      return DominoModel(players: players, crazy: crazy, seed: seed);
   }
   throw ArgumentError('unknown game $id');
 }
@@ -51,6 +54,8 @@ GameModel restoreModel(Map<String, dynamic> j) {
       return QuizModel.restore(j);
     case 'muhaibes':
       return MuhaibesModel.restore(j);
+    case 'domino':
+      return DominoModel.restore(j);
   }
   throw ArgumentError('unknown game ${j['id']}');
 }
