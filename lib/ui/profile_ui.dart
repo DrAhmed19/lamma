@@ -8,13 +8,14 @@ import 'online.dart';
 import 'theme.dart';
 
 /// قبل اللعب ويا الآخرين نحتاج اسم (مرة وحدة بس، وينحفظ)
-Future<bool> ensureProfile(BuildContext context) async {
+/// [invited]: جاي من رابط دعوة، فبعد الاسم يدخل الغرفة مباشرة
+Future<bool> ensureProfile(BuildContext context, {bool invited = false}) async {
   if (Profile.I.hasName) return true;
-  return await editProfile(context, first: true);
+  return await editProfile(context, first: true, invited: invited);
 }
 
 /// نافذة الاسم والصورة الرمزية
-Future<bool> editProfile(BuildContext context, {bool first = false}) async {
+Future<bool> editProfile(BuildContext context, {bool first = false, bool invited = false}) async {
   final name = TextEditingController(text: Profile.I.name);
   var avatar = Profile.I.avatar;
   final ok = await showModalBottomSheet<bool>(
@@ -41,7 +42,11 @@ Future<bool> editProfile(BuildContext context, {bool first = false}) async {
                     const SizedBox(height: 4),
                     Text(first ? 'أهلًا بك! ما اسمك؟' : 'ملفك الشخصي', textAlign: TextAlign.center, style: display(28)),
                     if (first)
-                      Text('سيظهر اسمك لأصدقائك عند اللعب معهم', textAlign: TextAlign.center, style: body(14, color: C.muted)),
+                      Text(
+                        invited ? 'اكتب اسمك واختر صورتك، ثم ندخلك إلى الغرفة مباشرة' : 'سيظهر اسمك لأصدقائك عند اللعب معهم',
+                        textAlign: TextAlign.center,
+                        style: body(14, color: C.muted),
+                      ),
                     const SizedBox(height: 16),
                     TextField(
                       controller: name,
@@ -88,7 +93,7 @@ Future<bool> editProfile(BuildContext context, {bool first = false}) async {
                     ),
                     const SizedBox(height: 18),
                     BigButton(
-                      label: first ? 'متابعة' : 'حفظ',
+                      label: invited ? 'دخول الغرفة' : (first ? 'متابعة' : 'حفظ'),
                       icon: Icons.check_rounded,
                       onTap: () {
                         if (name.text.trim().isEmpty) return;

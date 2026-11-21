@@ -10,6 +10,9 @@ import 'version.dart';
 /// مصدر التحديثات: الـ Release "apk-latest" بـ GitHub (CI يرفع إلو lamma.apk و update.json كل مرة).
 const _base = String.fromEnvironment('UPDATES', defaultValue: 'https://github.com/DrAhmed19/lamma/releases/download/apk-latest');
 
+/// رابط تنزيل آخر نسخة APK (شريط "حمّل التطبيق" بالويب)
+const kApkUrl = '$_base/lamma.apk';
+
 class UpdateChange {
   const UpdateChange(this.sha, this.date, this.title);
   final String sha, title;

@@ -13,6 +13,8 @@ import '../net/lan.dart';
 import '../net/room.dart';
 import '../net/session.dart';
 import 'background.dart';
+import 'flow.dart' show createFriendsRoom;
+import 'invite.dart';
 import 'kit.dart';
 import 'react.dart';
 import 'theme.dart';
@@ -268,7 +270,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
   Widget _body(BuildContext context) {
     if (room.status == RoomStatus.closed && room.error != null) {
       final msg = switch (room.error) {
-        'notfound' => 'لم نجد غرفة بهذا الرمز. تأكّد منه.',
+        'notfound' => 'انتهت هاي الغرفة، أو أن الرمز غير صحيح.',
         'full' => 'الغرفة ممتلئة.',
         'kicked' => 'أخرجك مدير الغرفة.',
         _ => room.isLan ? 'أُغلقت الغرفة.' : 'حدث خلل في الاتصال.',
@@ -281,7 +283,19 @@ class _LobbyScreenState extends State<LobbyScreen> {
           children: [
             _note(msg, color: const Color(0xFFFF4D6A), icon: Icons.error_outline_rounded),
             const SizedBox(height: 16),
-            BigButton(label: 'رجوع', onTap: () => Navigator.of(context).pop()),
+            if (room.error == 'notfound' && !_local) ...[
+              BigButton(
+                label: 'سوّي غرفة جديدة',
+                icon: Icons.add_rounded,
+                onTap: () {
+                  final nav = Navigator.of(context);
+                  nav.pop();
+                  createFriendsRoom(nav.context);
+                },
+              ),
+              const SizedBox(height: 10),
+            ],
+            BigButton(label: 'رجوع', filled: room.error != 'notfound' || _local, onTap: () => Navigator.of(context).pop()),
           ],
         ),
       );
@@ -292,6 +306,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
       padding: EdgeInsets.fromLTRB(sidePad(context), 8, sidePad(context), 90),
       children: [
         _topBar(chosen),
+        const GetAppBanner(padding: EdgeInsets.only(top: 4)),
         const SizedBox(height: 10),
         if (room.status != RoomStatus.online && room.mySeat < 0)
           const Padding(padding: EdgeInsets.symmetric(vertical: 40), child: NetWaiting())
@@ -340,12 +355,15 @@ class _LobbyScreenState extends State<LobbyScreen> {
     final lan = widget.lanHost?.joinUrl;
     if (lan != null) return lan;
     if (lanOrigin != null) return '$lanOrigin/?room=${room.code}&lan=1';
-    return '${kIsWeb ? Uri.base.origin : kWebUrl}/?room=${room.code}';
+    return roomInviteLink(room.code);
   }
 
-  String get _invite => room.isLan
+  /// غرفة محلية (بدون نت): الدعوة تبقى بالـ QR والرابط المحلي، بدون واتساب
+  bool get _local => room.isLan || lanOrigin != null;
+
+  String get _invite => _local
       ? 'تعال العب معي في لمّة 🎮\nافتح هذا الرابط وأنت على شبكة Wi‑Fi نفسها:\n$_link\nأو من التطبيق: انضمام ← الرمز ${room.code}'
-      : 'تعال العب معي في لمّة 🎮\nرمز الغرفة: ${room.code}\n$_link';
+      : roomInviteText(room.code, gameId: room.game);
 
   void _toast(String text) {
     ScaffoldMessenger.of(context)
@@ -386,9 +404,20 @@ class _LobbyScreenState extends State<LobbyScreen> {
           Text(room.code, style: display(58, color: Colors.white).copyWith(letterSpacing: 12)),
           Text('هذا رمز الغرفة', style: body(13, color: C.muted)),
           const SizedBox(height: 14),
+          if (!_local) ...[
+            WhatsAppButton(label: 'ادعُ عبر واتساب', text: () => _invite),
+            const SizedBox(height: 8),
+          ],
           Row(
             children: [
-              Expanded(child: BigButton(label: 'إرسال الدعوة', icon: Icons.share_rounded, onTap: _share)),
+              Expanded(
+                child: BigButton(
+                  label: _local ? 'إرسال الدعوة' : 'طرق أخرى',
+                  icon: Icons.share_rounded,
+                  filled: _local,
+                  onTap: _share,
+                ),
+              ),
               const SizedBox(width: 8),
               Pressable(
                 onTap: _copy,

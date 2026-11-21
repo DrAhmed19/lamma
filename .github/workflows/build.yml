@@ -78,6 +78,19 @@ jobs:
           printf '/*\n  Cross-Origin-Opener-Policy: same-origin\n  Cross-Origin-Embedder-Policy: credentialless\n' > build/web/_headers
           cat build/web/_headers
 
+      # روابط الدعوة /j/CODE: دالة Pages (functions/) تقرا الغرفة من السيرفر وتطلع بطاقة واتساب.
+      # assetlinks.json: أندرويد يتأكد منه حتى الرابط يفتح التطبيق مباشرة (بصمة ci/debug.keystore).
+      - name: Invite links
+        run: |
+          sed -i "s|__SERVER__|${{ needs.server.outputs.url }}|" "functions/j/[[code]].js"
+          grep -n '^const SERVER' "functions/j/[[code]].js"
+          SHA=$(keytool -list -v -keystore ci/debug.keystore -storepass android -alias androiddebugkey | grep -m1 'SHA256:' | sed 's/.*SHA256: *//' | tr -d '[:space:]')
+          test -n "$SHA"
+          mkdir -p build/web/.well-known
+          printf '[{"relation":["delegate_permission/common.handle_all_urls"],"target":{"namespace":"android_app","package_name":"com.lamma.games","sha256_cert_fingerprints":["%s"]}}]\n' "$SHA" > build/web/.well-known/assetlinks.json
+          cat build/web/.well-known/assetlinks.json
+          printf '/.well-known/assetlinks.json\n  Content-Type: application/json\n' >> build/web/_headers
+
       - name: Deploy to Cloudflare Pages
         env:
           CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}

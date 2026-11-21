@@ -1,3 +1,7 @@
+import 'dart:async';
+
+import 'package:app_links/app_links.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../core/profile.dart';
@@ -9,6 +13,7 @@ import '../net/room.dart';
 import 'background.dart';
 import 'flow.dart';
 import 'icons.dart';
+import 'invite.dart';
 import 'kit.dart';
 import 'profile_ui.dart';
 import 'theme.dart';
@@ -29,17 +34,44 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     super.initState();
     _spin = AnimationController(vsync: this, duration: const Duration(seconds: 18))..repeat();
     Updater.I.check();
-    // رابط دعوة بالويب: ?room=ABCD يفتح الانضمام والرمز مكتوب
-    final code = Uri.base.queryParameters['room'];
+    // رابط دعوة بالويب (/j/CODE يتحول لـ ?room=CODE): يدخل الغرفة مباشرة
+    final q = Uri.base.queryParameters;
+    final code = q['room'];
     if (code != null && code.length == 4) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) showJoinSheet(context, code: code);
+        if (mounted) openInvite(context, code, gone: q['gone'] == '1');
       });
     }
+    // أندرويد: رابط /j/CODE فتح التطبيق (أول تشغيل أو والتطبيق مفتوح)
+    if (!kIsWeb) {
+      _links = AppLinks().uriLinkStream.listen(_onLink, onError: (_) {});
+    }
+  }
+
+  StreamSubscription<Uri>? _links;
+  String? _lastLink;
+  DateTime _lastLinkAt = DateTime(0);
+
+  void _onLink(Uri uri) {
+    final seg = uri.pathSegments.where((s) => s.isNotEmpty).toList();
+    if (seg.isEmpty || seg.first != 'j') return;
+    // نفس الرابط مرتين ورا بعض (أول تشغيل) = مرة وحدة
+    final now = DateTime.now();
+    if (uri.toString() == _lastLink && now.difference(_lastLinkAt).inSeconds < 5) return;
+    _lastLink = uri.toString();
+    _lastLinkAt = now;
+    if (seg.length < 2) return; // /j/ بدون غرفة: يكفي إن التطبيق انفتح
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      // إذا كان بغرفة ثانية أو لعبة: نرجع للرئيسية أول
+      Navigator.of(context).popUntil((r) => r.isFirst);
+      openInvite(context, seg[1]);
+    });
   }
 
   @override
   void dispose() {
+    _links?.cancel();
     _spin.dispose();
     super.dispose();
   }
@@ -69,7 +101,9 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                   slivers: [
                     SliverToBoxAdapter(child: _header()),
                     const SliverToBoxAdapter(child: UpdateBanner()),
+                    const SliverToBoxAdapter(child: GetAppBanner()),
                     SliverToBoxAdapter(child: _joinCard()),
+                    SliverToBoxAdapter(child: _inviteFriend()),
                     SliverToBoxAdapter(
                       child: Padding(
                         padding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
@@ -167,6 +201,33 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  /// "ادعُ صديق للمّة": رابط التطبيق بواتساب بدون غرفة
+  Widget _inviteFriend() {
+    if (lanOrigin != null) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+      child: Pressable(
+        onTap: () => sendWhatsApp(appInviteText),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            color: alpha(kWhatsApp, 0.12),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: alpha(kWhatsApp, 0.5)),
+          ),
+          child: Row(
+            children: [
+              const Icon(Icons.chat_rounded, color: kWhatsApp, size: 24),
+              const SizedBox(width: 12),
+              Expanded(child: Text('ادعُ صديق للمّة', style: body(16, weight: FontWeight.w800))),
+              const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white54, size: 16),
+            ],
+          ),
+        ),
       ),
     );
   }

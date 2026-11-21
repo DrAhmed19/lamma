@@ -164,6 +164,65 @@ Future<void> joinByCode(BuildContext context, String raw) async {
   _openLobby(context, RoomConn.join(code, Profile.I.name, server: server));
 }
 
+/// رابط دعوة (/j/CODE أو ?room=CODE): يدخل الغرفة مباشرة بدون ما يكتب الرمز.
+/// أول مرة يطلب الاسم والصورة بخطوة وحدة. [gone]: دالة الرابط بالويب لگت الغرفة منتهية.
+Future<void> openInvite(BuildContext context, String raw, {bool gone = false}) async {
+  final code = raw.trim().toUpperCase();
+  if (!RegExp(r'^[A-Z]{4}$').hasMatch(code)) return;
+  if (!await ensureProfile(context, invited: true) || !context.mounted) return;
+  // ويب مفتوح من تلفون صاحب غرفة محلية
+  if (lanOrigin != null) {
+    _openLobby(context, RoomConn.join(code, Profile.I.name, server: lanOrigin));
+    return;
+  }
+  bool? exists = gone ? false : null;
+  if (!gone && onlineAvailable) {
+    await withBusy(context, 'جارٍ الدخول إلى الغرفة...', () async {
+      exists = await RoomConn.roomExists(code);
+    });
+  }
+  if (!context.mounted) return;
+  if (exists == false) {
+    await showRoomGone(context);
+    return;
+  }
+  // موجودة، أو ما گدرنا نتأكد: ندخل والغرفة تطلع الخطأ إذا ماكو
+  _openLobby(context, RoomConn.join(code, Profile.I.name));
+}
+
+/// الغرفة منتهية: رسالة + زر يسوّي غرفة جديدة
+Future<void> showRoomGone(BuildContext context) async {
+  final make = await showModalBottomSheet<bool>(
+    context: context,
+    backgroundColor: Colors.transparent,
+    builder: (ctx) => Align(
+      alignment: Alignment.bottomCenter,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 520),
+        child: Container(
+          margin: const EdgeInsets.all(10),
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(color: C.surface, borderRadius: BorderRadius.circular(30), border: Border.all(color: C.line)),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Center(child: Text('⌛', style: TextStyle(fontSize: 54))),
+              const SizedBox(height: 6),
+              Text('انتهت هاي الغرفة', textAlign: TextAlign.center, style: display(30)),
+              const SizedBox(height: 4),
+              Text('اطلب من صديقك رابطًا جديدًا، أو أنشئ غرفتك وادعُه إليها.', textAlign: TextAlign.center, style: body(15, color: C.muted)),
+              const SizedBox(height: 18),
+              BigButton(label: 'سوّي غرفة جديدة', icon: Icons.add_rounded, onTap: () => Navigator.pop(ctx, true)),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
+  if (make == true && context.mounted) await createFriendsRoom(context);
+}
+
 /// نافذة الانضمام: مربع واحد للرمز وزر واحد
 Future<void> showJoinSheet(BuildContext context, {String? code}) async {
   if (!await ensureProfile(context) || !context.mounted) return;

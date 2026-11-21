@@ -2,6 +2,7 @@
 //
 // GET  /new              → { code }  يسوّي غرفة جديدة بكود من 4 حروف
 // GET  /quick?game=ID    → { code }  لعب سريع ويا ناس ثانين: يلگي غرفة عامة تنتظر، أو يسوّي وحدة
+// GET  /info/<CODE>      → { exists, players, game, host }  (رابط الدعوة /j/CODE يقراه)
 // GET  /ws/<CODE>        → WebSocket للغرفة
 //
 // قواعد الألعاب مكتوبة بـ Dart (lib/logic/) ومبنية لـ JavaScript بـ logic.js،
@@ -267,7 +268,17 @@ export class Room {
       const meta = await this.meta();
       const alive = !!meta && Date.now() - meta.touched < IDLE_MS;
       return new Response(
-        JSON.stringify(alive ? { exists: true, players: Object.keys(meta.players).length, game: meta.game } : { exists: false }),
+        JSON.stringify(
+          alive
+            ? {
+                exists: true,
+                players: Object.keys(meta.players).length,
+                game: meta.game,
+                // اسم صاحب الغرفة (لبطاقة رابط الدعوة)
+                host: meta.players[meta.host]?.name ?? "",
+              }
+            : { exists: false },
+        ),
         { headers: { "content-type": "application/json" } },
       );
     }

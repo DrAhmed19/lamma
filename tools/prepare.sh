@@ -25,6 +25,8 @@ grep -q 'android.permission.REQUEST_INSTALL_PACKAGES' "$M" || sed -i 's|<applica
 # اللعب على نفس الشبكة: الاتصال بتلفون صاحب الغرفة يكون http/ws عادي (بدون https)
 grep -q 'usesCleartextTraffic' "$M" || sed -i 's/<application/<application android:usesCleartextTraffic="true"/' "$M"
 grep -n "INTERNET\|REQUEST_INSTALL\|usesCleartextTraffic" "$M"
+# روابط الدعوة /j/CODE تفتح التطبيق (App Links) + فتح واتساب
+python3 tools/patch_android.py
 
 KT=$(find android/app/src/main -name MainActivity.kt | head -1)
 PKG=$(grep -m1 '^package' "$KT")
@@ -60,5 +62,8 @@ convert "$ICON" -resize 64x64 web/favicon.png
 convert "$ICON" -resize 180x180 web/icons/apple-touch-icon.png
 mkdir -p web/brand
 convert "$ICON" -resize 256x256 web/brand/logo.png
+# صورة بطاقة رابط الدعوة (واتساب): الشعار على خلفية لمّة، 1200×630
+convert -size 1200x630 radial-gradient:'#2a2270'-'#090C18' \
+  \( "$ICON" -resize 400x400 \) -gravity center -composite web/brand/og.png
 
 python3 tools/patch_web.py
