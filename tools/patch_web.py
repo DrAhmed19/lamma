@@ -24,6 +24,20 @@ head_extra = '''
     @keyframes lb { 0% { transform: translateX(260%); } 100% { transform: translateX(-120%); } }
   </style>
 '''
+dpr_cap = '''
+  <script>
+    // دقة الرسم: الآيفون/الآيباد يرسم بـ 2x أو 3x = بكسلات هواية كل إطار = تقطيع.
+    // نحدّها لـ 1.5 (الفرق بالشكل ما يبين تقريباً، والرسم أخف بكثير)
+    (function () {
+      try {
+        var real = window.devicePixelRatio || 1;
+        var cap = Math.min(real, 1.5);
+        if (cap < real) Object.defineProperty(window, 'devicePixelRatio', { get: function () { return cap; }, configurable: true });
+      } catch (e) {}
+    })();
+  </script>
+'''
+h = h.replace('<head>', '<head>' + dpr_cap, 1)
 h = h.replace('</head>', head_extra + '</head>', 1)
 body_extra = '''
   <div id="lamma-loading"><img src="brand/logo.png" alt="لمّة"><div></div></div>

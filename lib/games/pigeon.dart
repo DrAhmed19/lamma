@@ -629,9 +629,6 @@ Path _wingPath(double r, double s, double span) {
 /// يرسم طير من فوق، متجه لليمين (+x)، بمركز (0,0).
 /// flap من 0 لـ 1 = فتحة الجناح. flash = وميض أبيض لمّن ينضرب.
 void paintBird(Canvas canvas, double r, double flap, BirdKind kind, {double opacity = 1, double flash = 0}) {
-  if (flash > 0) {
-    canvas.saveLayer(Rect.fromCircle(center: Offset.zero, radius: r * 3), Paint());
-  }
   final pal = birdPalette(kind);
   Color a(Color c) => alpha(c, c.a * opacity);
   final span = 0.4 + 0.6 * flap;
@@ -748,14 +745,9 @@ void paintBird(Canvas canvas, double r, double flap, BirdKind kind, {double opac
     canvas.drawCircle(e.translate(-r * 0.02, -r * 0.02), r * 0.02, Paint()..color = a(Colors.white));
   }
 
+  // وميض الضربة: دائرة بيضاء خفيفة بدل saveLayer (الطبقة غالية بالمتصفح)
   if (flash > 0) {
-    canvas.drawRect(
-      Rect.fromCircle(center: Offset.zero, radius: r * 3),
-      Paint()
-        ..color = alpha(Colors.white, flash)
-        ..blendMode = BlendMode.srcATop,
-    );
-    canvas.restore();
+    canvas.drawCircle(Offset.zero, r * 1.3, Paint()..color = alpha(Colors.white, flash * 0.7));
   }
 }
 
