@@ -81,12 +81,12 @@ String? funnyStat(Session? s, String gameId, String title, int winner) {
   final me = s.me;
   if (me < 0) return null;
   final myName = s.nameOf(me);
-  if (winner == me) {
+  if (s.model.isWinner(me)) {
     // أطول سلسلة فوز على واحد من اللي لعبوا هسه
     String? rival;
     var best = 1;
-    for (var i = 0; i < s.model.scores.length; i++) {
-      if (i == me) continue;
+    for (var i = 0; i < s.model.players; i++) {
+      if (s.model.isWinner(i)) continue; // أنا وزملائي بالفريق
       final r = p.rivals[s.nameOf(i)];
       if (r != null && r.streak > best) {
         best = r.streak;
@@ -99,7 +99,7 @@ String? funnyStat(Session? s, String gameId, String title, int winner) {
     final won = p.stats[gameId]?.won ?? 0;
     return won >= 2 ? 'هذا الفوز رقم $won لـ$myName بـ$title' : 'أول فوز لـ$myName بـ$title!';
   }
-  if (winner >= 0) {
+  if (winner >= 0 && !s.model.teams) {
     final w = s.nameOf(winner);
     final r = p.rivals[w];
     if (r != null && r.streak <= -2) return 'فاز $w على $myName ${_times(-r.streak)}';
@@ -128,7 +128,7 @@ ShareCardData resultCard({
       for (var i = 0; i < scores.length; i++)
         CardPlayer(
           names != null && i < names.length ? names[i] : C.playerNames[i % C.playerNames.length],
-          room != null && i < room.seats.length ? room.avatarOfSeat(room.seats[i]) : '',
+          room != null && !(session?.model.teams ?? false) && i < room.seats.length ? room.avatarOfSeat(room.seats[i]) : '',
           colorOf(i),
           scores[i],
         ),

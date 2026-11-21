@@ -26,7 +26,11 @@ class _Player {
 }
 
 /// أكثر عدد لاعبين لكل لعبة (نفس GAME_MAX بالسيرفر)
-const gameMax = {'xo': 2, 'connect4': 2, 'tug': 2, 'hockey': 2, 'pigeon': 4, 'reaction': 4, 'quiz': 4};
+const gameMax = {'xo': 2, 'connect4': 2, 'tug': 2, 'hockey': 2, 'pigeon': 4, 'reaction': 4, 'quiz': 4, 'muhaibes': 8};
+
+/// أقل عدد لاعبين (نفس GAME_MIN، الباقي 2)
+const gameMin = {'muhaibes': 4};
+bool gameFits(String g, int n) => (gameMax[g] ?? 0) >= n && (gameMin[g] ?? 2) <= n;
 const _emojis = 12;
 
 class LanRoom {
@@ -35,7 +39,10 @@ class LanRoom {
   }
 
   final String code;
-  static const maxPlayers = 4;
+  static const maxPlayers = 8; // العائلة 8
+
+  /// أكثر عدد لاعبين بالغرفة (صاحب الغرفة يحدده)
+  int cap = maxPlayers;
   static const forfeitMs = 45 * 1000;
   static const hostGraceMs = 20 * 1000;
   static const lobbyDropMs = 3 * 60 * 1000;
@@ -111,6 +118,7 @@ class LanRoom {
       'game': game,
       'crazy': crazy,
       'public': false,
+      'cap': cap,
       'started': started,
       'round': round,
       'seats': seats,
@@ -145,12 +153,22 @@ class LanRoom {
 
   // ------------------------------------------------------------ اللعبة
 
-  String _stateMsg([List<Map<String, dynamic>>? ev]) =>
-      jsonEncode({'t': 'state', 's': g!.toJson(), 'ev': ev ?? g!.drainEvents()});
+  /// [player]: لألعاب بيها معلومات مخفية كل لاعب ياخذ نسخته (-1 = متفرج)
+  String _stateMsg(List<Map<String, dynamic>> ev, [int player = -1]) =>
+      jsonEncode({'t': 'state', 's': g!.secret ? g!.viewFor(player) : g!.toJson(), 'ev': ev});
 
-  void _flush() {
-    if (g != null) _broadcast(_stateMsg());
+  /// يدز الحالة للكل. إذا اللعبة بيها أسرار: كل واحد نسخته
+  void _sendState() {
+    final game = g;
+    if (game == null) return;
+    final ev = game.drainEvents();
+    if (!game.secret) return _broadcast(_stateMsg(ev));
+    for (final p in List.of(peers)) {
+      if (p.seat >= 0) _send(p, _stateMsg(ev, seats.indexOf(p.seat)));
+    }
   }
+
+  void _flush() => _sendState();
 
   void _startLoop() {
     if (_tick != null || g == null) return;
@@ -172,7 +190,7 @@ class LanRoom {
         acc -= dt;
         steps++;
       }
-      if (steps > 0) _broadcast(_stateMsg());
+      if (steps > 0) _sendState();
       _watchOver();
     });
   }
@@ -208,9 +226,12 @@ class LanRoom {
     final t = tour;
     if (t == null || t['done'] == true || g == null || !g!.over || t['scored'] == round) return false;
     final pts = t['pts'] as Map<int, int>;
-    final w = g!.winner;
-    if (w >= 0 && w < seats.length) {
-      pts[seats[w]] = (pts[seats[w]] ?? 0) + 3;
+    // ألعاب الفرق: كل الفريق الفائز ياخذ النقاط
+    final ws = g!.winners.where((w) => w >= 0 && w < seats.length).toList();
+    if (ws.isNotEmpty) {
+      for (final w in ws) {
+        pts[seats[w]] = (pts[seats[w]] ?? 0) + 3;
+      }
     } else {
       for (final s in seats) {
         if (!out.contains(s)) pts[s] = (pts[s] ?? 0) + 1;
@@ -329,11 +350,19 @@ class LanRoom {
         tour = null;
         _sendRoom();
 
+      case 'cap':
+        // صاحب الغرفة يحدد أكثر عدد لاعبين (ما يقل عن اللي موجودين)
+        final n = (msg['n'] as num?)?.round();
+        if (!isHost || started || n == null) return;
+        cap = math.max(2, math.min(maxPlayers, math.max(n, players.length)));
+        _sendRoom();
+
       case 'start':
         if (!isHost || started || game == null) return;
         if (!onlineGames.contains(game)) return _send(peer, {'t': 'err', 'm': 'unsupported'});
         final s = _onlineSeats();
-        if (s.length < 2) return _send(peer, {'t': 'err', 'm': 'few'});
+        if (s.length < (gameMin[game] ?? 2)) return _send(peer, {'t': 'err', 'm': 'few'});
+        if (s.length > (gameMax[game] ?? maxPlayers)) return _send(peer, {'t': 'err', 'm': 'many'});
         tour = null;
         _newMatch(s);
         _afterChange();
@@ -345,7 +374,7 @@ class LanRoom {
         if (s.length < 2) return _send(peer, {'t': 'err', 'm': 'few'});
         final games = [
           for (final x in list)
-            if (x is String && (gameMax[x] ?? 0) >= s.length && onlineGames.contains(x)) x
+            if (x is String && gameFits(x, s.length) && onlineGames.contains(x)) x
         ].take(6).toList();
         if (games.length < 2) return _send(peer, {'t': 'err', 'm': 'tour'});
         tour = {'games': games, 'idx': 0, 'pts': <int, int>{}, 'scored': -1, 'done': false};
@@ -458,6 +487,7 @@ class LanRoom {
         ..name = name
         ..avatar = avatar;
     } else {
+      if (players.length >= cap) return _send(peer, {'t': 'err', 'm': 'full'});
       for (var s = 0; s < maxPlayers && seat < 0; s++) {
         if (!players.containsKey(s)) seat = s;
       }
@@ -477,7 +507,7 @@ class LanRoom {
     }
     _send(peer, {'t': 'you', 'seat': seat});
     _sendRoom();
-    if (started && g != null) _send(peer, _stateMsg(const []));
+    if (started && g != null) _send(peer, _stateMsg(const [], seats.indexOf(seat)));
     _syncLoop();
   }
 

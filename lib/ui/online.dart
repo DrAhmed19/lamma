@@ -717,7 +717,44 @@ class _LobbyScreenState extends State<LobbyScreen> {
           const SizedBox(height: 10),
           BigButton(label: 'بطولة (عدة ألعاب)', icon: Icons.emoji_events_rounded, filled: false, onTap: () => _pickTour(onCount)),
         ],
+        const SizedBox(height: 12),
+        _capRow(),
       ],
+    );
+  }
+
+  /// صاحب الغرفة يحدد أكثر عدد لاعبين (2-8، وما يقل عن الموجودين)
+  Widget _capRow() {
+    final lo = math.max(2, room.players.length);
+    Widget btn(IconData icon, int to) {
+      final ok = to >= lo && to <= 8;
+      return Opacity(
+        opacity: ok ? 1 : 0.35,
+        child: Pressable(
+          onTap: ok ? () => room.setCap(to) : null,
+          child: Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(color: alpha(Colors.white, 0.06), shape: BoxShape.circle, border: Border.all(color: C.line)),
+            child: Icon(icon, color: Colors.white, size: 20),
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      decoration: BoxDecoration(color: alpha(Colors.white, 0.04), borderRadius: BorderRadius.circular(18), border: Border.all(color: C.line)),
+      child: Row(
+        children: [
+          const Icon(Icons.groups_rounded, color: C.muted, size: 22),
+          const SizedBox(width: 10),
+          Expanded(child: Text('أقصى عدد للاعبين', style: body(15, weight: FontWeight.w700))),
+          btn(Icons.remove_rounded, room.cap - 1),
+          SizedBox(width: 44, child: Text('${room.cap}', textAlign: TextAlign.center, style: display(26))),
+          btn(Icons.add_rounded, room.cap + 1),
+        ],
+      ),
     );
   }
 
@@ -773,7 +810,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
 
   /// بطولة: اختيار الألعاب (2 إلى 6)
   Future<void> _pickTour(int on) async {
-    final options = onlineGames.where((g) => g.maxPlayers >= on).toList();
+    final options = onlineGames.where((g) => g.maxPlayers >= on && g.minPlayers <= on).toList();
     final picked = <String>{for (final g in options.take(4)) g.id};
     final ok = await showModalBottomSheet<bool>(
       context: context,

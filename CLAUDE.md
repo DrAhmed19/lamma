@@ -44,6 +44,10 @@
   - لعب سريع ويا الغرباء: `/quick?game=` → Durable Object `Match` يلگي غرفة عامة تنتظر أو يسوّي وحدة. الغرف العامة بدون مدير، تبدي لحالها لمّن تكتمل أو بعد 12 ثانية من وصول لاعبين.
 - رابط الدعوة: `<الويب>/j/CODE` → دالة Pages `functions/j/[[code]].js` (بطاقة واتساب من `/info`، وتحوّل لـ `/?room=CODE`). أندرويد يفتح التطبيق (App Links: `tools/patch_android.py` + `assetlinks.json` بالـ CI). الواجهة: `lib/ui/invite.dart`، والدخول بـ `openInvite` بـ `flow.dart`.
 - مشاركة النتيجة كصورة: `lib/ui/share_card.dart` (CustomPainter → PNG، مربعة وطولية). `ResultOverlay` ياخذ `session` حتى يطلع زر "شارك النتيجة". الإحصائية المضحكة من `Profile.rivals` / `winStreak` (تنسجل أونلاين بـ `Session.watchResult`).
+- الغرفة لحد 8 لاعبين (`MAX_PLAYERS` / `LanRoom.maxPlayers`)، وصاحب الغرفة يحدد الحد (`cap`). كل لعبة: `GAME_MAX` و`GAME_MIN` بالسيرفر (`gameMax`/`gameMin` بـ lan_room)، و`NO_QUICK` للألعاب اللي ما تطلع بالعب السريع. ألوان المقاعد 8 بـ `C.players`.
+- ألعاب بيها أسرار (المحيبس، والدومينو بعدين): الموديل يرجّع `secret = true` و`viewFor(player)` يخفي الأسرار، والسيرفر يدز لكل لاعب نسخته. ألعاب الفرق: `teams = true` و`winners` (البطولة تنطي كل الفريق).
+- `GameInfo.local` (تنلعب على نفس الجهاز؟) و`GameInfo.quick` (تطلع ويا الغرباء؟).
+- المحيبس: `lib/logic/muhaibes_logic.dart` + `lib/games/muhaibes.dart` (أونلاين/محلي بس). موسيقاه `music_muhaibes` وطبلة `drum`.
 - لعبة جديدة: سؤال وجواب (`lib/logic/quiz_logic.dart` + بنك الأسئلة `quiz_bank.dart`).
 - القادم (أفكار): سباق الرسم، لون مفضل لكل لاعب، المزيد من الأسئلة.
 - قاعدة الرفع: التعديلات تترفع على `main` مباشرة، بس نجمّع كم تعديل ونرفع لمّن صاحب المشروع يگول (كل رفعة تبني ويب و APK).

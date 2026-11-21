@@ -461,7 +461,7 @@ class _GameSheetState extends State<_GameSheet> {
   Widget build(BuildContext context) {
     final g = widget.game;
     final canFriends = g.online != null && (onlineAvailable || lanHostSupported);
-    final canOthers = g.online != null && onlineAvailable && lanOrigin == null;
+    final canOthers = g.online != null && g.quick && onlineAvailable && lanOrigin == null;
     return Align(
       alignment: Alignment.bottomCenter,
       child: ConstrainedBox(
@@ -533,24 +533,31 @@ class _GameSheetState extends State<_GameSheet> {
                     ],
                   ),
                 ],
-                const SizedBox(height: 18),
-                _Choice(
-                  icon: Icons.phone_android_rounded,
-                  title: 'على هذا الجهاز',
-                  subtitle: 'الجميع يلعبون على هذا الهاتف معًا',
-                  color: g.colors[0],
-                  primary: true,
-                  onTap: _here,
-                ),
+                if (g.local) ...[
+                  const SizedBox(height: 18),
+                  _Choice(
+                    icon: Icons.phone_android_rounded,
+                    title: 'على هذا الجهاز',
+                    subtitle: 'الجميع يلعبون على هذا الهاتف معًا',
+                    color: g.colors[0],
+                    primary: true,
+                    onTap: _here,
+                  ),
+                ],
                 if (canFriends) ...[
-                  const SizedBox(height: 10),
+                  SizedBox(height: g.local ? 10 : 18),
                   _Choice(
                     icon: Icons.people_rounded,
                     title: 'مع أصدقائي',
-                    subtitle: 'كل شخص على هاتفه، وأرسل إليهم الدعوة',
+                    subtitle: g.local ? 'كل شخص على هاتفه، وأرسل إليهم الدعوة' : 'كل شخص على هاتفه (${g.playersLabel})',
                     color: const Color(0xFF16B46A),
+                    primary: !g.local,
                     onTap: _friends,
                   ),
+                ],
+                if (!g.local && !canFriends) ...[
+                  const SizedBox(height: 18),
+                  Text('تحتاج هذه اللعبة إلى أن يلعب كل شخص على هاتفه.', textAlign: TextAlign.center, style: body(14, color: C.muted)),
                 ],
                 if (canOthers) ...[
                   const SizedBox(height: 10),

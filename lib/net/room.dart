@@ -108,6 +108,9 @@ class RoomConn extends ChangeNotifier {
   bool crazy = false;
   bool started = false;
 
+  /// أكثر عدد لاعبين بالغرفة (صاحب الغرفة يحدده)
+  int cap = 8;
+
   /// غرفة عامة (لعب سريع ويا ناس ثانين): ماكو صاحب غرفة يتحكم، واللعب يبدي لحاله
   bool isPublic = false;
 
@@ -308,6 +311,7 @@ class RoomConn extends ChangeNotifier {
         }
       case 'room':
         isPublic = m['public'] == true;
+        cap = (m['cap'] as num?)?.toInt() ?? 8;
         final ai = (m['autoIn'] as num?)?.toInt() ?? 0;
         autoAt = ai > 0 ? DateTime.now().add(Duration(milliseconds: ai)) : null;
         final t = m['tour'];
@@ -362,7 +366,7 @@ class RoomConn extends ChangeNotifier {
     notifyListeners();
   }
 
-  static const _important = {'cfg', 'start', 'again', 'lobby', 'kick', 'host', 'quit', 'leave'};
+  static const _important = {'cfg', 'cap', 'start', 'again', 'lobby', 'kick', 'host', 'quit', 'leave'};
 
   void _send(Map<String, dynamic> m) {
     final ch = _ch;
@@ -381,6 +385,9 @@ class RoomConn extends ChangeNotifier {
   void again() => _send({'t': 'again'});
   void setGame(String id, bool crazy) => _send({'t': 'cfg', 'game': id, 'crazy': crazy});
   void start() => _send({'t': 'start'});
+
+  /// صاحب الغرفة: أكثر عدد لاعبين (2-8)
+  void setCap(int n) => _send({'t': 'cap', 'n': n});
   void toLobby() => _send({'t': 'lobby'});
 
   /// صاحب الغرفة: يطرد لاعب، أو يسلّمه الغرفة

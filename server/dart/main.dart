@@ -28,6 +28,9 @@ class JsGame {
   void connection(int player, bool on) => m.connection(player, on);
   void forfeit(int player) => m.forfeit(player);
   String state() => jsonEncode(m.toJson());
+  bool secret() => m.secret;
+  String stateFor(int player) => jsonEncode(m.viewFor(player));
+  String winners() => jsonEncode(m.winners);
   String events() => jsonEncode(m.drainEvents());
 }
 

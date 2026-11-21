@@ -4,6 +4,7 @@ import '../net/room.dart';
 import '../ui/icons.dart';
 import 'connect4.dart';
 import 'hockey.dart';
+import 'muhaibes.dart';
 import 'pigeon.dart';
 import 'quiz.dart';
 import 'reaction.dart';
@@ -23,7 +24,15 @@ class GameInfo {
     required this.build,
     this.crazyHowTo,
     this.online,
+    this.local = true,
+    this.quick = true,
   });
+
+  /// تنلعب "على هذا الجهاز"؟ (المحيبس لا: بيها أسرار بين الفريقين)
+  final bool local;
+
+  /// تظهر بـ"لمّة جديدة" (اللعب ويا الغرباء)؟ الألعاب الاجتماعية لا.
+  final bool quick;
 
   final String id;
   final String title;
@@ -74,6 +83,23 @@ final games = <GameInfo>[
     icon: QuizIcon.new,
     build: (n, _) => QuizGame(players: n),
     online: (room) => QuizGame(players: room.seats.length, room: room),
+  ),
+  GameInfo(
+    id: 'muhaibes',
+    title: 'المحيبس',
+    tagline: 'وين المحبس؟',
+    howTo: 'فريقان. الفريق الذي معه المحبس يخبّئه في إحدى القبضات، وقائد الفريق الآخر يبحث عنه: '
+        '«طالعة» تفتح قبضة فارغة، و«بات» تعني أن المحبس هنا. إذا أصاب في «بات» أخذ فريقه نقاطًا '
+        'بعدد القبضات المغلقة الباقية وانتقل المحبس إليهم، وإذا أخطأ أخذ الفريق الآخر النقاط. أول فريق يصل إلى 15 يفوز. '
+        'كل لاعب على هاتفه.',
+    minPlayers: 4,
+    maxPlayers: 8,
+    colors: const [Color(0xFFC2185B), Color(0xFF4A1030)],
+    icon: MuhaibesIcon.new,
+    build: (_, __) => const SizedBox.shrink(), // ما تنلعب على نفس الجهاز
+    online: (room) => MuhaibesGame(room: room),
+    local: false,
+    quick: false,
   ),
   GameInfo(
     id: 'hockey',

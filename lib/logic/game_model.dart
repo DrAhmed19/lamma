@@ -40,6 +40,19 @@ abstract class GameModel {
   int get winner;
   List<int> get scores;
 
+  /// كل الفائزين (ألعاب الفرق: الفريق كله). فاضي = تعادل.
+  List<int> get winners => winner >= 0 ? [winner] : const [];
+  bool isWinner(int player) => winners.contains(player);
+
+  /// لعبة فرق؟ (النتيجة تنعرض للفرق مو للاعبين)
+  bool get teams => false;
+
+  /// بيها معلومات مخفية؟ (مثل مكان المحبس). إذا إي السيرفر يدز لكل لاعب [viewFor] مالته.
+  bool get secret => false;
+
+  /// الحالة اللي يشوفها لاعب واحد (-1 = متفرج). لازم تبقى تنفع لـ restore.
+  Map<String, dynamic> viewFor(int player) => toJson();
+
   /// حركة من لاعب (player = رقمه باللعبة 0..players-1)
   void input(int player, Map<String, dynamic> d);
 

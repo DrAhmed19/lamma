@@ -101,5 +101,44 @@ Future<void> main(List<String> args) async {
   check(c.room?['started'] == true && c.state != null, 'quick room auto-starts when full');
   await c.ws.close();
   await d.ws.close();
+
+  // المحيبس ما يطلع باللعب السريع
+  final mq = await hc.getUrl(Uri.parse('$base/quick?game=muhaibes'));
+  check((await mq.close()).statusCode == 400, 'muhaibes not in quick match');
+
+  // المحيبس: غرفة بـ 4، والسيرفر يخفي المحبس عن الفريق الثاني
+  final req2 = await hc.getUrl(Uri.parse('$base/new'));
+  final code2 = (jsonDecode(await (await req2.close()).transform(utf8.decoder).join()) as Map)['code'] as String;
+  final ps = [Client('m0'), Client('m1'), Client('m2'), Client('m3')];
+  for (final p in ps) {
+    await p.connect(base, code2);
+    await wait(200);
+  }
+  ps[0].send({'t': 'cap', 'n': 4});
+  await wait(300);
+  check(ps[1].room?['cap'] == 4, 'host sets room size');
+  final extra = Client('m4');
+  await extra.connect(base, code2);
+  await wait(400);
+  check(extra.seat < 0, 'room size enforced');
+  ps[0].send({'t': 'cfg', 'game': 'muhaibes', 'crazy': false});
+  ps[0].send({'t': 'start'});
+  await wait(800);
+  final seats = [for (final s in ps[0].room!['seats'] as List) s as int];
+  Client byPlayer(int p) => ps.firstWhere((x) => x.seat == seats[p]);
+  check(seats.length == 4 && ps[0].state != null, 'muhaibes starts with 4');
+  final hider = ps[0].state!['hider'] as int, leader = ps[0].state!['leader'] as int;
+  final f = hider * 2;
+  byPlayer(hider).send({'t': 'in', 'd': {'a': 'hide', 'f': f}});
+  await wait(800);
+  check(byPlayer((hider + 2) % 4).state?['ring'] == f, 'teammate sees the ring');
+  check(byPlayer(leader).state?['ring'] == -1 && byPlayer((leader + 2) % 4).state?['ring'] == -1, 'other team does NOT see the ring');
+  byPlayer(leader).send({'t': 'in', 'd': {'a': 'bat', 'f': f}});
+  await wait(800);
+  final ts = byPlayer(leader).state?['ts'] as List?;
+  check(ts != null && ts[leader % 2] == 3, 'correct bat scores 3');
+  for (final p in [...ps, extra]) {
+    await p.ws.close();
+  }
   exit(exitCode);
 }

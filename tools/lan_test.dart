@@ -124,6 +124,51 @@ Future<void> main() async {
   a.send({'t': 'again'});
   await wait();
   check(b2.room?['game'] == 'connect4' && b2.room?['tour']['idx'] == 1, 'again moves tour to next game');
+  a.send({'t': 'lobby'});
+  await wait();
+
+  // عدد اللاعبين يحدده صاحب الغرفة
+  a.send({'t': 'cap', 'n': 3});
+  await wait();
+  check(b2.room?['cap'] == 3, 'host sets room size');
+  final c = Client('third'), d = Client('fourth');
+  await c.connect(http.port);
+  await wait();
+  await d.connect(http.port);
+  await wait();
+  check(c.seat == 2 && d.msgs.any((m) => m['t'] == 'err' && m['m'] == 'full'), 'room size enforced');
+
+  // المحيبس: 4 لاعبين أقل شي
+  a.send({'t': 'cfg', 'game': 'muhaibes', 'crazy': false});
+  a.send({'t': 'start'});
+  await wait();
+  check(a.room?['started'] == false, 'muhaibes needs 4 players');
+  a.send({'t': 'cap', 'n': 8});
+  await wait();
+  final d2 = Client('fourth');
+  await d2.connect(http.port);
+  await wait();
+  check(d2.seat == 3, 'fourth player joins after size raised');
+  a.send({'t': 'start'});
+  await wait(400);
+  final all = [a, b2, c, d2];
+  final seats = [for (final s in a.room!['seats'] as List) s as int];
+  Client byPlayer(int p) => all.firstWhere((x) => x.seat == seats[p]);
+  check(a.room?['started'] == true && seats.length == 4, 'muhaibes starts with 4');
+  final st = a.state!;
+  final holding = st['ht'] as int, hider = st['hider'] as int, leader = st['leader'] as int;
+  check(hider % 2 == holding && leader % 2 != holding, 'hider and leader on the right teams');
+  final f = hider * 2 + 1;
+  byPlayer(hider).send({'t': 'in', 'd': {'a': 'hide', 'f': f}});
+  await wait(500);
+  final mate = byPlayer((hider + 2) % 4), foe = byPlayer(leader);
+  check(mate.state?['ring'] == f && byPlayer(hider).state?['ring'] == f, 'hiding team sees the ring');
+  check(foe.state?['ring'] == -1 && byPlayer((leader + 2) % 4).state?['ring'] == -1, 'other team does NOT see the ring');
+  check(foe.state?['ph'] == 'guess', 'guess phase');
+  foe.send({'t': 'in', 'd': {'a': 'bat', 'f': f}});
+  await wait(500);
+  final ts = foe.state?['ts'] as List?;
+  check(ts != null && ts[1 - holding] == 3 && foe.state?['ring'] == f, 'correct bat scores 3 and reveals the ring');
 
   room.dispose();
   await http.close(force: true);

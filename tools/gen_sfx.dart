@@ -362,8 +362,61 @@ void song(String name, {required double bpm, required bool crazy}) {
   save(name, t, peakTo: 0.85);
 }
 
+/// مقام بيات على ري (مي نص بيمول)
+const bayat = [293.7, 320.0, 349.2, 392.0, 440.0, 466.2, 523.3, 587.3];
+
+/// المحيبس: ضربة طبلة لبداية كل جولة
+void drumHit() {
+  final t = Track(0.6);
+  doum(t, 0, 0.9);
+  tek(t, 0.18, 0.4);
+  doum(t, 0.3, 0.6);
+  reverb(t, mix: 0.3);
+  save('drum', t);
+}
+
+/// المحيبس: موسيقى شعبية خفيفة (إيقاع چوبي 2/4 + لحن بيات). تأليف بالكود.
+void muhaibesSong() {
+  const bpm = 104.0;
+  final beat = 60 / bpm;
+  const bars = 16; // كل بار = ضربتين
+  final t = Track(bars * 2 * beat, wrap: true);
+  final eighth = beat / 2, six = beat / 4;
+  // لحن بسيط يتكرر كل 4 بارات (درجات من البيات، -1 = سكتة)
+  const phrase = [
+    [4, 3, 2, 3], [4, -1, 4, 5], [4, 3, 2, 1], [2, -1, 0, -1],
+    [2, 3, 4, 5], [6, 5, 4, 3], [4, 3, 2, 1], [0, -1, -1, -1],
+  ];
+  for (var bar = 0; bar < bars; bar++) {
+    final b0 = bar * 2 * beat;
+    // چوبي: دم . تك تك | دم تك . تك
+    doum(t, b0, 0.55);
+    tek(t, b0 + eighth, 0.3);
+    tek(t, b0 + eighth + six, 0.2);
+    doum(t, b0 + beat, 0.45);
+    tek(t, b0 + beat + eighth, 0.3);
+    if (bar % 2 == 1) tek(t, b0 + beat + eighth + six, 0.18);
+    // بيز خفيف
+    final root = bar % 4 == 3 ? 65.4 : 73.4;
+    tone(t, b0, eighth * 1.5, root, root, 0.3, attack: 0.005, decay: eighth * 0.8, harm: 0.4);
+    tone(t, b0 + beat, eighth * 1.5, root * 1.5, root * 1.5, 0.22, attack: 0.005, decay: eighth * 0.8, harm: 0.4);
+    // اللحن (نغمة كل ثُمن)
+    final notes = phrase[bar % phrase.length];
+    for (var i = 0; i < 4; i++) {
+      final d = notes[i];
+      if (d < 0) continue;
+      pluck(t, b0 + i * eighth, bayat[d], 0.22, decay: 0.15);
+    }
+  }
+  reverb(t, mix: 0.3);
+  save('music_muhaibes', t, peakTo: 0.8);
+}
+
 void main() {
   effects();
   song('music_calm', bpm: 96, crazy: false);
   song('music_crazy', bpm: 132, crazy: true);
+  // الجديدة بالآخر حتى ما تتغير الأصوات القديمة (نفس تسلسل الأرقام العشوائية)
+  drumHit();
+  muhaibesSong();
 }

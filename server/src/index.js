@@ -17,13 +17,13 @@
 // - بطولة: صاحب الغرفة يختار كم لعبة، والفائز بكل وحدة ياخذ 3 نقاط (التعادل نقطة للكل).
 // - الغرف العامة (لعب سريع): ماكو صاحب غرفة يتحكم، واللعب يبدي تلقائياً.
 //
-// رسائل العميل: join, cfg, start, tour, in, again, lobby, quit, leave, kick, host, emo, ping
+// رسائل العميل: join, cfg, cap, start, tour, in, again, lobby, quit, leave, kick, host, emo, ping
 // رسائل السيرفر: you, room, state, notice, emo, err, pong
 
 import "./logic.js";
 
 const ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ"; // بدون I و O حتى ما تلتبس
-const MAX_PLAYERS = 4;
+const MAX_PLAYERS = 8; // العائلة 8. صاحب الغرفة يگدر يقلل العدد (cap)
 const IDLE_MS = 2 * 60 * 60 * 1000; // الغرفة تنمسح بعد ساعتين بدون نشاط
 const FORFEIT_DEFAULT = 45 * 1000; // بمباراة: اللي غاب 45 ثانية = انسحب
 const HOST_GRACE_DEFAULT = 20 * 1000; // صاحب الغرفة يبقى صاحبها 20 ثانية إذا انقطع
@@ -35,7 +35,12 @@ const SAVE_EVERY_MS = 2000;
 const EMOJIS = 12; // عدد التفاعلات (القائمة بالتطبيق)
 
 /// أكثر عدد لاعبين لكل لعبة
-const GAME_MAX = { xo: 2, connect4: 2, tug: 2, hockey: 2, pigeon: 4, reaction: 4, quiz: 4 };
+const GAME_MAX = { xo: 2, connect4: 2, tug: 2, hockey: 2, pigeon: 4, reaction: 4, quiz: 4, muhaibes: 8 };
+/// أقل عدد لاعبين (الباقي 2)
+const GAME_MIN = { muhaibes: 4 };
+/// ألعاب ما تنلعب ويا الغرباء (اللعب السريع)
+const NO_QUICK = new Set(["muhaibes"]);
+const gameFits = (g, n) => (GAME_MAX[g] ?? 0) >= n && (GAME_MIN[g] ?? 2) <= n;
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -73,7 +78,7 @@ export default {
 
     if (url.pathname === "/quick") {
       const game = url.searchParams.get("game") ?? "";
-      if (!GAME_MAX[game]) return json({ error: "game" }, 400);
+      if (!GAME_MAX[game] || NO_QUICK.has(game)) return json({ error: "game" }, 400);
       const mm = env.MATCH.get(env.MATCH.idFromName("mm"));
       const r = await mm.fetch(`https://mm/find?game=${game}`);
       return json(await r.json(), r.status);
@@ -192,6 +197,7 @@ export class Room {
       m.seats ??= [];
       m.tour ??= null;
       m.autoAt ??= 0;
+      m.cap ??= MAX_PLAYERS;
     }
     return m;
   }
@@ -222,6 +228,7 @@ export class Room {
     if (this.game || !meta.started) return this.game;
     const s = await this.ctx.storage.get("game");
     if (s) this.game = globalThis.lamma.restore(s);
+    this.matchSeats = meta.seats;
     return this.game;
   }
 
@@ -258,6 +265,7 @@ export class Room {
         banned: [], // tokens مطرودين
         endAt: 0, // رجوع الكل للغرفة بعد ما تخلص المباراة لأن طلع لاعب
         autoAt: 0, // الغرف العامة: وقت البداية التلقائية
+        cap: MAX_PLAYERS, // أكثر عدد لاعبين بالغرفة (صاحب الغرفة يحدده)
         tour: null, // البطولة
         players: {}, // مقعد → { name, token, avatar }
       });
@@ -329,6 +337,7 @@ export class Room {
       game: meta.game,
       crazy: meta.crazy,
       public: !!meta.public,
+      cap: meta.cap ?? MAX_PLAYERS,
       started: meta.started,
       round: meta.round,
       seats: meta.seats,
@@ -394,13 +403,29 @@ export class Room {
 
   // ------------------------------------------------------------ اللعبة
 
-  stateMsg(events) {
-    return `{"t":"state","s":${this.game.state()},"ev":${events ?? this.game.events()}}`;
+  /// [player]: لألعاب بيها معلومات مخفية (المحيبس) كل لاعب ياخذ نسخته (-1 = متفرج)
+  stateMsg(events, player = -1) {
+    const s = this.game.secret() ? this.game.stateFor(player) : this.game.state();
+    return `{"t":"state","s":${s},"ev":${events ?? this.game.events()}}`;
+  }
+
+  /// يدز الحالة للكل. إذا اللعبة بيها أسرار: كل واحد نسخته
+  sendState(events) {
+    if (!this.game) return;
+    const ev = events ?? this.game.events();
+    if (!this.game.secret()) return this.broadcast(this.stateMsg(ev));
+    const seats = this.matchSeats ?? [];
+    for (const ws of this.sockets()) this.send(ws, this.stateMsg(ev, seats.indexOf(ws.deserializeAttachment().seat)));
+  }
+
+  /// حالة لواحد (لمّن يدخل أو يرجع)
+  stateFor(meta, seat) {
+    return this.stateMsg("[]", meta.seats.indexOf(seat));
   }
 
   async flush() {
     if (!this.game) return;
-    this.broadcast(this.stateMsg());
+    this.sendState();
     await this.saveGame();
   }
 
@@ -422,7 +447,7 @@ export class Room {
         acc -= dt;
         steps++;
       }
-      if (steps > 0) this.broadcast(this.stateMsg());
+      if (steps > 0) this.sendState();
       if (now - this.lastSave > SAVE_EVERY_MS) this.saveGame();
       this.watchOver();
     }, 1000 / hz);
@@ -464,10 +489,10 @@ export class Room {
   scoreTour(meta) {
     const t = meta.tour;
     if (!t || t.done || !this.game || !this.game.over() || t.scored === meta.round) return false;
-    const w = this.game.winner();
-    if (w >= 0 && meta.seats[w] !== undefined) {
-      const s = meta.seats[w];
-      t.pts[s] = (t.pts[s] ?? 0) + 3;
+    // ألعاب الفرق: كل الفريق الفائز ياخذ النقاط
+    const ws = JSON.parse(this.game.winners()).filter((w) => meta.seats[w] !== undefined);
+    if (ws.length) {
+      for (const w of ws) t.pts[meta.seats[w]] = (t.pts[meta.seats[w]] ?? 0) + 3;
     } else {
       for (const s of meta.seats) if (!meta.out.includes(s)) t.pts[s] = (t.pts[s] ?? 0) + 1;
     }
@@ -489,6 +514,7 @@ export class Room {
     this.stopLoop();
     this.overSeen = false;
     this.game = globalThis.lamma.create(meta.game, seats.length, meta.crazy, seed);
+    this.matchSeats = seats;
   }
 
   async afterChange(meta) {
@@ -601,11 +627,23 @@ export class Room {
         this.broadcast(this.roomState(meta));
         return;
 
+      case "cap": {
+        // صاحب الغرفة يحدد أكثر عدد لاعبين (ما يقل عن اللي موجودين)
+        if (!isHost || meta.started) return;
+        const n = Math.round(Number(msg.n));
+        if (!Number.isFinite(n)) return;
+        meta.cap = Math.max(2, Math.min(MAX_PLAYERS, Math.max(n, Object.keys(meta.players).length)));
+        await this.saveMeta(meta);
+        this.broadcast(this.roomState(meta));
+        return;
+      }
+
       case "start": {
         if (!isHost || meta.started || !meta.game) return;
         if (!globalThis.lamma.supports(meta.game)) return this.send(ws, { t: "err", m: "unsupported" });
         const seats = [...this.online()].filter((s) => meta.players[s]).sort((a, b) => a - b);
-        if (seats.length < 2) return this.send(ws, { t: "err", m: "few" });
+        if (seats.length < (GAME_MIN[meta.game] ?? 2)) return this.send(ws, { t: "err", m: "few" });
+        if (seats.length > (GAME_MAX[meta.game] ?? MAX_PLAYERS)) return this.send(ws, { t: "err", m: "many" });
         meta.tour = null;
         this.newMatch(meta, seats);
         await this.afterChange(meta);
@@ -618,7 +656,7 @@ export class Room {
         const seats = [...this.online()].filter((s) => meta.players[s]).sort((a, b) => a - b);
         if (seats.length < 2) return this.send(ws, { t: "err", m: "few" });
         const games = msg.games
-          .filter((g) => typeof g === "string" && GAME_MAX[g] >= seats.length && globalThis.lamma.supports(g))
+          .filter((g) => typeof g === "string" && gameFits(g, seats.length) && globalThis.lamma.supports(g))
           .slice(0, 6);
         if (games.length < 2) return this.send(ws, { t: "err", m: "tour" });
         meta.tour = { games, idx: 0, pts: {}, scored: -1, done: false };
@@ -756,7 +794,7 @@ export class Room {
       meta.players[seat].avatar = avatar;
     } else {
       const taken = new Set(Object.keys(meta.players).map(Number));
-      const max = meta.public ? GAME_MAX[meta.game] ?? MAX_PLAYERS : MAX_PLAYERS;
+      const max = meta.public ? GAME_MAX[meta.game] ?? MAX_PLAYERS : meta.cap ?? MAX_PLAYERS;
       if (taken.size >= max) return this.send(ws, { t: "err", m: "full" });
       for (let s = 0; s < MAX_PLAYERS && seat < 0; s++) if (!taken.has(s)) seat = s;
       if (seat < 0) return this.send(ws, { t: "err", m: "full" });
@@ -784,7 +822,7 @@ export class Room {
     }
     await this.saveMeta(meta);
     this.broadcast(this.roomState(meta));
-    if (meta.started && (await this.ensureGame(meta))) this.send(ws, this.stateMsg("[]"));
+    if (meta.started && (await this.ensureGame(meta))) this.send(ws, this.stateFor(meta, seat));
     await this.syncLoop(meta);
     await this.report(meta);
   }

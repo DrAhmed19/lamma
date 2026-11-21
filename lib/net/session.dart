@@ -50,17 +50,17 @@ abstract class Session<M extends GameModel> {
         Profile.I.recordGame(m.id);
       } else if (me >= 0) {
         // الخصوم بالاسم (لإحصائية صورة النتيجة: "فاز على فلان 5 مرات متتالية")
-        final others = [
-          for (var p = 0; p < m.scores.length; p++)
-            if (p != me && nameOf(p).trim().isNotEmpty) nameOf(p),
-        ];
+        // ألعاب الفرق: الفائزين ممكن أكثر من واحد، وزميلي ما ينحسب خصم
+        final winners = m.winners;
+        final iWon = m.isWinner(me);
+        String? nm(int p) => nameOf(p).trim().isEmpty ? null : nameOf(p);
         Profile.I.recordGame(
           m.id,
-          won: m.winner == me,
+          won: iWon,
           online: true,
-          beat: m.winner == me ? others : const [],
-          lostTo: m.winner >= 0 && m.winner != me ? nameOf(m.winner) : null,
-          drew: m.winner < 0 ? others : const [],
+          beat: iWon ? [for (var p = 0; p < m.players; p++) if (!m.isWinner(p) && nm(p) != null) nm(p)!] : const [],
+          lostTo: !iWon && winners.length == 1 ? nm(winners.first) : null,
+          drew: winners.isEmpty ? [for (var p = 0; p < m.players; p++) if (p != me && nm(p) != null) nm(p)!] : const [],
         );
       }
     }

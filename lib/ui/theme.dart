@@ -21,8 +21,12 @@ class C {
     Color(0xFF3D8BFF), // أزرق
     Color(0xFF22D37E), // أخضر
     Color(0xFFFFB627), // أصفر
+    Color(0xFFFF8A3D), // برتقالي
+    Color(0xFFA66BFF), // بنفسجي
+    Color(0xFF2ED3E6), // سماوي
+    Color(0xFFFF6FB5), // وردي
   ];
-  static const playerNames = ['الأحمر', 'الأزرق', 'الأخضر', 'الأصفر'];
+  static const playerNames = ['الأحمر', 'الأزرق', 'الأخضر', 'الأصفر', 'البرتقالي', 'البنفسجي', 'السماوي', 'الوردي'];
 }
 
 Color lighten(Color c, double t) => Color.lerp(c, Colors.white, t)!;
