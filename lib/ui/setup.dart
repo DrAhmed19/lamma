@@ -69,7 +69,7 @@ class _SetupState extends State<SetupScreen> {
     showDialog<void>(
       context: context,
       builder: (ctx) => Dialog(
-        backgroundColor: C.surface,
+        backgroundColor: Colors.white,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(26)),
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 460, maxHeight: 560),
@@ -79,9 +79,9 @@ class _SetupState extends State<SetupScreen> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text('كيف تلعب؟', textAlign: TextAlign.center, style: display(30)),
+                Text('كيف تلعب؟', textAlign: TextAlign.center, style: display(30, color: L.ink)),
                 const SizedBox(height: 10),
-                Text(g.howTo, style: body(15, color: alpha(Colors.white, 0.88))),
+                Text(g.howTo, style: body(15, weight: FontWeight.w700, color: L.ink)),
                 const SizedBox(height: 12),
                 for (var i = 0; i < 3; i++)
                   Padding(
@@ -89,7 +89,7 @@ class _SetupState extends State<SetupScreen> {
                     child: Text.rich(
                       TextSpan(children: [
                         TextSpan(text: '${kLevelNames[i]}: ', style: body(15, weight: FontWeight.w900, color: kLevelColors[i])),
-                        TextSpan(text: g.levels![i], style: body(14.5, color: alpha(Colors.white, 0.85))),
+                        TextSpan(text: g.levels![i], style: body(14.5, weight: FontWeight.w700, color: L.ink)),
                       ]),
                     ),
                   ),
@@ -107,12 +107,22 @@ class _SetupState extends State<SetupScreen> {
   Widget build(BuildContext context) {
     final col = kLevelColors[level];
     return Scaffold(
-      backgroundColor: C.bg,
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: RadialGradient(center: const Alignment(0, -0.6), radius: 1.2, colors: [alpha(g.colors[0], 0.35), C.bg]),
+      backgroundColor: L.sky,
+      body: Stack(children: [
+        // عالم اللعبة: لون اللعبة من فوق وحافة منحنية
+        Positioned(
+          top: 0,
+          left: 0,
+          right: 0,
+          height: 290,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(begin: Alignment.topRight, end: Alignment.bottomLeft, colors: [lighten(g.colors[0], 0.15), g.colors[0]]),
+              borderRadius: BorderRadius.vertical(bottom: Radius.elliptical(MediaQuery.sizeOf(context).width, 70)),
+            ),
+          ),
         ),
-        child: SafeArea(
+        SafeArea(
           child: Center(
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 520),
@@ -122,9 +132,9 @@ class _SetupState extends State<SetupScreen> {
                     padding: const EdgeInsets.fromLTRB(10, 6, 10, 0),
                     child: Row(
                       children: [
-                        GlassIconButton(icon: Icons.arrow_forward_rounded, onTap: () => Navigator.pop(context), size: 42),
-                        Expanded(child: Text(g.title, textAlign: TextAlign.center, style: display(30))),
-                        GlassIconButton(icon: Icons.question_mark_rounded, onTap: _help, size: 42),
+                        _round(Icons.arrow_forward_rounded, () => Navigator.pop(context)),
+                        Expanded(child: Text(g.title, textAlign: TextAlign.center, style: display(30, shadows: const [Shadow(color: Color(0x33000000), offset: Offset(0, 3))]))),
+                        _round(Icons.question_mark_rounded, _help),
                       ],
                     ),
                   ),
@@ -138,17 +148,26 @@ class _SetupState extends State<SetupScreen> {
                             tween: Tween(end: level.toDouble()),
                             duration: const Duration(milliseconds: 380),
                             curve: Curves.easeOutBack,
-                            builder: (context, v, _) => SizedBox(width: 120, height: 120, child: CustomPaint(painter: BotFace(v))),
+                            builder: (context, v, _) => Container(
+                              width: 150,
+                              height: 150,
+                              alignment: Alignment.center,
+                              decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle, boxShadow: [BoxShadow(color: L.sky2, offset: Offset(0, 7)), BoxShadow(color: Color(0x1F1E325A), blurRadius: 22, offset: Offset(0, 14))]),
+                              child: SizedBox(width: 118, height: 118, child: CustomPaint(painter: BotFace(v))),
+                            ),
                           ),
                           const SizedBox(height: 4),
                           AnimatedSwitcher(
                             duration: const Duration(milliseconds: 200),
                             child: Text(kLevelNames[level], key: ValueKey(level), style: display(34, color: col)),
                           ),
-                          SliderTheme(
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6),
+                            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(32), boxShadow: const [BoxShadow(color: L.sky2, offset: Offset(0, 4))]),
+                            child: SliderTheme(
                             data: SliderTheme.of(context).copyWith(
                               activeTrackColor: col,
-                              inactiveTrackColor: alpha(Colors.white, 0.12),
+                              inactiveTrackColor: const Color(0xFFCBD5E2),
                               thumbColor: col,
                               overlayColor: alpha(col, 0.2),
                               trackHeight: 8,
@@ -163,6 +182,7 @@ class _SetupState extends State<SetupScreen> {
                               divisions: 2,
                               onChanged: (v) => setState(() => level = v.round()),
                             ),
+                            ),
                           ),
                           Row(
                             children: [
@@ -172,7 +192,7 @@ class _SetupState extends State<SetupScreen> {
                                     onTap: () => setState(() => level = i),
                                     child: Text(kLevelNames[i],
                                         textAlign: i == 0 ? TextAlign.start : (i == 1 ? TextAlign.center : TextAlign.end),
-                                        style: body(13, weight: FontWeight.w800, color: i == level ? kLevelColors[i] : C.muted)),
+                                        style: body(13, weight: FontWeight.w800, color: i == level ? darken(kLevelColors[i], 0.12) : L.muted)),
                                   ),
                                 ),
                             ],
@@ -184,12 +204,12 @@ class _SetupState extends State<SetupScreen> {
                               key: ValueKey(level),
                               width: double.infinity,
                               padding: const EdgeInsets.all(12),
-                              decoration: BoxDecoration(color: alpha(col, 0.1), borderRadius: BorderRadius.circular(16), border: Border.all(color: alpha(col, 0.4))),
-                              child: Text(g.levels![level], textAlign: TextAlign.center, style: body(14.5, color: alpha(Colors.white, 0.9))),
+                              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(18), boxShadow: const [BoxShadow(color: L.sky2, offset: Offset(0, 5))]),
+                              child: Text(g.levels![level], textAlign: TextAlign.center, style: body(14.5, weight: FontWeight.w800, color: L.ink)),
                             ),
                           ),
                           const SizedBox(height: 18),
-                          Text('منو يلعب؟', style: display(26)),
+                          Text('منو يلعب؟', style: display(26, color: L.ink)),
                           const SizedBox(height: 8),
                           _lineup(),
                           const SizedBox(height: 10),
@@ -210,7 +230,7 @@ class _SetupState extends State<SetupScreen> {
                                     ? 'أضف شخصًا واحدًا على الأقل'
                                     : 'اضغط على اللاعب لتبديله بين شخص وكمبيوتر',
                             textAlign: TextAlign.center,
-                            style: body(13, color: g.fits(n) && bots.contains(false) ? C.muted : const Color(0xFFFF8A8A)),
+                            style: body(13, weight: FontWeight.w800, color: g.fits(n) && bots.contains(false) ? L.muted : const Color(0xFFE5484D)),
                           ),
                         ],
                       ),
@@ -220,7 +240,19 @@ class _SetupState extends State<SetupScreen> {
                     padding: const EdgeInsets.fromLTRB(18, 4, 18, 14),
                     child: Opacity(
                       opacity: valid ? 1 : 0.45,
-                      child: SizedBox(width: double.infinity, child: BigButton(label: 'العب', icon: Icons.play_arrow_rounded, color: g.colors[0], onTap: _play)),
+                      child: SizedBox(
+                        width: double.infinity,
+                        child: Chunky(
+                          color: col,
+                          onTap: _play,
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                          child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                            const Icon(Icons.play_arrow_rounded, color: Colors.white, size: 32),
+                            const SizedBox(width: 6),
+                            Text('العب', style: display(32, shadows: const [Shadow(color: Color(0x40000000), offset: Offset(0, 2))])),
+                          ]),
+                        ),
+                      ),
                     ),
                   ),
                 ],
@@ -228,20 +260,30 @@ class _SetupState extends State<SetupScreen> {
             ),
           ),
         ),
-      ),
+      ]),
     );
   }
+
+  Widget _round(IconData icon, VoidCallback onTap) => Pressable(
+        onTap: onTap,
+        child: Container(
+          width: 46,
+          height: 46,
+          decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle, boxShadow: [BoxShadow(color: L.sky2, offset: Offset(0, 4))]),
+          child: Icon(icon, color: L.ink, size: 24),
+        ),
+      );
 
   Widget _addBtn(String label, IconData icon, bool bot) {
     return Pressable(
       onTap: () => setState(() => bots.add(bot)),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        decoration: BoxDecoration(color: alpha(Colors.white, 0.06), borderRadius: BorderRadius.circular(16), border: Border.all(color: C.line)),
+        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), boxShadow: const [BoxShadow(color: L.sky2, offset: Offset(0, 4))]),
         child: Row(mainAxisSize: MainAxisSize.min, children: [
-          Icon(icon, size: 20, color: Colors.white),
+          Icon(icon, size: 20, color: L.ink),
           const SizedBox(width: 6),
-          Text(label, style: body(15, weight: FontWeight.w800)),
+          Text(label, style: body(15, weight: FontWeight.w800, color: L.ink)),
         ]),
       ),
     );
@@ -255,9 +297,9 @@ class _SetupState extends State<SetupScreen> {
     Widget team(int t) => Expanded(
           child: Container(
             padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(color: alpha(C.players[t], 0.1), borderRadius: BorderRadius.circular(18), border: Border.all(color: alpha(C.players[t], 0.5))),
+            decoration: BoxDecoration(color: alpha(C.players[t], 0.14), borderRadius: BorderRadius.circular(18), border: Border.all(color: alpha(C.players[t], 0.6), width: 2)),
             child: Column(children: [
-              Text('الفريق ${t + 1}', style: body(13, weight: FontWeight.w900, color: lighten(C.players[t], 0.2))),
+              Text('الفريق ${t + 1}', style: body(13, weight: FontWeight.w900, color: darken(C.players[t], 0.2))),
               const SizedBox(height: 6),
               for (var i = t; i < n; i += 2) Padding(padding: const EdgeInsets.only(bottom: 6), child: _seat(i, swap: true)),
             ]),
@@ -276,9 +318,9 @@ class _SetupState extends State<SetupScreen> {
         width: swap ? double.infinity : 150,
         padding: const EdgeInsets.fromLTRB(8, 8, 4, 8),
         decoration: BoxDecoration(
-          color: alpha(c, 0.18),
+          color: Colors.white,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: alpha(c, 0.8), width: 1.5),
+          border: Border.all(color: c, width: 2),
         ),
         child: Row(
           children: [
@@ -290,7 +332,7 @@ class _SetupState extends State<SetupScreen> {
               child: Icon(bot ? Icons.smart_toy_rounded : Icons.person_rounded, size: 19, color: Colors.white),
             ),
             const SizedBox(width: 6),
-            Expanded(child: Text(seatName(i), maxLines: 1, overflow: TextOverflow.ellipsis, style: body(13, weight: FontWeight.w800))),
+            Expanded(child: Text(seatName(i), maxLines: 1, overflow: TextOverflow.ellipsis, style: body(13, weight: FontWeight.w800, color: L.ink))),
             if (swap)
               GestureDetector(
                 onTap: () => setState(() {
@@ -300,12 +342,12 @@ class _SetupState extends State<SetupScreen> {
                   bots[i] = bots[j];
                   bots[j] = x;
                 }),
-                child: const Padding(padding: EdgeInsets.all(4), child: Icon(Icons.swap_horiz_rounded, size: 20, color: Colors.white70)),
+                child: const Padding(padding: EdgeInsets.all(4), child: Icon(Icons.swap_horiz_rounded, size: 20, color: L.muted)),
               ),
             if (canRemove)
               GestureDetector(
                 onTap: () => setState(() => bots.removeAt(i)),
-                child: const Padding(padding: EdgeInsets.all(4), child: Icon(Icons.close_rounded, size: 18, color: Colors.white54)),
+                child: const Padding(padding: EdgeInsets.all(4), child: Icon(Icons.close_rounded, size: 18, color: L.muted)),
               ),
           ],
         ),
