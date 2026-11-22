@@ -191,7 +191,7 @@ class _PigeonState extends LoopState<PigeonGame> {
   }
 
   /// مقياس الرسم حسب الشاشة (يكبر ويا الايباد واللابتوب)
-  /// أونلاين: الملعب بنسبة ثابتة ([fitField])، فالمقياس هو نفسه مقياس العالم بالضبط
+  /// أونلاين: مقياس الرسم = مقياس العرض (الملعب يملي عرض التلفون)
   double get k => online && ready ? size.width / m.worldW : (math.min(size.width, size.height) / 400).clamp(0.8, 2.4).toDouble();
   double get maxPull => math.min(size.width, size.height) * 0.26;
   double get skyTop => size.height * 0.22;
@@ -538,7 +538,11 @@ class _PigeonState extends LoopState<PigeonGame> {
         if (!ready) return const NetWaiting();
         // أونلاين: الملعب بنفس الشكل عند الكل (بدون مطّ)، والزايد من الشاشة خلفية.
         // على نفس الجهاز العالم أصلاً بنسبة الشاشة، فياخذها كلها.
-        final field = online ? fitField(box.biggest, m.worldW / m.worldH, dpr: dpr) : Offset.zero & box.biggest;
+        // التلفونات (نسبتها بين 0.42 و0.62): الملعب يملي الشاشة كلها ويتكيف وياها شوية.
+        // الأعرض من هيج (تابلت، كمبيوتر): يوقف عند 0.62 ويصير عمود بالنص، حتى ما تقرب الجهات ويسهل الصيد.
+        final field = online
+            ? fitField(box.biggest, (box.biggest.width / math.max(1.0, box.biggest.height)).clamp(0.42, 0.62).toDouble(), dpr: dpr)
+            : Offset.zero & box.biggest;
         size = field.size;
         return Stack(
           children: [
