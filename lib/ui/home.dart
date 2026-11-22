@@ -323,7 +323,7 @@ class _GameCard extends StatelessWidget {
                       child: Center(
                         child: AspectRatio(
                           aspectRatio: 1,
-                          child: Padding(padding: const EdgeInsets.all(6), child: CustomPaint(painter: game.icon())),
+                          child: GameArt(game.id, fallback: game.icon, radius: 20),
                         ),
                       ),
                     ),
@@ -490,13 +490,7 @@ class _GameSheetState extends State<_GameSheet> {
                 const SizedBox(height: 14),
                 Row(
                   children: [
-                    Container(
-                      width: 72,
-                      height: 72,
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(borderRadius: BorderRadius.circular(22), gradient: LinearGradient(colors: g.colors)),
-                      child: CustomPaint(painter: g.icon()),
-                    ),
+                    GameArt(g.id, fallback: g.icon, size: 72, radius: 22),
                     const SizedBox(width: 14),
                     Expanded(
                       child: Column(

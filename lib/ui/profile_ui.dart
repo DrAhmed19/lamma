@@ -248,13 +248,7 @@ class ProfileScreen extends StatelessWidget {
                         decoration: BoxDecoration(color: alpha(Colors.white, 0.04), borderRadius: BorderRadius.circular(16), border: Border.all(color: C.line)),
                         child: Row(
                           children: [
-                            Container(
-                              width: 40,
-                              height: 40,
-                              padding: const EdgeInsets.all(5),
-                              decoration: BoxDecoration(borderRadius: BorderRadius.circular(12), gradient: LinearGradient(colors: g.colors)),
-                              child: CustomPaint(painter: g.icon()),
-                            ),
+                            GameArt(g.id, fallback: g.icon, size: 40, radius: 12),
                             const SizedBox(width: 12),
                             Expanded(child: Text(g.title, style: body(16, weight: FontWeight.w800))),
                             Text('${p.stats[g.id]?.played ?? 0} مباراة', style: body(13, color: C.muted)),

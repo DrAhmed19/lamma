@@ -761,7 +761,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
       ),
       child: Row(
         children: [
-          SizedBox(width: 52, height: 52, child: CustomPaint(painter: g.icon())),
+          GameArt(g.id, fallback: g.icon, size: 52, radius: 16),
           const SizedBox(width: 12),
           Expanded(
             child: Column(

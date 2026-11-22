@@ -291,3 +291,26 @@ class Avatar extends StatelessWidget {
     );
   }
 }
+
+/// صورة اللعبة (assets/games/<id>.webp). إذا الملف ناقص يرجع للرسم بالكود.
+class GameArt extends StatelessWidget {
+  const GameArt(this.id, {super.key, required this.fallback, this.size, this.radius = 18});
+  final String id;
+  final CustomPainter Function() fallback;
+  final double? size;
+  final double radius;
+
+  @override
+  Widget build(BuildContext context) {
+    final img = ClipRRect(
+      borderRadius: BorderRadius.circular(radius),
+      child: Image.asset(
+        'assets/games/$id.webp',
+        fit: BoxFit.cover,
+        filterQuality: FilterQuality.medium,
+        errorBuilder: (_, __, ___) => Padding(padding: const EdgeInsets.all(6), child: CustomPaint(painter: fallback())),
+      ),
+    );
+    return size == null ? img : SizedBox(width: size, height: size, child: img);
+  }
+}
