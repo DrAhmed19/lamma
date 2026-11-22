@@ -27,10 +27,10 @@ class _Player {
 }
 
 /// أكثر عدد لاعبين لكل لعبة (نفس GAME_MAX بالسيرفر)
-const gameMax = {'xo': 2, 'connect4': 2, 'tug': 2, 'hockey': 2, 'pigeon': 4, 'reaction': 4, 'quiz': 4, 'muhaibes': 8, 'domino': 4};
+const gameMax = {'xo': 2, 'connect4': 2, 'tug': 2, 'hockey': 2, 'pigeon': 4, 'reaction': 4, 'quiz': 4, 'muhaibes': 8, 'domino': 4, 'whois': 8};
 
 /// أقل عدد لاعبين (نفس GAME_MIN، الباقي 2)
-const gameMin = {'muhaibes': 4};
+const gameMin = {'muhaibes': 4, 'whois': 3};
 /// ألعاب تنلعب بأعداد معينة بس (نفس GAME_COUNTS)
 const gameCounts = {
   'domino': [2, 4],

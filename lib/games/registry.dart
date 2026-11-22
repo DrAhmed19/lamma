@@ -10,6 +10,7 @@ import 'pigeon.dart';
 import 'quiz.dart';
 import 'reaction.dart';
 import 'tug.dart';
+import 'whois.dart';
 import 'xo.dart';
 
 class GameInfo {
@@ -131,6 +132,24 @@ final games = <GameInfo>[
     icon: MuhaibesIcon.new,
     build: (_, __) => const SizedBox.shrink(), // ما تنلعب على نفس الجهاز
     online: (room) => MuhaibesGame(room: room),
+    local: false,
+    quick: false,
+  ),
+  GameInfo(
+    id: 'whois',
+    title: 'منو بينا؟',
+    tagline: 'من الأنسب لهذا اللقب؟',
+    howTo: 'في كل جولة سؤال مضحك، والكل يصوّت سرًّا على لاعب يراه الأنسب (لا يمكنك التصويت لنفسك). '
+        'بعد الكشف ينال الأكثر أصواتًا لقب الجولة، وبعد ثمانية أسئلة يحصل كل لاعب على لقبه النهائي. '
+        'بدون نقاط، للضحك فقط. كل لاعب على هاتفه.',
+    crazyHowTo: 'نفس اللعبة، لكن يُكشف في كل جولة من صوّت لمن.',
+    modeLabels: const ['أصوات سرية', 'كشف الأصوات'],
+    minPlayers: 3,
+    maxPlayers: 8,
+    colors: const [Color(0xFF2E8BFF), Color(0xFF14295E)],
+    icon: WhoisIcon.new,
+    build: (_, __) => const SizedBox.shrink(), // ما تنلعب على نفس الجهاز
+    online: (room) => WhoisGame(room: room),
     local: false,
     quick: false,
   ),

@@ -20,8 +20,11 @@ import 'save_image_stub.dart' if (dart.library.js_interop) 'save_image_web.dart'
 import 'theme.dart';
 
 class CardPlayer {
-  const CardPlayer(this.name, this.avatar, this.color, this.score);
+  const CardPlayer(this.name, this.avatar, this.color, this.score, {this.title});
   final String name, avatar;
+
+  /// لقب اللاعب (بدل النقاط): لعبة "منو بينا؟"
+  final String? title;
   final Color color;
   final int score;
 }
@@ -35,7 +38,11 @@ class ShareCardData {
     this.headline,
     this.stat,
     this.tour = false,
+    this.titles = false,
   });
+
+  /// صورة الألقاب: البطل بالأعلى هو اللي يشارك ([winner])، وكل لاعب بلقبه
+  final bool titles;
 
   /// اسم اللعبة (أو "البطولة")
   final String game;
@@ -254,7 +261,7 @@ class ShareCardPainter extends CustomPainter {
         final r = (story ? 78 : 70) * k;
         _avatar(c, Offset(cx, yy + r), r, p);
         yy += r * 2 + 10 * k;
-        yy += _center(c, d.tour ? p.name : 'فاز ${p.name}!', display(70 * k, color: p.color), cx, yy, w - 100);
+        yy += _center(c, d.tour || d.titles ? p.name : 'فاز ${p.name}!', display(70 * k, color: p.color), cx, yy, w - 100);
       } else {
         yy += 20 * k;
         final r = 70 * k;
@@ -307,7 +314,7 @@ class ShareCardPainter extends CustomPainter {
         }
         _avatar(c, Offset(right - ar, rect.center.dy), ar, p);
         right -= ar * 2 + 16 * k;
-        final score = _tp(d.tour ? '${p.score} نقطة' : '${p.score}', display(40 * k, color: p.color), 260);
+        final score = _tp(p.title ?? (d.tour ? '${p.score} نقطة' : '${p.score}'), display((p.title != null ? 32 : 40) * k, color: p.color), p.title != null ? 330 : 260);
         score.paint(c, Offset(rect.left + 24 * k, rect.center.dy - score.height / 2));
         final nameW = right - (rect.left + 24 * k + score.width + 16);
         final name = TextPainter(

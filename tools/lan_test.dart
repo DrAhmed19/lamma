@@ -170,6 +170,26 @@ Future<void> main() async {
   final ts = foe.state?['ts'] as List?;
   check(ts != null && ts[1 - holding] == 3 && foe.state?['ring'] == f, 'correct bat scores 3 and reveals the ring');
 
+  // منو بينا؟: 3 لاعبين أقل شي، والأصوات سرية
+  a.send({'t': 'lobby'});
+  await wait();
+  a.send({'t': 'cfg', 'game': 'whois', 'crazy': false});
+  a.send({'t': 'start'});
+  await wait(3500);
+  check(a.room?['started'] == true, 'whois starts with 4');
+  final wp = [for (final s in a.room!['seats'] as List) all.firstWhere((x) => x.seat == s as int)];
+  check(wp[0].state?['ph'] == 'vote', 'whois reaches voting');
+  wp[0].send({'t': 'in', 'd': {'a': 'vote', 't': 1}});
+  wp[1].send({'t': 'in', 'd': {'a': 'vote', 't': 0}});
+  await wait(600);
+  final wv0 = wp[0].state?['votes'] as List, wv2 = wp[2].state?['votes'] as List;
+  check(wv0[0] == 1 && wv0[1] == -2, 'whois: I see my vote only');
+  check(wv2[0] == -2 && wv2[1] == -2 && wv2[2] == -1, 'whois: others hidden from voters');
+  wp[2].send({'t': 'in', 'd': {'a': 'vote', 't': 1}});
+  wp[3].send({'t': 'in', 'd': {'a': 'vote', 't': 1}});
+  await wait(600);
+  check(wp[0].state?['ph'] == 'reveal' && (wp[0].state?['tally'] as List)[1] == 3, 'whois reveal tallies 3 votes');
+
   // الدومينو بأربعة: كل واحد يشوف قطعه بس
   a.send({'t': 'lobby'});
   await wait();

@@ -412,6 +412,62 @@ void muhaibesSong() {
   save('music_muhaibes', t, peakTo: 0.8);
 }
 
+/// منو بينا؟: موسيقى مرحة "يفكّرون" (بيز يقفز + نقرات + لحن خماسي كبير). تأليف بالكود.
+void whoisSong() {
+  const bpm = 112.0;
+  final beat = 60 / bpm;
+  const bars = 8; // كل بار 4 ضربات
+  final t = Track(bars * 4 * beat, wrap: true);
+  final eighth = beat / 2;
+  // خماسي كبير على دو
+  const penta = [261.6, 293.7, 329.6, 392.0, 440.0, 523.3, 587.3, 659.3];
+  const phrase = [
+    [0, 2, 4, 2, 3, -1, 2, -1],
+    [0, 2, 4, 5, 4, -1, -1, -1],
+    [3, 4, 3, 2, 1, -1, 0, -1],
+    [1, 2, 1, 0, -1, -1, -1, -1],
+  ];
+  const roots = [130.8, 110.0, 87.3, 98.0]; // دو، لا، فا، صول
+  for (var bar = 0; bar < bars; bar++) {
+    final b0 = bar * 4 * beat;
+    final root = roots[bar % 4];
+    for (var k = 0; k < 4; k++) {
+      final at = b0 + k * beat;
+      // بيز يقفز (أساس ثم خامسة)
+      final f = k.isEven ? root : root * 1.5;
+      tone(t, at, beat * 0.5, f, f, 0.32, attack: 0.004, decay: beat * 0.18, harm: 0.5);
+      if (k.isOdd) clap(t, at, 0.18);
+      hat(t, at + eighth, 0.08);
+    }
+    kick(t, b0, 0.35);
+    kick(t, b0 + 2 * beat, 0.3);
+    final notes = phrase[bar % phrase.length];
+    for (var i = 0; i < 8; i++) {
+      final d = notes[i];
+      if (d < 0) continue;
+      // النص الثاني أوكتاف أعلى شوية حتى ما يملّ
+      final oct = bar >= 4 && d < 5 ? 2.0 : 1.0;
+      pluck(t, b0 + i * eighth, penta[d] * oct, 0.2, decay: 0.09);
+    }
+  }
+  reverb(t, mix: 0.25);
+  save('music_whois', t, peakTo: 0.8);
+}
+
+/// تادا: لمّن ينكشف لقب الجولة
+void tada() {
+  final t = Track(1.2);
+  for (final (i, f) in [392.0, 523.3, 659.3, 784.0].indexed) {
+    tone(t, i * 0.07, 0.18, f, f, 0.45, decay: 0.07, harm: 0.3, square: 0.25);
+  }
+  for (final f in [523.3, 659.3, 784.0, 1046.5]) {
+    tone(t, 0.3, 0.8, f, f, 0.3, attack: 0.01, decay: 0.3, harm: 0.2, square: 0.15, vib: 5, vibHz: 7);
+  }
+  noise(t, 0.3, 0.5, 0.25, smooth: 0.95, decay: 0.18, hp: true);
+  reverb(t, mix: 0.35);
+  save('tada', t);
+}
+
 void main() {
   effects();
   song('music_calm', bpm: 96, crazy: false);
@@ -419,4 +475,6 @@ void main() {
   // الجديدة بالآخر حتى ما تتغير الأصوات القديمة (نفس تسلسل الأرقام العشوائية)
   drumHit();
   muhaibesSong();
+  whoisSong();
+  tada();
 }

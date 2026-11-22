@@ -36,11 +36,11 @@ const SAVE_EVERY_MS = 2000;
 const EMOJIS = 12; // عدد التفاعلات (القائمة بالتطبيق)
 
 /// أكثر عدد لاعبين لكل لعبة
-const GAME_MAX = { xo: 2, connect4: 2, tug: 2, hockey: 2, pigeon: 4, reaction: 4, quiz: 4, muhaibes: 8, domino: 4 };
+const GAME_MAX = { xo: 2, connect4: 2, tug: 2, hockey: 2, pigeon: 4, reaction: 4, quiz: 4, muhaibes: 8, domino: 4, whois: 8 };
 /// أقل عدد لاعبين (الباقي 2)
-const GAME_MIN = { muhaibes: 4 };
+const GAME_MIN = { muhaibes: 4, whois: 3 };
 /// ألعاب ما تنلعب ويا الغرباء (اللعب السريع)
-const NO_QUICK = new Set(["muhaibes"]);
+const NO_QUICK = new Set(["muhaibes", "whois"]);
 /// ألعاب تنلعب بأعداد معينة بس (الدومينو: 2 أو 4)
 const GAME_COUNTS = { domino: [2, 4] };
 /// أكثر عدد باللعب السريع ويا الغرباء (الدومينو: لاعبين بس)

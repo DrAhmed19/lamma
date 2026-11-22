@@ -48,6 +48,8 @@ abstract class Session<M extends GameModel> {
     if (m.over && !_wasOver && !silent) {
       if (!online) {
         Profile.I.recordGame(m.id);
+      } else if (me >= 0 && !m.scored) {
+        Profile.I.recordGame(m.id, online: true);
       } else if (me >= 0) {
         // الخصوم بالاسم (لإحصائية صورة النتيجة: "فاز على فلان 5 مرات متتالية")
         // ألعاب الفرق: الفائزين ممكن أكثر من واحد، وزميلي ما ينحسب خصم
