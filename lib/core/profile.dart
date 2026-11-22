@@ -7,7 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'sfx.dart';
 
 /// صور رمزية بسيطة يختار منها اللاعب
-const kAvatars = ['😀', '😎', '🦁', '🐱', '🐼', '🦊', '🐸', '🐵', '🦄', '🐯', '🐙', '🐢', '⚽', '🚀', '🌟', '👑'];
+const kAvatars = ['😀', '😎', '🦁', '🐱', '🐼', '🦊', '🐸', '🐵', '🦄', '🐯', '🐙', '🐢', '🤖', '🚀', '🌟', '👑'];
 
 /// إحصائية لعبة وحدة
 class GameStat {

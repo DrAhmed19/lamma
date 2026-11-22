@@ -14,6 +14,7 @@ import '../net/session.dart';
 import '../ui/kit.dart';
 import '../ui/online.dart';
 import '../ui/setup.dart' show kLevelColors, kLevelNames;
+import '../ui/art.dart';
 import '../ui/theme.dart';
 
 /// الدومينو: 2 أو 4 لاعبين. القواعد بـ DominoModel (نفسها بالسيرفر، والسيرفر يخفي قطع الخصم).
@@ -784,7 +785,7 @@ class _DominoState extends LoopState<DominoGame> {
               ),
               child: avatar.isEmpty
                   ? Container(width: 18, height: 18, decoration: BoxDecoration(color: c, shape: BoxShape.circle))
-                  : Text(avatar, style: const TextStyle(fontSize: 20)),
+                  : Avatar(avatar, size: 26),
             ),
           ),
           // عدد القطع

@@ -22,6 +22,7 @@ import 'profile_ui.dart' show editProfile;
 import 'react.dart';
 import 'setup.dart' show kLevelColors, kLevelNames;
 import 'share_card.dart';
+import 'art.dart';
 import 'theme.dart';
 import '../net/wake_stub.dart' if (dart.library.js_interop) '../net/wake_web.dart';
 
@@ -677,7 +678,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
               height: 42,
               alignment: Alignment.center,
               decoration: BoxDecoration(color: alpha(col, 0.25), shape: BoxShape.circle, border: Border.all(color: col, width: 2)),
-              child: Text(p.avatar.isEmpty ? '🙂' : p.avatar, style: const TextStyle(fontSize: 22)),
+              child: Avatar(p.avatar, size: 28),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -734,7 +735,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
               child: Row(
                 children: [
                   SizedBox(width: 26, child: Text('${i + 1}', style: display(20, color: C.muted))),
-                  Text(room.avatarOfSeat(ranking[i].key), style: const TextStyle(fontSize: 18)),
+                  Avatar(room.avatarOfSeat(ranking[i].key), size: 24),
                   const SizedBox(width: 6),
                   Expanded(child: Text(room.nameOfSeat(ranking[i].key), style: body(15, weight: FontWeight.w700))),
                   Text('${ranking[i].value} نقطة', style: body(15, weight: FontWeight.w800, color: const Color(0xFFFFD34D))),
@@ -963,7 +964,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
                         shape: BoxShape.circle,
                         border: Border.all(color: C.players[p.seat % C.players.length], width: 3),
                       ),
-                      child: Text(p.avatar.isEmpty ? '🙂' : p.avatar, style: const TextStyle(fontSize: 34)),
+                      child: Avatar(p.avatar, size: 42),
                     ),
                     const SizedBox(height: 4),
                     Text(p.name, style: body(17, weight: FontWeight.w800)),

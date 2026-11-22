@@ -10,6 +10,7 @@ import '../net/room.dart';
 import '../net/session.dart';
 import '../ui/kit.dart';
 import '../ui/online.dart';
+import '../ui/art.dart';
 import '../ui/theme.dart';
 
 /// المحيبس: فريقين، أونلاين/محلي بس (كل واحد بتلفونه). القواعد بـ MuhaibesModel، والسيرفر
@@ -323,7 +324,7 @@ class _MuhaibesState extends LoopState<MuhaibesGame> {
           height: 34,
           alignment: Alignment.center,
           decoration: BoxDecoration(color: alpha(col, 0.25), shape: BoxShape.circle, border: Border.all(color: col, width: 2)),
-          child: Text(room.avatarOfSeat(seat), style: const TextStyle(fontSize: 18)),
+          child: Avatar(room.avatarOfSeat(seat), size: 24),
         ),
         const SizedBox(height: 2),
         Text(_name(p), maxLines: 1, overflow: TextOverflow.ellipsis, style: body(12, weight: FontWeight.w700)),

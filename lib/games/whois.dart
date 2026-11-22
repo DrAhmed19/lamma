@@ -13,6 +13,7 @@ import '../ui/icons.dart';
 import '../ui/kit.dart';
 import '../ui/online.dart';
 import '../ui/share_card.dart';
+import '../ui/art.dart';
 import '../ui/theme.dart';
 
 /// منو بينا؟: كل جولة سؤال مضحك والكل يصوّت بسرية على لاعب. أونلاين/محلي بس (كل واحد بتلفونه).
@@ -458,7 +459,7 @@ class _WhoisState extends LoopState<WhoisGame> {
                 height: av,
                 alignment: Alignment.center,
                 decoration: BoxDecoration(color: alpha(col, 0.25), shape: BoxShape.circle, border: Border.all(color: col, width: 3)),
-                child: Text(_avatarOf(p), style: TextStyle(fontSize: av * 0.58)),
+                child: Avatar(_avatarOf(p), size: av * 0.72),
               ),
               const SizedBox(height: 6),
               Padding(
@@ -633,7 +634,7 @@ class _WhoisState extends LoopState<WhoisGame> {
                   height: isStar ? 54 : 42,
                   alignment: Alignment.center,
                   decoration: BoxDecoration(color: alpha(col, 0.25), shape: BoxShape.circle, border: Border.all(color: col, width: 2)),
-                  child: Text(_avatarOf(p), style: TextStyle(fontSize: isStar ? 30 : 22)),
+                  child: Avatar(_avatarOf(p), size: isStar ? 38 : 28),
                 ),
                 if (isStar) Positioned(top: -22, child: SizedBox(width: 34, height: 26, child: CustomPaint(painter: CrownPainter(_gold)))),
               ],

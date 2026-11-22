@@ -17,6 +17,7 @@ import 'invite.dart';
 import 'kit.dart';
 import 'profile_ui.dart';
 import 'setup.dart';
+import 'art.dart';
 import 'theme.dart';
 import 'update.dart';
 
@@ -195,7 +196,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                       shape: BoxShape.circle,
                       border: Border.all(color: alpha(C.accent, 0.7), width: 2),
                     ),
-                    child: Text(Profile.I.avatar, style: const TextStyle(fontSize: 26)),
+                    child: Avatar(Profile.I.avatar, size: 34),
                   ),
                   const SizedBox(height: 2),
                   Text(Profile.I.hasName ? Profile.I.name : 'ملفي', style: body(12, weight: FontWeight.w700, color: C.muted)),

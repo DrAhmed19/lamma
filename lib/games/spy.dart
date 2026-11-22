@@ -9,6 +9,7 @@ import '../net/room.dart';
 import '../net/session.dart';
 import '../ui/kit.dart';
 import '../ui/online.dart';
+import '../ui/art.dart';
 import '../ui/theme.dart';
 
 /// الجاسوس: الكل يعرف المكان إلا الجاسوس، ويسألون بعض بالصوت (جالسين سوا).
@@ -347,7 +348,7 @@ class _SpyState extends LoopState<SpyGame> {
               height: 40,
               alignment: Alignment.center,
               decoration: BoxDecoration(color: alpha(col, 0.25), shape: BoxShape.circle, border: Border.all(color: col, width: 2)),
-              child: Text(_avatarOf(p), style: const TextStyle(fontSize: 22)),
+              child: Avatar(_avatarOf(p), size: 28),
             ),
             const SizedBox(height: 4),
             Text(p == me ? '${session.nameOf(p)} (أنت)' : session.nameOf(p), maxLines: 1, overflow: TextOverflow.ellipsis, style: body(12, weight: FontWeight.w800)),
@@ -454,7 +455,7 @@ class _SpyState extends LoopState<SpyGame> {
                   ),
                   child: Row(
                     children: [
-                      Text(_avatarOf(p), style: const TextStyle(fontSize: 22)),
+                      Avatar(_avatarOf(p), size: 28),
                       const SizedBox(width: 8),
                       Expanded(child: Text(p == me ? '${session.nameOf(p)} (أنت)' : session.nameOf(p), maxLines: 1, overflow: TextOverflow.ellipsis, style: body(14, weight: FontWeight.w800))),
                       if (m.spies.contains(p)) Text('🕵️ ', style: body(14)),

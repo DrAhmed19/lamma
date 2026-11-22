@@ -6,6 +6,7 @@ import '../logic/name_filter.dart';
 import 'background.dart';
 import 'kit.dart';
 import 'online.dart';
+import 'art.dart';
 import 'theme.dart';
 
 /// قبل اللعب ويا الآخرين نحتاج اسم (مرة وحدة بس، وينحفظ)
@@ -42,7 +43,7 @@ Future<bool> editProfile(BuildContext context, {bool first = false, bool invited
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Center(child: Text(avatar, style: const TextStyle(fontSize: 64))),
+                    Center(child: Avatar(avatar, size: 84)),
                     const SizedBox(height: 4),
                     Text(first ? 'أهلًا بك! ما اسمك؟' : 'ملفك الشخصي', textAlign: TextAlign.center, style: display(28)),
                     if (first)
@@ -161,7 +162,7 @@ class ProfileScreen extends StatelessWidget {
                       ],
                     ),
                     const SizedBox(height: 8),
-                    Center(child: Text(p.avatar, style: const TextStyle(fontSize: 72))),
+                    Center(child: Avatar(p.avatar, size: 92)),
                     Center(child: Text(p.hasName ? p.name : 'بدون اسم', style: display(32))),
                     Center(
                       child: TextButton.icon(
