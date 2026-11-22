@@ -25,13 +25,13 @@ Future<T?> withBusy<T>(BuildContext context, String text, Future<T> Function() j
       child: Center(
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 22),
-          decoration: BoxDecoration(color: C.surface, borderRadius: BorderRadius.circular(24), border: Border.all(color: C.line)),
+          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(24), boxShadow: const [BoxShadow(color: Color(0x331E325A), blurRadius: 30, offset: Offset(0, 10))]),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               const SizedBox(width: 34, height: 34, child: CircularProgressIndicator(strokeWidth: 3)),
               const SizedBox(height: 14),
-              Material(color: Colors.transparent, child: Text(text, style: body(16, weight: FontWeight.w700))),
+              Material(color: Colors.transparent, child: Text(text, style: body(16, weight: FontWeight.w800, color: L.ink))),
             ],
           ),
         ),
@@ -51,8 +51,8 @@ void showMessage(BuildContext context, String text, {bool error = false}) {
     ..showSnackBar(SnackBar(
       behavior: SnackBarBehavior.floating,
       duration: const Duration(seconds: 4),
-      backgroundColor: error ? const Color(0xFF4A1622) : C.surface2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14), side: const BorderSide(color: C.line)),
+      backgroundColor: error ? const Color(0xFFE5484D) : L.ink,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       content: Text(text, style: body(15, weight: FontWeight.w700, color: Colors.white)),
     ));
 }
@@ -69,18 +69,18 @@ Future<void> showNotice(BuildContext context, {required IconData icon, required 
         child: Container(
           margin: const EdgeInsets.all(10),
           padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(color: C.surface, borderRadius: BorderRadius.circular(30), border: Border.all(color: C.line)),
+          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(30), boxShadow: const [BoxShadow(color: Color(0x331E325A), blurRadius: 30, offset: Offset(0, 10))]),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Icon(icon, size: 48, color: const Color(0xFFFFB627)),
               const SizedBox(height: 8),
-              Text(title, textAlign: TextAlign.center, style: display(26)),
+              Text(title, textAlign: TextAlign.center, style: display(26, color: L.ink)),
               const SizedBox(height: 6),
-              Text(text, textAlign: TextAlign.center, style: body(15, color: alpha(Colors.white, 0.85))),
+              Text(text, textAlign: TextAlign.center, style: body(15, weight: FontWeight.w700, color: L.ink)),
               const SizedBox(height: 18),
-              BigButton(label: 'حسنًا', onTap: () => Navigator.pop(ctx)),
+              ChunkyButton(label: 'حسنًا', onTap: () => Navigator.pop(ctx)),
             ],
           ),
         ),
@@ -252,18 +252,18 @@ Future<void> showRoomGone(BuildContext context) async {
         child: Container(
           margin: const EdgeInsets.all(10),
           padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(color: C.surface, borderRadius: BorderRadius.circular(30), border: Border.all(color: C.line)),
+          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(30), boxShadow: const [BoxShadow(color: Color(0x331E325A), blurRadius: 30, offset: Offset(0, 10))]),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const Center(child: Text('⌛', style: TextStyle(fontSize: 54))),
               const SizedBox(height: 6),
-              Text('انتهت هاي الغرفة', textAlign: TextAlign.center, style: display(30)),
+              Text('انتهت هاي الغرفة', textAlign: TextAlign.center, style: display(30, color: L.ink)),
               const SizedBox(height: 4),
-              Text('اطلب من صديقك رابطًا جديدًا، أو أنشئ غرفتك وادعُه إليها.', textAlign: TextAlign.center, style: body(15, color: C.muted)),
+              Text('اطلب من صديقك رابطًا جديدًا، أو أنشئ غرفتك وادعُه إليها.', textAlign: TextAlign.center, style: body(15, weight: FontWeight.w800, color: L.muted)),
               const SizedBox(height: 18),
-              BigButton(label: 'سوّي غرفة جديدة', icon: Icons.add_rounded, onTap: () => Navigator.pop(ctx, true)),
+              ChunkyButton(label: 'سوّي غرفة جديدة', icon: Icons.add_rounded, onTap: () => Navigator.pop(ctx, true)),
             ],
           ),
         ),
@@ -290,14 +290,14 @@ Future<void> showJoinSheet(BuildContext context, {String? code}) async {
           child: Container(
             margin: const EdgeInsets.all(10),
             padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
-            decoration: BoxDecoration(color: C.surface, borderRadius: BorderRadius.circular(30), border: Border.all(color: C.line)),
+            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(30), boxShadow: const [BoxShadow(color: Color(0x331E325A), blurRadius: 30, offset: Offset(0, 10))]),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text('الانضمام إلى غرفة', textAlign: TextAlign.center, style: display(30)),
+                Text('الانضمام إلى غرفة', textAlign: TextAlign.center, style: display(30, color: L.ink)),
                 const SizedBox(height: 6),
-                Text('اكتب الرمز الذي أرسله إليك صديقك', textAlign: TextAlign.center, style: body(15, color: C.muted)),
+                Text('اكتب الرمز الذي أرسله إليك صديقك', textAlign: TextAlign.center, style: body(15, weight: FontWeight.w800, color: L.muted)),
                 const SizedBox(height: 18),
                 TextField(
                   controller: c,
@@ -306,27 +306,27 @@ Future<void> showJoinSheet(BuildContext context, {String? code}) async {
                   textAlign: TextAlign.center,
                   textCapitalization: TextCapitalization.characters,
                   inputFormatters: [FilteringTextInputFormatter.allow(RegExp('[a-zA-Z]')), UpperCaseFormatter()],
-                  style: display(44, color: Colors.white).copyWith(letterSpacing: 16),
+                  style: display(44, color: L.ink).copyWith(letterSpacing: 16),
                   onSubmitted: (_) => Navigator.pop(ctx, true),
                   decoration: InputDecoration(
                     hintText: 'ABCD',
                     counterText: '',
-                    hintStyle: display(44, color: alpha(C.muted, 0.3)).copyWith(letterSpacing: 16),
+                    hintStyle: display(44, color: alpha(L.muted, 0.35)).copyWith(letterSpacing: 16),
                     filled: true,
-                    fillColor: alpha(Colors.white, 0.06),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(20), borderSide: BorderSide(color: C.line)),
-                    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(20), borderSide: BorderSide(color: C.line)),
-                    focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(20), borderSide: BorderSide(color: alpha(C.accent, 0.8))),
+                    fillColor: L.sky,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(20), borderSide: const BorderSide(color: L.sky2, width: 2)),
+                    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(20), borderSide: const BorderSide(color: L.sky2, width: 2)),
+                    focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(20), borderSide: const BorderSide(color: Color(0xFF2E9BF0), width: 2)),
                   ),
                 ),
                 const SizedBox(height: 16),
-                BigButton(label: 'انضمام', icon: Icons.login_rounded, onTap: () => Navigator.pop(ctx, true)),
+                ChunkyButton(label: 'انضمام', icon: Icons.login_rounded, onTap: () => Navigator.pop(ctx, true)),
                 if (lanHostSupported) ...[
                   const SizedBox(height: 8),
                   TextButton.icon(
                     onPressed: () => Navigator.pop(ctx, false),
-                    icon: const Icon(Icons.wifi_find_rounded, color: C.muted),
-                    label: Text('البحث عن غرف قريبة بدون رمز', style: body(14, weight: FontWeight.w700, color: C.muted)),
+                    icon: const Icon(Icons.wifi_find_rounded, color: L.muted),
+                    label: Text('البحث عن غرف قريبة بدون رمز', style: body(14, weight: FontWeight.w800, color: L.muted)),
                   ),
                 ],
               ],
@@ -361,17 +361,17 @@ Future<void> showNearbyRooms(BuildContext context) async {
     builder: (ctx) => Container(
       margin: const EdgeInsets.all(10),
       padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(color: C.surface, borderRadius: BorderRadius.circular(28), border: Border.all(color: C.line)),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(28), boxShadow: const [BoxShadow(color: Color(0x331E325A), blurRadius: 30, offset: Offset(0, 10))]),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text('غرف قريبة', textAlign: TextAlign.center, style: display(28)),
+          Text('غرف قريبة', textAlign: TextAlign.center, style: display(28, color: L.ink)),
           const SizedBox(height: 12),
           for (final r in rooms)
             Padding(
               padding: const EdgeInsets.only(bottom: 8),
-              child: BigButton(
+              child: ChunkyButton(
                 label: r.hostName.isEmpty ? 'غرفة ${r.code}' : 'غرفة ${r.hostName}',
                 icon: Icons.wifi_tethering_rounded,
                 filled: false,

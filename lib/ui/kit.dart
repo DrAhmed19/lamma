@@ -156,6 +156,36 @@ class Chunky extends StatelessWidget {
   }
 }
 
+/// زر نصي بحافة سفلية (للقوائم الفاتحة). [filled=false] = زر أبيض هادي.
+class ChunkyButton extends StatelessWidget {
+  const ChunkyButton({super.key, required this.label, required this.onTap, this.color = const Color(0xFF2E9BF0), this.icon, this.filled = true});
+  final String label;
+  final VoidCallback onTap;
+  final Color color;
+  final IconData? icon;
+  final bool filled;
+
+  @override
+  Widget build(BuildContext context) {
+    final fg = filled ? Colors.white : L.ink;
+    return Chunky(
+      color: filled ? color : Colors.white,
+      onTap: onTap,
+      radius: 18,
+      edge: 5,
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 11),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          if (icon != null) ...[Icon(icon, color: fg, size: 24), const SizedBox(width: 8)],
+          Flexible(child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: display(23, color: fg, shadows: filled ? const [Shadow(color: Color(0x33000000), offset: Offset(0, 2))] : null))),
+        ],
+      ),
+    );
+  }
+}
+
 /// زر دائري زجاجي صغير (الإيقاف مثلاً)
 class GlassIconButton extends StatelessWidget {
   const GlassIconButton({super.key, required this.icon, required this.onTap, this.size = 44});
