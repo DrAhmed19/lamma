@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../core/draw.dart';
+import '../core/fit.dart';
 import '../core/fx.dart';
 import '../core/loop.dart';
 import '../logic/hockey_logic.dart';
@@ -85,10 +86,9 @@ class _HockeyState extends LoopState<HockeyGame> {
   void _layout(Size s) {
     if (s.width <= 0 || s.height <= 0) return;
     size = s;
-    const margin = 6.0;
-    tw = math.min(s.width - 2 * margin, (s.height - 2 * margin) / HockeyModel.h);
-    final th = tw * HockeyModel.h;
-    table = Rect.fromLTWH((s.width - tw) / 2, (s.height - th) / 2, tw, th);
+    // طاولة بنسبة ثابتة: الكل يشوف نفس الملعب مهما كان حجم الشاشة
+    table = fitField(s, 1 / HockeyModel.h, margin: 6);
+    tw = table.width;
   }
 
   @override

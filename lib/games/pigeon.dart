@@ -4,6 +4,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 
 import '../core/draw.dart';
+import '../core/fit.dart';
 import '../core/fx.dart';
 import '../core/loop.dart';
 import '../core/sfx.dart';
@@ -190,7 +191,8 @@ class _PigeonState extends LoopState<PigeonGame> {
   }
 
   /// مقياس الرسم حسب الشاشة (يكبر ويا الايباد واللابتوب)
-  double get k => (math.min(size.width, size.height) / 400).clamp(0.8, 2.4).toDouble();
+  /// أونلاين: الملعب بنسبة ثابتة ([fitField])، فالمقياس هو نفسه مقياس العالم بالضبط
+  double get k => online && ready ? size.width / m.worldW : (math.min(size.width, size.height) / 400).clamp(0.8, 2.4).toDouble();
   double get maxPull => math.min(size.width, size.height) * 0.26;
   double get skyTop => size.height * 0.22;
   double get skyBottom => size.height * 0.78;
@@ -534,9 +536,15 @@ class _PigeonState extends LoopState<PigeonGame> {
           ));
         }
         if (!ready) return const NetWaiting();
+        // أونلاين: الملعب بنفس الشكل عند الكل (بدون مطّ)، والزايد من الشاشة خلفية.
+        // على نفس الجهاز العالم أصلاً بنسبة الشاشة، فياخذها كلها.
+        final field = online ? fitField(box.biggest, m.worldW / m.worldH) : Offset.zero & box.biggest;
+        size = field.size;
         return Stack(
           children: [
-            Positioned.fill(
+            if (online) const Positioned.fill(child: ColoredBox(color: Color(0xFF0E1530))),
+            Positioned.fromRect(
+              rect: field,
               child: Listener(
                 behavior: HitTestBehavior.opaque,
                 onPointerDown: _down,

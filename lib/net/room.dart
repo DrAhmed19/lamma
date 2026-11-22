@@ -298,11 +298,11 @@ class RoomConn extends ChangeNotifier {
         _onDrop(ch);
       });
       _ping?.cancel();
-      _ping = Timer.periodic(const Duration(seconds: 8), (_) => _send({'t': 'ping'}));
-      // اتصال ميت (النت تبدّل، التلفون نام...): إذا ماكو شي وصل 20 ثانية نرجع نتصل
+      _ping = Timer.periodic(const Duration(seconds: 5), (_) => _send({'t': 'ping'}));
+      // اتصال ميت (النت تبدّل، التلفون نام...): إذا ماكو شي وصل 12 ثانية نرجع نتصل
       _watch?.cancel();
-      _watch = Timer.periodic(const Duration(seconds: 4), (_) {
-        if (identical(ch, _ch) && DateTime.now().difference(_lastRx) > const Duration(seconds: 20)) _onDrop(ch);
+      _watch = Timer.periodic(const Duration(seconds: 2), (_) {
+        if (identical(ch, _ch) && DateTime.now().difference(_lastRx) > const Duration(seconds: 12)) _onDrop(ch);
       });
     } catch (e) {
       netDebug = 'connect: ${e.toString().split('\n').first}';
@@ -332,9 +332,10 @@ class RoomConn extends ChangeNotifier {
   }
 
   /// التطبيق رجع للواجهة (من الواتساب مثلاً): إذا الاتصال مشكوك بيه نرجع نتصل فوراً
-  void wake() {
+  /// [force] = اللعبة ما توصلها حالة: نعتبر الاتصال ميت ونرجع نتصل
+  void wake({bool force = false}) {
     if (_left || status == RoomStatus.closed) return;
-    final stale = DateTime.now().difference(_lastRx) > const Duration(seconds: 6);
+    final stale = force || DateTime.now().difference(_lastRx) > const Duration(seconds: 6);
     if (_ch == null || status != RoomStatus.online || stale) {
       _attempt = 0;
       if (_ch != null) {

@@ -21,6 +21,7 @@ import 'profile_ui.dart' show editProfile;
 import 'react.dart';
 import 'share_card.dart';
 import 'theme.dart';
+import '../net/wake_stub.dart' if (dart.library.js_interop) '../net/wake_web.dart';
 
 Widget _note(String text, {Color color = C.muted, IconData? icon}) {
   return Container(
@@ -63,6 +64,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
   ModalRoute<dynamic>? _self;
   StreamSubscription<NetNotice>? _noticeSub;
   AppLifecycleListener? _life;
+  void Function()? _pageBack;
   Timer? _clock;
   String? _tourCounted;
 
@@ -81,6 +83,8 @@ class _LobbyScreenState extends State<LobbyScreen> {
     _noticeSub = room.notices.listen(_onNotice);
     // رجع للتطبيق (من الواتساب مثلاً): نتأكد إن الاتصال حي
     _life = AppLifecycleListener(onResume: room.wake);
+    // الويب (خصوصاً الآيفون): نراقب رجوع الصفحة مباشرة
+    _pageBack = onPageBack(room.wake);
     // عدّاد البداية التلقائية بالغرف العامة
     _clock = Timer.periodic(const Duration(milliseconds: 500), (_) {
       if (mounted && room.autoAt != null && !_gameOpen) setState(() {});
@@ -91,6 +95,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
   void dispose() {
     _clock?.cancel();
     _life?.dispose();
+    _pageBack?.call();
     _noticeSub?.cancel();
     room.removeListener(_onRoom);
     room.leave();

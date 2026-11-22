@@ -162,6 +162,8 @@ class OnlineSession<M extends GameModel> extends Session<M> {
   void _apply(NetState st, {bool firstTime = false}) {
     final m = st.model;
     if (m is! M) return;
+    _quiet = 0;
+    _quietLimit = 3;
     _realtime = m.tickHz > 0;
     final ev = firstTime ? const <Map<String, dynamic>>[] : st.events;
     if (!_realtime) {
@@ -229,8 +231,27 @@ class OnlineSession<M extends GameModel> extends Session<M> {
   @override
   void again() => room.again();
 
+  // ما وصلت حالة من فترة (اللعبة على "جارٍ الاتصال"، أو لعبة سريعة وقفت): نرجع نتصل
+  double _quiet = 0, _quietLimit = 3;
+
+  void _watchQuiet(double dt) {
+    final waiting = !ready || (_realtime && !model.over);
+    if (!waiting) {
+      _quiet = 0;
+      _quietLimit = 3;
+      return;
+    }
+    _quiet += math.min(dt, 0.1);
+    if (_quiet >= _quietLimit) {
+      _quiet = 0;
+      _quietLimit = math.min(12, _quietLimit * 1.8); // ما نكرر بسرعة إذا ما نفع
+      room.wake(force: true);
+    }
+  }
+
   @override
   void update(double dt) {
+    _watchQuiet(dt);
     if (!_realtime || _buf.isEmpty || _offset.isNaN) return;
     final delay = (_gap + 2.5 * _late).clamp(0.05, 0.25);
     var rt = netNow - _offset - delay;
