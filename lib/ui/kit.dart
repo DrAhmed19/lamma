@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 
 import '../core/fx.dart';
 import '../core/perf.dart';
@@ -26,14 +27,27 @@ class Pressable extends StatefulWidget {
 class _PressableState extends State<Pressable> {
   bool _down = false;
 
+  /// الإلغاء ممكن يجي وسط إعادة بناء الشاشة (الغرفة تتحدث وزر عليه ضغطة)؛ setState وقتها يكسر
+  void _set(bool v) {
+    if (!mounted || _down == v) return;
+    final phase = SchedulerBinding.instance.schedulerPhase;
+    if (phase == SchedulerPhase.persistentCallbacks) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() => _down = v);
+      });
+    } else {
+      setState(() => _down = v);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final enabled = widget.onTap != null;
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onTapDown: enabled ? (_) => setState(() => _down = true) : null,
-      onTapCancel: enabled ? () => setState(() => _down = false) : null,
-      onTapUp: enabled ? (_) => setState(() => _down = false) : null,
+      onTapDown: enabled ? (_) => _set(true) : null,
+      onTapCancel: enabled ? () => _set(false) : null,
+      onTapUp: enabled ? (_) => _set(false) : null,
       onTap: enabled
           ? () {
               Fx.tap();
