@@ -82,7 +82,7 @@ void main() {
       await t.pumpWidget(const LammaApp());
       await t.pump(const Duration(seconds: 1));
       // أقسام الرئيسية: نفتح كل وحدة ونرجع
-      for (final label in ['الانضمام إلى صديق', 'ادعُ صديق للمّة', 'ملفي']) {
+      for (final label in ['الانضمام إلى صديق', 'ادعُ صديقًا', 'ملفي']) {
         final f = find.textContaining(label);
         if (f.evaluate().isEmpty) continue;
         await t.tap(f.first, warnIfMissed: false);

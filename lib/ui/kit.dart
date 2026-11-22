@@ -112,6 +112,36 @@ class BigButton extends StatelessWidget {
   }
 }
 
+/// زر/بطاقة بحافة سفلية سميكة (نمط لمّة الجديد). [child] داخل المحتوى.
+class Chunky extends StatelessWidget {
+  const Chunky({super.key, required this.color, required this.onTap, required this.child, this.radius = 22, this.edge = 6, this.padding = const EdgeInsets.all(14)});
+  final Color color;
+  final VoidCallback? onTap;
+  final Widget child;
+  final double radius, edge;
+  final EdgeInsets padding;
+
+  @override
+  Widget build(BuildContext context) {
+    final dark = darken(color, 0.28);
+    return Pressable(
+      onTap: onTap,
+      child: Padding(
+        padding: EdgeInsets.only(bottom: edge),
+        child: Container(
+          padding: padding,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(radius),
+            gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [lighten(color, 0.16), color]),
+            boxShadow: [BoxShadow(color: dark, offset: Offset(0, edge)), BoxShadow(color: alpha(const Color(0xFF1E325A), 0.14), blurRadius: 16, offset: Offset(0, edge + 4))],
+          ),
+          child: child,
+        ),
+      ),
+    );
+  }
+}
+
 /// زر دائري زجاجي صغير (الإيقاف مثلاً)
 class GlassIconButton extends StatelessWidget {
   const GlassIconButton({super.key, required this.icon, required this.onTap, this.size = 44});

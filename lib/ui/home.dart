@@ -95,7 +95,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     return Scaffold(
       body: Stack(
         children: [
-          const Positioned.fill(child: LammaBackground()),
+          const Positioned.fill(child: LightBackground()),
           SafeArea(
             child: Center(
               child: ConstrainedBox(
@@ -106,22 +106,21 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                     SliverToBoxAdapter(child: _header()),
                     const SliverToBoxAdapter(child: UpdateBanner()),
                     const SliverToBoxAdapter(child: GetAppBanner()),
-                    SliverToBoxAdapter(child: _joinCard()),
-                    SliverToBoxAdapter(child: _inviteFriend()),
+                    SliverToBoxAdapter(child: _duo()),
                     SliverToBoxAdapter(
                       child: Padding(
                         padding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
-                        child: Text('اختر لعبة', style: body(17, weight: FontWeight.w800, color: C.muted)),
+                        child: Text('كل الألعاب', style: display(23, color: L.ink)),
                       ),
                     ),
                     SliverPadding(
                       padding: const EdgeInsets.fromLTRB(16, 0, 16, 28),
                       sliver: SliverGrid(
                         gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                          maxCrossAxisExtent: 240,
+                          maxCrossAxisExtent: 135,
                           mainAxisSpacing: 14,
-                          crossAxisSpacing: 14,
-                          childAspectRatio: 0.86,
+                          crossAxisSpacing: 10,
+                          childAspectRatio: 0.8,
                         ),
                         delegate: SliverChildBuilderDelegate(
                           (context, i) => _GameCard(game: games[i], index: i, onTap: () => _open(games[i])),
@@ -172,11 +171,8 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                ShaderMask(
-                  shaderCallback: (r) => const LinearGradient(colors: [Color(0xFFFFFFFF), Color(0xFFC9B8FF)]).createShader(r),
-                  child: Text('لمّة', style: display(48, color: Colors.white)),
-                ),
-                Text('ألعاب جماعية للعائلة والأصدقاء', style: body(14, color: C.muted)),
+                Text('لمّة', style: display(48, color: L.ink, shadows: const [Shadow(color: Colors.white, offset: Offset(0, 3))])),
+                Text('ألعاب جماعية للعائلة والأصدقاء', style: body(14, color: L.muted, weight: FontWeight.w800)),
               ],
             ),
           ),
@@ -192,14 +188,15 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                     height: 50,
                     alignment: Alignment.center,
                     decoration: BoxDecoration(
-                      color: alpha(C.accent, 0.2),
+                      color: Colors.white,
                       shape: BoxShape.circle,
-                      border: Border.all(color: alpha(C.accent, 0.7), width: 2),
+                      border: Border.all(color: Colors.white, width: 3),
+                      boxShadow: const [BoxShadow(color: Color(0x22000000), offset: Offset(0, 3))],
                     ),
                     child: Avatar(Profile.I.avatar, size: 34),
                   ),
                   const SizedBox(height: 2),
-                  Text(Profile.I.hasName ? Profile.I.name : 'ملفي', style: body(12, weight: FontWeight.w700, color: C.muted)),
+                  Text(Profile.I.hasName ? Profile.I.name : 'ملفي', style: body(12, weight: FontWeight.w800, color: L.ink)),
                 ],
               ),
             ),
@@ -209,69 +206,44 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     );
   }
 
-  /// "ادعُ صديق للمّة": رابط التطبيق بواتساب بدون غرفة
-  Widget _inviteFriend() {
-    if (lanOrigin != null) return const SizedBox.shrink();
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
-      child: Pressable(
-        onTap: () => sendWhatsApp(appInviteText),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          decoration: BoxDecoration(
-            color: alpha(kWhatsApp, 0.12),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: alpha(kWhatsApp, 0.5)),
-          ),
-          child: Row(
-            children: [
-              const Icon(Icons.chat_rounded, color: kWhatsApp, size: 24),
-              const SizedBox(width: 12),
-              Expanded(child: Text('ادعُ صديق للمّة', style: body(16, weight: FontWeight.w800))),
-              const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white54, size: 16),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  /// بطاقة واحدة واضحة: أرسل لك صديقك رمزًا؟
-  Widget _joinCard() {
-    if (!onlineAvailable && !lanHostSupported) return const SizedBox.shrink();
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
-      child: Pressable(
-        onTap: () => showJoinSheet(context),
-        child: Container(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(24),
-            gradient: const LinearGradient(colors: [Color(0xFF2A1F6B), Color(0xFF1A2150)]),
-            border: Border.all(color: alpha(C.accent, 0.6)),
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 54,
-                height: 54,
-                decoration: BoxDecoration(color: alpha(C.accent, 0.3), shape: BoxShape.circle),
-                child: const Icon(Icons.group_add_rounded, color: Colors.white, size: 28),
+  /// بطاقتان كبيرتان: الانضمام إلى صديق، وادعُ صديق (واتساب)
+  Widget _duo() {
+    final canJoin = onlineAvailable || lanHostSupported;
+    final canInvite = lanOrigin == null;
+    if (!canJoin && !canInvite) return const SizedBox.shrink();
+    Widget tile(Color c, IconData icon, String title, String sub, VoidCallback tap) => Expanded(
+          child: Chunky(
+            color: c,
+            onTap: tap,
+            padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: 96),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 42,
+                    height: 42,
+                    decoration: BoxDecoration(color: alpha(Colors.white, 0.25), borderRadius: BorderRadius.circular(14)),
+                    child: Icon(icon, color: Colors.white, size: 26),
+                  ),
+                  const SizedBox(height: 8),
+                  FittedBox(fit: BoxFit.scaleDown, alignment: AlignmentDirectional.centerStart, child: Text(title, maxLines: 1, style: display(21))),
+                  Text(sub, maxLines: 2, style: body(12, weight: FontWeight.w800, color: alpha(Colors.white, 0.9))),
+                ],
               ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('الانضمام إلى صديق', style: body(19, weight: FontWeight.w800)),
-                    Text('هل أرسل إليك صديقك رمزًا؟ اضغط هنا', style: body(14, color: alpha(Colors.white, 0.75))),
-                  ],
-                ),
-              ),
-              const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white70, size: 18),
-            ],
+            ),
           ),
-        ),
+        );
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (canJoin) tile(const Color(0xFF3DB56E), Icons.group_add_rounded, 'الانضمام إلى صديق', 'هل أرسل لك صديقك رمزًا؟', () => showJoinSheet(context)),
+          if (canJoin && canInvite) const SizedBox(width: 10),
+          if (canInvite) tile(kWhatsApp, Icons.chat_rounded, 'ادعُ صديقًا', 'أرسل رابط لمّة بواتساب', () => sendWhatsApp(appInviteText)),
+        ],
       ),
     );
   }
@@ -285,7 +257,7 @@ class _GameCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c0 = game.colors[0], c1 = game.colors[1];
+    final c1 = game.colors[1];
     return TweenAnimationBuilder<double>(
       tween: Tween(begin: 0, end: 1),
       duration: Duration(milliseconds: 380 + index * 70),
@@ -296,57 +268,29 @@ class _GameCard extends StatelessWidget {
       ),
       child: Pressable(
         onTap: onTap,
-        child: Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(26),
-            gradient: LinearGradient(begin: Alignment.topRight, end: Alignment.bottomLeft, colors: [c0, c1]),
-            border: Border.all(color: alpha(Colors.white, 0.16)),
-            boxShadow: [BoxShadow(color: alpha(c0, 0.22), blurRadius: 8, offset: const Offset(0, 6))],
-          ),
-          child: Stack(
-            children: [
-              Positioned(
-                top: -30,
-                left: -30,
-                child: Container(
-                  width: 120,
-                  height: 120,
-                  decoration: BoxDecoration(shape: BoxShape.circle, color: alpha(Colors.white, 0.07)),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.all(14),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: Center(
-                        child: AspectRatio(
-                          aspectRatio: 1,
-                          child: GameArt(game.id, fallback: game.icon, radius: 20),
-                        ),
+        child: Column(
+          children: [
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: Center(
+                  child: AspectRatio(
+                    aspectRatio: 1,
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(28),
+                        boxShadow: [BoxShadow(color: darken(c1, 0.25), offset: const Offset(0, 6)), const BoxShadow(color: Color(0x1E1E325A), blurRadius: 18, offset: Offset(0, 12))],
                       ),
+                      child: GameArt(game.id, fallback: game.icon, radius: 28),
                     ),
-                    const SizedBox(height: 6),
-                    FittedBox(
-                      fit: BoxFit.scaleDown,
-                      alignment: AlignmentDirectional.centerStart,
-                      child: Text(game.title, maxLines: 1, style: display(24)),
-                    ),
-                    Text(game.tagline, maxLines: 1, overflow: TextOverflow.ellipsis, style: body(13, color: alpha(Colors.white, 0.75))),
-                    const SizedBox(height: 6),
-                    Row(
-                      children: [
-                        const Icon(Icons.people_alt_rounded, size: 14, color: Colors.white70),
-                        const SizedBox(width: 5),
-                        Text(game.playersLabel, style: body(12, weight: FontWeight.w700, color: Colors.white70)),
-                      ],
-                    ),
-                  ],
+                  ),
                 ),
               ),
-            ],
-          ),
+            ),
+            const SizedBox(height: 4),
+            FittedBox(fit: BoxFit.scaleDown, child: Text(game.title, maxLines: 1, style: display(18, color: L.ink))),
+            FittedBox(fit: BoxFit.scaleDown, child: Text(game.playersLabel, maxLines: 1, style: body(11.5, weight: FontWeight.w800, color: L.muted))),
+          ],
         ),
       ),
     );

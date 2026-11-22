@@ -29,6 +29,14 @@ class C {
   static const playerNames = ['الأحمر', 'الأزرق', 'الأخضر', 'الأصفر', 'البرتقالي', 'البنفسجي', 'السماوي', 'الوردي'];
 }
 
+/// الثيم الفاتح للقوائم (الرئيسية وصفحات الألعاب) حسب النموذج الجديد
+class L {
+  static const sky = Color(0xFFE7F2FC);
+  static const sky2 = Color(0xFFD2E5F5);
+  static const ink = Color(0xFF2B3750);
+  static const muted = Color(0xFF7A89A3);
+}
+
 Color lighten(Color c, double t) => Color.lerp(c, Colors.white, t)!;
 Color darken(Color c, double t) => Color.lerp(c, Colors.black, t)!;
 Color alpha(Color c, double a) => c.withValues(alpha: a);
