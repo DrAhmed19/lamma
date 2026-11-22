@@ -155,6 +155,17 @@ class LanHost {
       return;
     }
     var f = web[name];
+    // الأصوات والخطوط ما ننسخها بالـ zip (تكبّر التطبيق): نقدّمها من ملفات التطبيق نفسه
+    if (f == null && name.startsWith('assets/assets/') && !name.contains('..')) {
+      try {
+        final data = await rootBundle.load(Uri.decodeComponent(name.substring('assets/'.length)));
+        res.headers.set('Content-Type', _mime(name));
+        res.headers.set('Cache-Control', 'max-age=3600');
+        res.add(data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes));
+        await res.close();
+        return;
+      } catch (_) {}
+    }
     if (f == null && !name.contains('.')) f = web['index.html'];
     if (f == null) {
       res.statusCode = 404;

@@ -155,14 +155,19 @@ jobs:
         run: |
           flutter pub get
           flutter build web --release --no-web-resources-cdn --output build/lanweb --dart-define=BUILD=${GITHUB_SHA::7} --dart-define=SERVER=${{ needs.server.outputs.url }}
-          # بدون ملفات التصحيح وبدون محرك skwasm/wimp (هاي النسخة تستخدم canvaskit بس)
-          (cd build/lanweb && zip -qr -9 ../../assets/lan/web.zip . -x '*.map' '*.symbols' 'canvaskit/skwasm*' 'canvaskit/wimp*')
+          # نجبره على نسخة canvaskit العامة بس (تشتغل بكل المتصفحات)، حتى ما نحتاج نسخة كروم ولا webparagraph
+          sed -i 's/_flutter.loader.load({/_flutter.loader.load({ config: { canvasKitVariant: "full" },/' build/lanweb/flutter_bootstrap.js
+          grep -q 'canvasKitVariant: "full"' build/lanweb/flutter_bootstrap.js
+          # بدون: ملفات التصحيح، المحركات الزايدة، صورة واتساب، والأصوات والخطوط (التطبيق يقدّمها من ملفاته: lan_io.dart)
+          (cd build/lanweb && zip -qr -9 ../../assets/lan/web.zip . -x '*.map' '*.symbols' 'canvaskit/skwasm*' 'canvaskit/wimp*' \
+            'canvaskit/chromium/*' 'canvaskit/webparagraph/*' 'brand/og.png' 'assets/NOTICES' 'assets/assets/*')
           ls -la assets/lan
 
       - name: Build APK
         run: |
           flutter pub get
-          flutter build apk --release --dart-define=BUILD=${GITHUB_SHA::7} --dart-define=SERVER=${{ needs.server.outputs.url }}
+          # بس معالجات التلفونات (arm و arm64)؛ x86_64 للمحاكيات بس وكان ياخذ 20MB
+          flutter build apk --release --target-platform android-arm,android-arm64 --dart-define=BUILD=${GITHUB_SHA::7} --dart-define=SERVER=${{ needs.server.outputs.url }}
           cp build/app/outputs/flutter-apk/app-release.apk lamma.apk
 
       # معلومات التحديث: التطبيق يقراها ويقارن رقم نسخته، ويعرض شنو الجديد (آخر 30 تعديل)

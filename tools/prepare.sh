@@ -14,6 +14,15 @@ ICON=assets/brand/icon-1024.png
 G=$( (ls android/app/build.gradle.kts android/app/build.gradle 2>/dev/null || true) | head -1)
 sed -i -E 's/applicationId *=? *"[^"]*"/applicationId = "com.lamma.games"/' "$G"
 grep -n "applicationId" "$G"
+# مكتبات المحرك تنضغط داخل الـ APK (التنزيل أصغر بكثير)
+if ! grep -q 'useLegacyPackaging' "$G"; then
+  if [[ "$G" == *.kts ]]; then
+    printf '\nandroid {\n    packaging {\n        jniLibs {\n            useLegacyPackaging = true\n        }\n    }\n}\n' >> "$G"
+  else
+    printf '\nandroid {\n    packagingOptions {\n        jniLibs {\n            useLegacyPackaging true\n        }\n    }\n}\n' >> "$G"
+  fi
+fi
+grep -n "useLegacyPackaging" "$G"
 
 M=android/app/src/main/AndroidManifest.xml
 sed -i 's/android:label="[^"]*"/android:label="لمّة"/' "$M"

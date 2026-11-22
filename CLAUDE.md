@@ -6,6 +6,7 @@
   - كل push على main: تحليل + بناء ويب + نشر على Cloudflare Pages (مشروع `lamma`) بحساب Cloudflare المستقل للعبة (secrets: CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID).
   - وبنفس الـ push ينبني الـ APK → Release باسم `apk-latest`. الويب والـ APK دائماً من نفس التعديل.
   - رقم النسخة: `appVersion` بـ `lib/core/version.dart` + أول 7 حروف من الـ commit (`--dart-define=BUILD`)، ويطلع أسفل الشاشة الرئيسية.
+  - حجم الـ APK: بس arm و arm64 (`--target-platform`)، ومكتبات المحرك مضغوطة (`useLegacyPackaging` بـ prepare.sh). نسخة الويب المحلية `web.zip` بنسخة canvaskit وحدة (`canvasKitVariant: "full"`) وبدون الأصوات والخطوط: `lan_io.dart` يقدّم `assets/assets/*` من ملفات التطبيق.
   - مفتاح التوقيع الثابت `ci/debug.keystore` (حتى التحديث ينزل فوق القديم).
 - الكود:
   - `lib/core/loop.dart` حلقة الإطارات + الإيقاف المؤقت لكل لعبة.
@@ -13,6 +14,7 @@
   - `lib/games/` كل لعبة بملف، وتنضاف لـ `registry.dart`.
   - الرسوم كلها بالكود (CustomPainter) بدون صور.
   - الأصوات والموسيقى تنولد بالكود: `dart run tools/gen_sfx.dart` → `assets/sfx/`، وتشتغل عبر `lib/core/sfx.dart` (Sfx + Music).
+  - بالويب الأصوات والموسيقى بـ WebAudio (`lib/core/audio_web.dart`) مو عناصر <audio>: سفاري الآيفون كان يتقطع وياها (الحمامة تنزل لـ24 إطار بالسحب). أول لمسة تشغّل الصوت، ويطلع حتى على الصامت (`audioSession = playback`).
   - الأداء: الأشياء الثابتة (سطوح، خلفيات) تنرسم مرة وحدة كصورة (`toImageSync`)، وتجنّب `MaskFilter.blur` باللي ينرسم كل إطار.
 - الخط: Vazirmatn للنصوص (بيه گ چ پ ژ؛ Tajawal ما كان بيه گ وچ) و Lalezar للعناوين (داخل assets/fonts).
 - لغة الواجهة: عربي فصيح بسيط (مو لهجة). التعليقات بالكود عادي بالعراقي.
