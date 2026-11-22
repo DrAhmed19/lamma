@@ -4,6 +4,8 @@ import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'sfx.dart';
+
 /// صور رمزية بسيطة يختار منها اللاعب
 const kAvatars = ['😀', '😎', '🦁', '🐱', '🐼', '🦊', '🐸', '🐵', '🦄', '🐯', '🐙', '🐢', '⚽', '🚀', '🌟', '👑'];
 
@@ -82,6 +84,23 @@ class Profile extends ChangeNotifier {
   int tournamentsWon = 0;
   int onlineGames = 0;
 
+  /// الدومينو: ضغطة مزدوجة على حجر يصلح لمكان واحد تلعبه مباشرة
+  bool quickTap = true;
+
+  void setQuickTap(bool v) {
+    quickTap = v;
+    notifyListeners();
+    _save();
+  }
+
+  /// الصوت (زر الصوت بالألعاب)
+  void setSound(bool on) {
+    Sfx.enabled = on && !Sfx.testMute;
+    if (!on) Music.stop();
+    notifyListeners();
+    _save();
+  }
+
   bool get hasName => name.trim().isNotEmpty;
 
   Future<void> load() async {
@@ -98,6 +117,9 @@ class Profile extends ChangeNotifier {
       bestReaction = _p!.getInt('bestReaction') ?? 0;
       tournamentsWon = _p!.getInt('tours') ?? 0;
       onlineGames = _p!.getInt('onlineGames') ?? 0;
+      quickTap = _p!.getBool('quickTap') ?? true;
+      // مطفي من قبل: يبقى مطفي (ما نشغّله إذا شي ثاني طفّاه)
+      if (_p!.getBool('sound') == false) Sfx.enabled = false;
       final s = _p!.getString('stats');
       if (s != null) {
         (jsonDecode(s) as Map<String, dynamic>).forEach((k, v) => stats[k] = GameStat.fromJson(v as Map<String, dynamic>));
@@ -126,6 +148,8 @@ class Profile extends ChangeNotifier {
       await p.setInt('bestReaction', bestReaction);
       await p.setInt('tours', tournamentsWon);
       await p.setInt('onlineGames', onlineGames);
+      await p.setBool('quickTap', quickTap);
+      await p.setBool('sound', Sfx.enabled);
       await p.setString('stats', jsonEncode({for (final e in stats.entries) e.key: e.value.toJson()}));
       await p.setString('rivals', jsonEncode({for (final e in rivals.entries) e.key: e.value.toJson()}));
       await p.setString('winStreak', jsonEncode(winStreak));

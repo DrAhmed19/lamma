@@ -190,6 +190,24 @@ Future<void> main() async {
   await wait(600);
   check(wp[0].state?['ph'] == 'reveal' && (wp[0].state?['tally'] as List)[1] == 3, 'whois reveal tallies 3 votes');
 
+  // الجاسوس: الجاسوس ما يشوف المكان، والباقي ما يشوفون الجاسوس
+  a.send({'t': 'lobby'});
+  await wait();
+  a.send({'t': 'cfg', 'game': 'spy', 'crazy': false});
+  a.send({'t': 'start'});
+  await wait(8200);
+  final sp = [for (final s in a.room!['seats'] as List) all.firstWhere((x) => x.seat == s as int)];
+  check(sp[0].state?['ph'] == 'play', 'spy reaches play');
+  final spyViews = [for (final x in sp) x.state!];
+  final spyN = spyViews.where((v) => (v['spies'] as List).isNotEmpty).length;
+  check(spyN == 1, 'spy: exactly one player sees a spy (himself)');
+  check(spyViews.where((v) => (v['spies'] as List).isNotEmpty).every((v) => v['place'] == -1), 'spy: the spy does not see the place');
+  check(spyViews.where((v) => (v['spies'] as List).isEmpty).every((v) => (v['place'] as int) >= 0), 'spy: others see the place');
+  final turnP = sp[0].state!['turn'] as int, nxt = (turnP + 1) % sp.length;
+  sp[turnP].send({'t': 'in', 'd': {'a': 'ask', 't': nxt}});
+  await wait(500);
+  check(sp[0].state?['turn'] == nxt && sp[0].state?['prev'] == turnP, 'spy: asking passes the turn');
+
   // الدومينو بأربعة: كل واحد يشوف قطعه بس
   a.send({'t': 'lobby'});
   await wait();
@@ -208,6 +226,48 @@ Future<void> main() async {
   tc.send({'t': 'in', 'd': {'a': 'play', 't': must, 's': 'r'}});
   await wait(500);
   check((a.state!['chain'] as List).isNotEmpty && a.state!['turn'] == (turn + 1) % 4, 'opening double played, next turn');
+
+  // الكمبيوتر بالغرفة: صاحب الغرفة يضيفه، والمستوى ينحفظ، والكمبيوتر يلعب وحده
+  final room2 = LanRoom('BOTS');
+  final http2 = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+  http2.listen((req) async {
+    final ws = await WebSocketTransformer.upgrade(req);
+    final p = _Peer(ws);
+    room2.connect(p);
+    ws.listen((d) => room2.message(p, d as String), onDone: () => room2.closed(p));
+  });
+  final solo = Client('solo');
+  await solo.connect(http2.port);
+  await wait();
+  solo.send({'t': 'bot'}); // قبل اختيار لعبة يلعبها الكمبيوتر: ما يصير
+  await wait();
+  check((solo.room!["players"] as List).length == 1, 'no bot before choosing a bot game');
+  solo.send({'t': 'cfg', 'game': 'domino', 'crazy': false, 'level': 2});
+  solo.send({'t': 'bot'});
+  await wait();
+  final bp = solo.room!["players"] as List;
+  check(solo.room?["level"] == 2 && bp.length == 2 && bp.any((x) => x["bot"] == true && x["on"] == true), 'bot added, level saved');
+  solo.send({'t': 'start'});
+  await wait(300);
+  check(solo.room?["started"] == true && solo.state?["goal"] == 200 && solo.state?["lv"] == 2, 'match with bot starts at hard level');
+  final bseats = [for (final x in solo.room!["seats"] as List) x as int];
+  final me2 = bseats.indexOf(solo.seat);
+  if (solo.state!["turn"] == me2) {
+    solo.send({'t': 'in', 'd': {'a': 'play', 't': solo.state!["must"], 's': 'r'}});
+    await wait(300);
+  }
+  await wait(2600);
+  final tilesOnBoard = ((solo.state!["chain"] as List).length + (solo.state!["up"] as List).length + (solo.state!["dn"] as List).length) ~/ 3;
+  check(tilesOnBoard >= 1 && (solo.state!["turn"] == me2 || (solo.state!["hands"] as List)[1 - me2].length < 7), 'bot plays by itself');
+  // صاحب الغرفة يشيل الكمبيوتر بالغرفة (بدون منع)
+  solo.send({'t': 'lobby'});
+  await wait();
+  final botSeat = ((solo.room!["players"] as List).firstWhere((x) => x["bot"] == true))["seat"];
+  solo.send({'t': 'kick', 'seat': botSeat});
+  await wait();
+  check((solo.room!["players"] as List).length == 1, 'bot removed');
+  room2.dispose();
+  await http2.close(force: true);
 
   // اسم ممنوع ما يدخل
   final rude = Client('شرموطة');

@@ -10,6 +10,9 @@ import 'audio_stub.dart' if (dart.library.js_interop) 'audio_web.dart';
 /// بالويب: WebAudio (audio_web.dart) لأن عناصر الصوت تقطّع سفاري الآيفون.
 class Sfx {
   static bool enabled = true;
+
+  /// بالاختبارات: الصوت ما يشتغل حتى لو انضغط زر الصوت
+  static bool testMute = false;
   static const _voices = 3;
   static final Map<String, List<AudioPlayer>> _pool = {};
   static final Map<String, int> _next = {};

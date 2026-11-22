@@ -1,4 +1,7 @@
+import 'dart:math' as math;
+
 import 'connect4_logic.dart';
+import 'domino_bot.dart';
 import 'domino_logic.dart';
 import 'game_model.dart';
 import 'hockey_logic.dart';
@@ -6,14 +9,31 @@ import 'muhaibes_logic.dart';
 import 'pigeon_logic.dart';
 import 'quiz_logic.dart';
 import 'reaction_logic.dart';
+import 'spy_logic.dart';
 import 'tug_logic.dart';
 import 'whois_logic.dart';
 import 'xo_logic.dart';
 
 /// كل الألعاب اللي قواعدها صارت على الأساس المشترك (تشتغل أونلاين)
-const onlineGames = {'xo', 'connect4', 'tug', 'pigeon', 'hockey', 'reaction', 'quiz', 'muhaibes', 'domino', 'whois'};
+const onlineGames = {'xo', 'connect4', 'tug', 'pigeon', 'hockey', 'reaction', 'quiz', 'muhaibes', 'domino', 'whois', 'spy'};
 
-GameModel createModel(String id, {required int players, required bool crazy, required int seed}) {
+/// ألعاب يلعبها الكمبيوتر (بالغرف وعلى الجهاز)
+const botGames = {'domino'};
+
+/// ألعاب بيها مستويات (سهل/متوسط/صعب) بدل عادي/مجنون
+const levelGames = {'domino'};
+
+/// حركة الكمبيوتر بلعبة [m] للاعب [player] بمستوى [level] (0-2). null = ماكو شي يسويه هسة.
+Map<String, dynamic>? botMove(GameModel m, int player, int level, math.Random r) {
+  if (m is DominoModel) {
+    if (m.over) return null;
+    if (m.phase == 'round') return m.nextOk[player] ? null : {'a': 'next'};
+    return DominoBot.move(m, player, const [1, 3, 4][level.clamp(0, 2)], r);
+  }
+  return null;
+}
+
+GameModel createModel(String id, {required int players, required bool crazy, required int seed, int level = -1}) {
   switch (id) {
     case 'xo':
       return XoModel(players: players, crazy: crazy, seed: seed);
@@ -32,9 +52,11 @@ GameModel createModel(String id, {required int players, required bool crazy, req
     case 'muhaibes':
       return MuhaibesModel(players: players, crazy: crazy, seed: seed);
     case 'domino':
-      return DominoModel(players: players, crazy: crazy, seed: seed);
+      return DominoModel(players: players, crazy: crazy, seed: seed, level: level);
     case 'whois':
       return WhoisModel(players: players, crazy: crazy, seed: seed);
+    case 'spy':
+      return SpyModel(players: players, crazy: crazy, seed: seed);
   }
   throw ArgumentError('unknown game $id');
 }
@@ -61,6 +83,8 @@ GameModel restoreModel(Map<String, dynamic> j) {
       return DominoModel.restore(j);
     case 'whois':
       return WhoisModel.restore(j);
+    case 'spy':
+      return SpyModel.restore(j);
   }
   throw ArgumentError('unknown game ${j['id']}');
 }

@@ -50,6 +50,8 @@ Map<String, dynamic> randomInput(String id, GameModel m, math.Random r, int p) {
       return {'a': 'play', 't': hand[r.nextInt(hand.length)], 's': r.nextBool() ? 'l' : 'r'};
     case 'whois':
       return {'a': 'vote', 't': r.nextInt(m.players)};
+    case 'spy':
+      return {'a': ['ask', 'ask', 'ask', 'call', 'vote', 'vote', 'guess'][r.nextInt(7)], 't': r.nextInt(m.players * 2)};
   }
   return {};
 }

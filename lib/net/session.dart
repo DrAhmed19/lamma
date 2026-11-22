@@ -164,7 +164,7 @@ class OnlineSession<M extends GameModel> extends Session<M> {
     if (m is! M) return;
     _quiet = 0;
     _quietLimit = 3;
-    _realtime = m.tickHz > 0;
+    _realtime = m.tickHz > 0 && m.buffered;
     final ev = firstTime ? const <Map<String, dynamic>>[] : st.events;
     if (!_realtime) {
       // لعبة بالدور: نعرض آخر حالة فوراً

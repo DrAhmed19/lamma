@@ -36,11 +36,11 @@ const SAVE_EVERY_MS = 2000;
 const EMOJIS = 12; // عدد التفاعلات (القائمة بالتطبيق)
 
 /// أكثر عدد لاعبين لكل لعبة
-const GAME_MAX = { xo: 2, connect4: 2, tug: 2, hockey: 2, pigeon: 4, reaction: 4, quiz: 4, muhaibes: 8, domino: 4, whois: 8 };
+const GAME_MAX = { xo: 2, connect4: 2, tug: 2, hockey: 2, pigeon: 4, reaction: 4, quiz: 4, muhaibes: 8, domino: 4, whois: 8, spy: 8 };
 /// أقل عدد لاعبين (الباقي 2)
-const GAME_MIN = { muhaibes: 4, whois: 3 };
+const GAME_MIN = { muhaibes: 4, whois: 3, spy: 3 };
 /// ألعاب ما تنلعب ويا الغرباء (اللعب السريع)
-const NO_QUICK = new Set(["muhaibes", "whois"]);
+const NO_QUICK = new Set(["muhaibes", "whois", "spy"]);
 /// ألعاب تنلعب بأعداد معينة بس (الدومينو: 2 أو 4)
 const GAME_COUNTS = { domino: [2, 4] };
 /// أكثر عدد باللعب السريع ويا الغرباء (الدومينو: لاعبين بس)
@@ -259,11 +259,23 @@ export class Room {
       m.tour ??= null;
       m.autoAt ??= 0;
       m.cap ??= MAX_PLAYERS;
+      m.level ??= 1;
+      this.trackBots(m);
     }
     return m;
   }
 
+  /// مقاعد الكمبيوتر (تنحسب "موجودة" دائماً)
+  trackBots(meta) {
+    this.botSet = new Set(Object.entries(meta.players ?? {}).filter(([, p]) => p.bot).map(([s]) => Number(s)));
+  }
+
+  isBot(meta, seat) {
+    return !!meta.players[seat]?.bot;
+  }
+
   async saveMeta(meta, { touch = true } = {}) {
+    this.trackBots(meta);
     if (touch) meta.touched = Date.now();
     await this.ctx.storage.put("meta", meta);
     await this.scheduleAlarm(meta);
@@ -290,7 +302,41 @@ export class Room {
     const s = await this.ctx.storage.get("game");
     if (s) this.game = globalThis.lamma.restore(s);
     this.matchSeats = meta.seats;
+    this.prepBots(meta);
     return this.game;
+  }
+
+  /// لاعبين الكمبيوتر بالمباراة (أرقامهم باللعبة) ومستواهم
+  prepBots(meta) {
+    this.matchBots = (meta.seats ?? []).map((s, i) => (this.isBot(meta, s) ? i : -1)).filter((i) => i >= 0);
+    this.botLevel = meta.level ?? 1;
+    this.botAt ??= {};
+  }
+
+  /// الكمبيوتر: يفكّر شوية (وقت طبيعي) وبعدين يلعب. يرجّع true إذا لعب شي.
+  botTick() {
+    if (!this.game || !this.matchBots?.length || this.game.over()) return false;
+    const now = Date.now();
+    let acted = false;
+    for (const p of this.matchBots) {
+      const mv = this.game.bot(p, this.botLevel);
+      if (!mv) {
+        delete this.botAt[p];
+        continue;
+      }
+      if (this.botAt[p] === undefined) {
+        const a = JSON.parse(mv).a;
+        const wait = a === "next" ? 400 : a === "draw" ? 450 : (this.botLevel === 2 ? 700 : 1000) + Math.random() * 800;
+        this.botAt[p] = now + wait;
+        continue;
+      }
+      if (now >= this.botAt[p]) {
+        delete this.botAt[p];
+        this.game.input(p, mv);
+        acted = true;
+      }
+    }
+    return acted;
   }
 
   async saveGame() {
@@ -316,6 +362,7 @@ export class Room {
         host: -1,
         game: pub ? url.searchParams.get("game") : null,
         crazy: false,
+        level: 1, // سهل 0، متوسط 1، صعب 2 (الألعاب اللي بيها مستويات)
         public: pub,
         started: false,
         round: 0,
@@ -364,7 +411,9 @@ export class Room {
   }
 
   online() {
-    return new Set(this.sockets().map((ws) => ws.deserializeAttachment().seat));
+    const on = new Set(this.sockets().map((ws) => ws.deserializeAttachment().seat));
+    for (const b of this.botSet ?? []) on.add(b);
+    return on;
   }
 
   send(ws, data) {
@@ -390,6 +439,7 @@ export class Room {
       avatar: p.avatar ?? "",
       pid: p.pid ?? "",
       on: on.has(Number(seat)),
+      bot: !!p.bot,
     }));
     players.sort((a, b) => a.seat - b.seat);
     return {
@@ -398,6 +448,7 @@ export class Room {
       host: meta.host,
       game: meta.game,
       crazy: meta.crazy,
+      level: meta.level ?? 1,
       public: !!meta.public,
       cap: meta.cap ?? MAX_PLAYERS,
       started: meta.started,
@@ -419,7 +470,7 @@ export class Room {
     const away = meta.gone[meta.host];
     const keep = exists && !force && (on.has(meta.host) || (away !== undefined && now - away < this.hostGraceMs));
     if (keep) return false;
-    const candidates = [...on].filter((s) => meta.players[s] && s !== meta.host).sort((a, b) => a - b);
+    const candidates = [...on].filter((s) => meta.players[s] && !meta.players[s].bot && s !== meta.host).sort((a, b) => a - b);
     const next = candidates.length ? candidates[0] : exists && on.has(meta.host) ? meta.host : -1;
     if (next === meta.host) return false;
     if (next < 0 && exists) return false;
@@ -522,6 +573,7 @@ export class Room {
         acc -= dt;
         steps++;
       }
+      if (this.botTick()) steps++;
       if (steps > 0) this.sendState();
       if (now - this.lastSave > SAVE_EVERY_MS) this.saveGame();
       this.watchOver();
@@ -536,7 +588,8 @@ export class Room {
   async syncLoop(meta) {
     if (!meta.started || !(await this.ensureGame(meta))) return this.stopLoop();
     const on = this.online();
-    const anyone = meta.seats.some((s) => on.has(s) && !meta.out.includes(s));
+    // لازم شخص حقيقي واحد على الأقل (الكمبيوتر ما يلعب وحده)
+    const anyone = meta.seats.some((s) => on.has(s) && !meta.out.includes(s) && !this.isBot(meta, s));
     if (anyone && !meta.endAt) this.startLoop();
     else this.stopLoop();
   }
@@ -589,8 +642,10 @@ export class Room {
     const seed = Math.floor(Math.random() * 2 ** 31);
     this.stopLoop();
     this.overSeen = false;
-    this.game = globalThis.lamma.create(meta.game, seats.length, meta.crazy, seed);
+    this.game = globalThis.lamma.create(meta.game, seats.length, meta.crazy, seed, meta.level ?? 1);
     this.matchSeats = seats;
+    this.botAt = {};
+    this.prepBots(meta);
   }
 
   async afterChange(meta) {
@@ -623,7 +678,7 @@ export class Room {
     // الغرف العامة: اللي طلع خسر (forfeit) والباقي يشوف النتيجة ويختار: خصم جديد أو الرئيسية
     if (meta.public) return;
     const left = meta.seats.filter((s) => !meta.out.includes(s) && meta.players[s]);
-    if (left.length < 2) {
+    if (left.length < 2 || !left.some((s) => !this.isBot(meta, s))) {
       meta.endAt = Date.now() + this.endDelayMs;
       this.stopLoop();
     }
@@ -645,6 +700,14 @@ export class Room {
 
   async removePlayer(meta, seat, { kicked = false } = {}) {
     if (meta.players[seat] === undefined) return;
+    if (meta.players[seat].bot) {
+      // الكمبيوتر: ينشال بدون منع
+      if (meta.started && this.playerOf(meta, seat) >= 0) await this.playerGone(meta, seat, true);
+      delete meta.players[seat];
+      this.trackBots(meta);
+      this.checkMatch(meta);
+      return;
+    }
     if (meta.started && this.playerOf(meta, seat) >= 0) await this.playerGone(meta, seat, true);
     this.notice(kicked ? "kicked" : "left", meta, seat);
     if (kicked) {
@@ -712,10 +775,31 @@ export class Room {
         if (!isHost || meta.started) return;
         meta.game = typeof msg.game === "string" ? msg.game.slice(0, 20) : null;
         meta.crazy = !!msg.crazy;
+        if (Number.isInteger(msg.level)) meta.level = Math.max(0, Math.min(2, msg.level));
         meta.tour = null;
+        // لعبة ما يلعبها الكمبيوتر: نشيل الكمبيوترات
+        if (!meta.game || !globalThis.lamma.bots(meta.game)) {
+          for (const [st, pl] of Object.entries(meta.players)) if (pl.bot) delete meta.players[st];
+        }
         await this.saveMeta(meta);
         this.broadcast(this.roomState(meta));
         return;
+
+      case "bot": {
+        // صاحب الغرفة يضيف كمبيوتر بمقعد فاضي (الغرف الخاصة، والألعاب اللي يلعبها)
+        if (!isHost || meta.started || meta.public || !meta.game || !globalThis.lamma.bots(meta.game)) return;
+        const taken = new Set(Object.keys(meta.players).map(Number));
+        const max = Math.min(meta.cap ?? MAX_PLAYERS, GAME_MAX[meta.game] ?? MAX_PLAYERS);
+        if (taken.size >= max) return this.send(ws, { t: "err", m: "full" });
+        let seat = -1;
+        for (let st = 0; st < MAX_PLAYERS && seat < 0; st++) if (!taken.has(st)) seat = st;
+        if (seat < 0) return;
+        const k = Object.values(meta.players).filter((pl) => pl.bot).length + 1;
+        meta.players[seat] = { name: k === 1 ? "الكمبيوتر" : "كمبيوتر " + k, token: "", avatar: "🤖", pid: "", bot: true };
+        await this.saveMeta(meta);
+        this.broadcast(this.roomState(meta));
+        return;
+      }
 
       case "cap": {
         // صاحب الغرفة يحدد أكثر عدد لاعبين (ما يقل عن اللي موجودين)
@@ -747,6 +831,7 @@ export class Room {
         if (seats.length < 2) return this.send(ws, { t: "err", m: "few" });
         const games = msg.games
           .filter((g) => typeof g === "string" && gameFits(g, seats.length) && globalThis.lamma.supports(g))
+          .filter((g) => !seats.some((st) => this.isBot(meta, st)) || globalThis.lamma.bots(g))
           .slice(0, 6);
         if (games.length < 2) return this.send(ws, { t: "err", m: "tour" });
         meta.tour = { games, idx: 0, pts: {}, scored: -1, done: false };
@@ -838,7 +923,7 @@ export class Room {
 
       case "host": {
         const seat = Number(msg.seat);
-        if (!isHost || seat === me.seat || !this.online().has(seat) || meta.players[seat] === undefined) return;
+        if (!isHost || seat === me.seat || !this.online().has(seat) || meta.players[seat] === undefined || meta.players[seat].bot) return;
         meta.host = seat;
         this.notice("host", meta, seat);
         await this.saveMeta(meta);

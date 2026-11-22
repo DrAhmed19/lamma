@@ -16,6 +16,7 @@ import 'icons.dart';
 import 'invite.dart';
 import 'kit.dart';
 import 'profile_ui.dart';
+import 'setup.dart';
 import 'theme.dart';
 import 'update.dart';
 
@@ -367,6 +368,13 @@ class _GameSheetState extends State<_GameSheet> {
   /// على هذا الجهاز: إذا اللعبة لأكثر من لاعبين نسأل كم لاعب
   Future<void> _here() async {
     final g = widget.game;
+    // ألعاب المستويات: شاشة البداية (المستوى + منو يلعب ويا الكمبيوتر)
+    if (g.play != null) {
+      final nav = Navigator.of(context);
+      nav.pop();
+      nav.push(MaterialPageRoute(builder: (_) => SetupScreen(game: g)));
+      return;
+    }
     var n = g.minPlayers;
     if (g.maxPlayers > g.minPlayers) {
       final pick = await showModalBottomSheet<int>(
@@ -513,7 +521,7 @@ class _GameSheetState extends State<_GameSheet> {
                     ),
                   ),
                 ),
-                if (g.crazyHowTo != null) ...[
+                if (g.crazyHowTo != null && g.levels == null) ...[
                   const SizedBox(height: 12),
                   Row(
                     children: [
@@ -542,7 +550,7 @@ class _GameSheetState extends State<_GameSheet> {
                   _Choice(
                     icon: Icons.phone_android_rounded,
                     title: 'على هذا الجهاز',
-                    subtitle: 'الجميع يلعبون على هذا الهاتف معًا',
+                    subtitle: g.play != null ? 'وحدك ضد الكمبيوتر أو مع من حولك' : 'الجميع يلعبون على هذا الهاتف معًا',
                     color: g.colors[0],
                     primary: true,
                     onTap: _here,

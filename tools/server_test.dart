@@ -168,6 +168,35 @@ Future<void> main(List<String> args) async {
     await p.ws.close();
   }
 
+  // الكمبيوتر بالغرفة: صاحب الغرفة يضيفه، والمستوى ينحفظ، والسيرفر يلعبه
+  final req3 = await hc.getUrl(Uri.parse('$base/new'));
+  final code3 = (jsonDecode(await (await req3.close()).transform(utf8.decoder).join()) as Map)['code'] as String;
+  final solo = Client('solo');
+  await solo.connect(base, code3);
+  await wait(400);
+  solo.send({'t': 'cfg', 'game': 'domino', 'crazy': false, 'level': 2});
+  solo.send({'t': 'bot'});
+  await wait(500);
+  await check(() {
+    final pl = solo.room?['players'] as List? ?? const [];
+    return solo.room?['level'] == 2 && pl.length == 2 && pl.any((x) => x['bot'] == true && x['on'] == true);
+  }, 'server: bot added, level saved');
+  solo.send({'t': 'start'});
+  await wait(600);
+  await check(() => solo.room?['started'] == true && solo.state?['goal'] == 200, 'server: match with bot at hard level');
+  final bseats = [for (final x in solo.room!['seats'] as List) x as int];
+  final meB = bseats.indexOf(solo.seat);
+  if (solo.state!['turn'] == meB) {
+    solo.send({'t': 'in', 'd': {'a': 'play', 't': solo.state!['must'], 's': 'r'}});
+    await wait(400);
+  }
+  await check(() {
+    final st = solo.state!;
+    final n = ((st['chain'] as List).length + (st['up'] as List).length + (st['dn'] as List).length) ~/ 3;
+    return n >= 1 && (st['turn'] == meB || (st['hands'] as List)[1 - meB].length < 7);
+  }, 'server: bot plays by itself', 6000);
+  await solo.ws.close();
+
   // الدومينو ويا الغرباء: لاعبين بس، وتبدي لمّن يكتملون، والقطع مخفية
   final dq1 = (await getJson('/quick?game=domino'))['code'] as String;
   final e1 = Client('dom1');

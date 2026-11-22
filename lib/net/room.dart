@@ -27,8 +27,11 @@ const kWebUrl = String.fromEnvironment('WEB', defaultValue: 'https://lamma-dk0.p
 String playerName = '';
 
 class NetPlayer {
-  const NetPlayer(this.seat, this.name, this.on, [this.avatar = '', this.pid = '']);
+  const NetPlayer(this.seat, this.name, this.on, [this.avatar = '', this.pid = '', this.bot = false]);
   final int seat;
+
+  /// كمبيوتر (يلعبه السيرفر)
+  final bool bot;
   final String name;
   final bool on;
   final String avatar;
@@ -143,6 +146,9 @@ class RoomConn extends ChangeNotifier {
   List<NetPlayer> players = const [];
   String? game;
   bool crazy = false;
+
+  /// المستوى (سهل 0، متوسط 1، صعب 2) للألعاب اللي بيها مستويات
+  int level = 1;
   bool started = false;
 
   /// أكثر عدد لاعبين بالغرفة (صاحب الغرفة يحدده)
@@ -387,6 +393,7 @@ class RoomConn extends ChangeNotifier {
         host = m['host'] as int;
         game = m['game'] as String?;
         crazy = m['crazy'] == true;
+        level = (m['level'] as num?)?.toInt() ?? 1;
         final wasStarted = started;
         started = m['started'] == true;
         round = m['round'] as int;
@@ -395,7 +402,7 @@ class RoomConn extends ChangeNotifier {
         ending = m['ending'] == true;
         players = [
           for (final p in m['players'] as List)
-            NetPlayer(p['seat'] as int, p['name'] as String, p['on'] == true, p['avatar'] as String? ?? '', p['pid'] as String? ?? ''),
+            NetPlayer(p['seat'] as int, p['name'] as String, p['on'] == true, p['avatar'] as String? ?? '', p['pid'] as String? ?? '', p['bot'] == true),
         ];
         if (!started && wasStarted) state = null;
       case 'state':
@@ -445,7 +452,14 @@ class RoomConn extends ChangeNotifier {
   /// حركة باللعبة (السيرفر يقرر إذا مقبولة)
   void input(Map<String, dynamic> d) => _send({'t': 'in', 'd': d});
   void again() => _send({'t': 'again'});
-  void setGame(String id, bool crazy) => _send({'t': 'cfg', 'game': id, 'crazy': crazy});
+  void setGame(String id, bool crazy, {int? level}) => _send({'t': 'cfg', 'game': id, 'crazy': crazy, 'level': level ?? this.level});
+
+  /// صاحب الغرفة: يضيف كمبيوتر بمقعد فاضي
+  void addBot() => _send({'t': 'bot'});
+
+  /// المقعد كمبيوتر؟ (وباللعبة: اللاعب رقم [player])
+  bool seatBot(int seat) => players.any((p) => p.seat == seat && p.bot);
+  bool isBot(int player) => player >= 0 && player < seats.length && seatBot(seats[player]);
   void start() => _send({'t': 'start'});
 
   /// صاحب الغرفة: أكثر عدد لاعبين (2-8)

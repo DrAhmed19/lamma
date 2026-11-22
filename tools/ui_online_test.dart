@@ -27,10 +27,15 @@ const sizes = {
 const cases = [
   ('whois', 3, false),
   ('whois', 8, true),
+  ('spy', 3, false),
+  ('spy', 8, true),
   ('muhaibes', 4, false),
   ('muhaibes', 8, false),
   ('domino', 2, false),
   ('domino', 4, true),
+  // ويا كمبيوترات بالغرفة (id-bot: أنا وحدي والباقي كمبيوتر يلعبه صاحب الغرفة)
+  ('domino-bot', 2, false),
+  ('domino-bot', 4, true),
   ('pigeon', 2, false),
   ('pigeon', 4, true),
   ('hockey', 2, false),
@@ -103,6 +108,8 @@ class Bot {
         d = hand.isEmpty || r.nextInt(4) == 0 ? {'a': 'draw'} : {'a': 'play', 't': hand[r.nextInt(hand.length)], 's': r.nextBool() ? 'l' : 'r'};
       case 'whois':
         d = {'a': 'vote', 't': r.nextInt(n)};
+      case 'spy':
+        d = {'a': ['ask', 'call', 'vote', 'guess'][r.nextInt(4)], 't': r.nextInt(n)};
       default:
         return;
     }
@@ -117,6 +124,7 @@ void main() {
     // ignore: invalid_use_of_visible_for_testing_member
     SharedPreferences.setMockInitialValues({'name': 'أنا', 'avatar': '🐼'});
     Sfx.enabled = false;
+    Sfx.testMute = true; // حتى لو اللمسات العشوائية شغّلت زر الصوت
     await loadFont('Vazirmatn', ['assets/fonts/Vazirmatn-Regular.ttf', 'assets/fonts/Vazirmatn-Bold.ttf', 'assets/fonts/Vazirmatn-ExtraBold.ttf', 'assets/fonts/Vazirmatn-Black.ttf']);
     await loadFont('Lalezar', ['assets/fonts/Lalezar-Regular.ttf']);
     await Profile.I.load();
@@ -131,6 +139,8 @@ void main() {
         t.view.devicePixelRatio = 1;
         addTearDown(t.view.reset);
         final r = math.Random(n * 13 + id.length);
+        final withBots = id.endsWith('-bot');
+        final gid = withBots ? id.substring(0, id.length - 4) : id;
 
         final host = (await t.runAsync(LanHost.start))!;
         // الاتصال لازم ينبني بالوقت الحقيقي (مو الوقت الوهمي مال الاختبار)
@@ -149,7 +159,7 @@ void main() {
         await real(t, 300);
         await t.pump(const Duration(milliseconds: 300));
 
-        final bots = [for (var i = 0; i < n - 1; i++) Bot('لاعب${i + 1}')];
+        final bots = [for (var i = 0; i < (withBots ? 0 : n - 1); i++) Bot('لاعب${i + 1}')];
         await t.runAsync(() async {
           for (final b in bots) {
             await b.connect(host.port, host.code);
@@ -158,10 +168,16 @@ void main() {
         });
         await real(t, 300);
         await t.pump(const Duration(milliseconds: 500));
-        expect(room.players.length, n, reason: 'كل اللاعبين دخلوا الغرفة');
-
-        room.setGame(id, crazy);
+        room.setGame(gid, crazy, level: crazy ? 2 : 0);
         await real(t, 150);
+        if (withBots) {
+          for (var i = 0; i < n - 1; i++) {
+            room.addBot();
+            await real(t, 60);
+          }
+          await t.pump(const Duration(milliseconds: 300));
+        }
+        expect(room.players.length, n, reason: 'كل اللاعبين دخلوا الغرفة');
         room.start();
         await real(t, 300);
         await t.pump(const Duration(seconds: 1));
@@ -169,7 +185,7 @@ void main() {
         // نلعب: الوهميين يتحركون، وأنا ألمس الشاشة عشوائياً
         for (var step = 0; step < 220; step++) {
           for (final b in bots) {
-            if (r.nextInt(3) == 0) b.play(id, r);
+            if (r.nextInt(3) == 0) b.play(gid, r);
           }
           if (r.nextInt(2) == 0) {
             final at = Offset(r.nextDouble() * e.value.width, r.nextDouble() * e.value.height);

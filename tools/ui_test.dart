@@ -12,6 +12,7 @@ import 'package:lamma/core/profile.dart';
 import 'package:lamma/core/sfx.dart';
 import 'package:lamma/games/registry.dart';
 import 'package:lamma/main.dart';
+import 'package:lamma/ui/setup.dart';
 import 'package:lamma/ui/theme.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -67,6 +68,7 @@ void main() {
     // ignore: invalid_use_of_visible_for_testing_member
     SharedPreferences.setMockInitialValues({'name': 'تجربة', 'avatar': '🐼'});
     Sfx.enabled = false;
+    Sfx.testMute = true; // حتى لو اللمسات العشوائية شغّلت زر الصوت
     await loadFont('Vazirmatn', ['assets/fonts/Vazirmatn-Regular.ttf', 'assets/fonts/Vazirmatn-Bold.ttf', 'assets/fonts/Vazirmatn-ExtraBold.ttf', 'assets/fonts/Vazirmatn-Black.ttf']);
     await loadFont('Lalezar', ['assets/fonts/Lalezar-Regular.ttf']);
     await Profile.I.load();
@@ -111,6 +113,42 @@ void main() {
             await t.pumpWidget(app(g.build(n, crazy)));
             await t.pump(const Duration(seconds: 4)); // العد التنازلي
             await poke(t, e.value, math.Random(n * 31 + e.key.length), 25);
+            await t.pumpWidget(const SizedBox());
+            await t.pump(const Duration(seconds: 1));
+          });
+        }
+      }
+    }
+
+    // ألعاب المستويات: شاشة البداية، وكل مستوى ويا تشكيلات فيها كمبيوتر
+    for (final g in games.where((g) => g.play != null)) {
+      testWidgets('${g.title} شاشة البداية - ${e.key}', (t) async {
+        t.view.physicalSize = e.value;
+        t.view.devicePixelRatio = 1;
+        addTearDown(t.view.reset);
+        await t.pumpWidget(app(SetupScreen(game: g)));
+        await t.pump(const Duration(milliseconds: 600));
+        for (final label in ['+ كمبيوتر', '+ شخص', 'صعب', 'سهل']) {
+          final f = find.text(label);
+          if (f.evaluate().isNotEmpty) await t.tap(f.first, warnIfMissed: false);
+          await t.pump(const Duration(milliseconds: 400));
+        }
+        await poke(t, e.value, math.Random(7), 3);
+      });
+      for (var level = 0; level < 3; level++) {
+        for (final bots in [
+          [false, true],
+          [false, true, false, true],
+          [true, false, true, true],
+        ]) {
+          if (!g.fits(bots.length)) continue;
+          testWidgets('${g.title} مستوى $level ${bots.map((b) => b ? 'ك' : 'ش').join()} - ${e.key}', (t) async {
+            t.view.physicalSize = e.value;
+            t.view.devicePixelRatio = 1;
+            addTearDown(t.view.reset);
+            await t.pumpWidget(app(g.play!(level, bots)));
+            await t.pump(const Duration(seconds: 2));
+            await poke(t, e.value, math.Random(level * 13 + bots.length), 20);
             await t.pumpWidget(const SizedBox());
             await t.pump(const Duration(seconds: 1));
           });

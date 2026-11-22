@@ -9,6 +9,7 @@ import 'package:share_plus/share_plus.dart';
 
 import '../core/profile.dart';
 import '../games/registry.dart';
+import '../logic/models.dart' show botGames;
 import '../logic/name_filter.dart';
 import '../net/lan.dart';
 import '../net/room.dart';
@@ -19,6 +20,7 @@ import 'invite.dart';
 import 'kit.dart';
 import 'profile_ui.dart' show editProfile;
 import 'react.dart';
+import 'setup.dart' show kLevelColors, kLevelNames;
 import 'share_card.dart';
 import 'theme.dart';
 import '../net/wake_stub.dart' if (dart.library.js_interop) '../net/wake_web.dart';
@@ -166,7 +168,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
           children: [
             Text('${p.avatar} ${p.name}', textAlign: TextAlign.center, style: display(28)),
             const SizedBox(height: 14),
-            if (p.on) ...[
+            if (p.on && !p.bot) ...[
               BigButton(label: 'اجعله مدير الغرفة', icon: Icons.star_rounded, filled: false, onTap: () => Navigator.pop(ctx, 'host')),
               const SizedBox(height: 10),
             ],
@@ -606,6 +608,26 @@ class _LobbyScreenState extends State<LobbyScreen> {
         Text('اللاعبون (${room.players.length})', style: body(15, weight: FontWeight.w800, color: C.muted)),
         const SizedBox(height: 8),
         for (final p in room.players) _seat(p),
+        if (_canAddBot)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Pressable(
+              onTap: room.addBot,
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: alpha(Colors.white, 0.25)),
+                  color: alpha(Colors.white, 0.04),
+                ),
+                child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                  const Icon(Icons.smart_toy_rounded, size: 20, color: Colors.white),
+                  const SizedBox(width: 8),
+                  Text('+ كمبيوتر', style: body(16, weight: FontWeight.w800)),
+                ]),
+              ),
+            ),
+          ),
         if (room.players.length < 2)
           Padding(
             padding: const EdgeInsets.only(top: 4),
@@ -619,6 +641,13 @@ class _LobbyScreenState extends State<LobbyScreen> {
           ),
       ],
     );
+  }
+
+  /// صاحب الغرفة يگدر يضيف كمبيوتر (الغرف الخاصة، والألعاب اللي يلعبها، وبعد بيها مكان)
+  bool get _canAddBot {
+    final g = gameById(room.game);
+    if (!room.isHost || room.isPublic || room.started || g == null || !botGames.contains(g.id)) return false;
+    return room.players.length < math.min(room.cap, g.maxPlayers);
   }
 
   Widget _seat(NetPlayer p) {
@@ -738,7 +767,11 @@ class _LobbyScreenState extends State<LobbyScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(g.title, style: display(26)),
-                Text(room.crazy && g.crazyHowTo != null ? (g.modeLabels?[1] ?? 'الوضع المجنون') : g.tagline, style: body(13, color: alpha(Colors.white, 0.8))),
+                Text(
+                    g.levels != null
+                        ? 'المستوى: ${kLevelNames[room.level.clamp(0, 2)]}'
+                        : (room.crazy && g.crazyHowTo != null ? (g.modeLabels?[1] ?? 'الوضع المجنون') : g.tagline),
+                    style: body(13, color: alpha(Colors.white, 0.8))),
               ],
             ),
           ),
@@ -822,7 +855,19 @@ class _LobbyScreenState extends State<LobbyScreen> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         if (chosen != null) _gameCard(chosen, onChange: () => _pickGame(onCount)),
-        if (chosen?.crazyHowTo != null) ...[
+        if (chosen?.levels != null) ...[
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              for (var i = 0; i < 3; i++) ...[
+                if (i > 0) const SizedBox(width: 8),
+                Expanded(child: _levelChip(i, () => room.setGame(chosen!.id, false, level: i))),
+              ],
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(chosen!.levels![room.level.clamp(0, 2)], textAlign: TextAlign.center, style: body(13, color: C.muted)),
+        ] else if (chosen?.crazyHowTo != null) ...[
           const SizedBox(height: 10),
           Row(
             children: [
@@ -942,6 +987,24 @@ class _LobbyScreenState extends State<LobbyScreen> {
     if (g.counts != null && on >= g.minPlayers && on <= g.maxPlayers) return 'هذه اللعبة لـ ${g.playersLabel} فقط';
     if (on < g.minPlayers) return 'تحتاج إلى ${g.minPlayers == 2 ? 'لاعبَين' : '${g.minPlayers} لاعبين'} على الأقل';
     return 'هذه اللعبة لـ ${g.maxPlayers == 2 ? 'لاعبَين' : '${g.maxPlayers} لاعبين'} فقط';
+  }
+
+  Widget _levelChip(int i, VoidCallback onTap) {
+    final sel = room.level == i;
+    final c = kLevelColors[i];
+    return Pressable(
+      onTap: onTap,
+      child: Container(
+        height: 46,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: sel ? alpha(c, 0.22) : alpha(Colors.white, 0.04),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: sel ? alpha(c, 0.9) : C.line, width: sel ? 2 : 1),
+        ),
+        child: Text(kLevelNames[i], style: body(16, weight: FontWeight.w800, color: sel ? c : Colors.white)),
+      ),
+    );
   }
 
   Widget _modeChip(String label, bool selected, VoidCallback onTap) {

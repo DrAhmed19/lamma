@@ -10,6 +10,7 @@ import 'pigeon.dart';
 import 'quiz.dart';
 import 'reaction.dart';
 import 'tug.dart';
+import 'spy.dart';
 import 'whois.dart';
 import 'xo.dart';
 
@@ -30,7 +31,20 @@ class GameInfo {
     this.quick = true,
     this.counts,
     this.modeLabels,
+    this.levels,
+    this.play,
+    this.teamsAt = const [],
   });
+
+  /// نظام المستويات: شرح سطر لكل مستوى (سهل، متوسط، صعب). إذا موجود، "على هذا الجهاز"
+  /// يفتح شاشة البداية (المستوى + منو يلعب ويا الكمبيوتر) بدل عادي/مجنون.
+  final List<String>? levels;
+
+  /// تشغيل على هذا الجهاز بمستوى وتشكيلة (bots[i] = المقعد i كمبيوتر)
+  final Widget Function(int level, List<bool> bots)? play;
+
+  /// أعداد اللاعبين اللي تصير بيها فرق (الدومينو: 4)
+  final List<int> teamsAt;
 
   /// أعداد اللاعبين المسموحة إذا مو كل الأعداد بين الأقل والأكثر (الدومينو: 2 أو 4)
   final List<int>? counts;
@@ -107,7 +121,7 @@ final games = <GameInfo>[
     tagline: 'صفّ القطع وخلّصها أولًا',
     howTo: 'كل لاعب معه 7 قطع. ضع قطعة يطابق أحد رقميها طرف السلسلة. من ينهي قطعه أولًا يأخذ مجموع نقاط قطع خصومه، '
         'وإذا أُغلقت اللعبة يأخذ صاحب المجموع الأقل. بلاعبَين: اسحب إذا لم تجد قطعة مناسبة. بأربعة لاعبين: فريقان، كل شريكين متقابلان. '
-        'الفوز عند 50 نقطة.',
+        'اختر المستوى قبل اللعب: السهل هو الدومينو العائلي، والمتوسط والصعب «الخمسات».',
     crazyHowTo: 'نفس القواعد، لكن الفوز عند 100 نقطة.',
     modeLabels: const ['50 نقطة', '100 نقطة'],
     minPlayers: 2,
@@ -116,6 +130,13 @@ final games = <GameInfo>[
     colors: const [Color(0xFF1F8A63), Color(0xFF0B3A2A)],
     icon: DominoIcon.new,
     build: (n, long) => DominoGame(players: n, long: long),
+    levels: const [
+      'الدومينو العائلي: السلسلة بجهتين، والنقاط آخر الجولة، والفوز عند 50. الأحجار الصالحة تضوي.',
+      'الخمسات: أول دبل يتفرّع لأربع جهات، وكل ما صار مجموع الأطراف 5 أو 10 أو 15... تاخذه نقاط فورًا. الفوز عند 100.',
+      'الخمسات حتى 200، بدون إضاءة للأحجار الصالحة، والدور 15 ثانية بس. والكمبيوتر بأقوى حالاته.',
+    ],
+    play: (level, bots) => DominoGame(players: bots.length, level: level, bots: bots),
+    teamsAt: const [4],
     online: (room) => DominoGame(players: room.seats.length, long: room.crazy, room: room),
   ),
   GameInfo(
@@ -150,6 +171,24 @@ final games = <GameInfo>[
     icon: WhoisIcon.new,
     build: (_, __) => const SizedBox.shrink(), // ما تنلعب على نفس الجهاز
     online: (room) => WhoisGame(room: room),
+    local: false,
+    quick: false,
+  ),
+  GameInfo(
+    id: 'spy',
+    title: 'الجاسوس',
+    tagline: 'من بينكم لا يعرف المكان؟',
+    howTo: 'الجميع يعرف المكان إلا الجاسوس. اجلسوا معًا واسألوا بعضكم بصوتكم أسئلة عن المكان دون ذكره: '
+        'من عليه الدور يسأل أي لاعب، ثم يسأل ذلك اللاعب غيره. يمكن لأي لاعب طلب التصويت. '
+        'إذا كشفتم الجاسوس فله حزرة واحدة للمكان. ينال الجاسوس نقطتين إن نجا أو حزر، والباقون نقطة إن كشفوه. كل لاعب على هاتفه.',
+    crazyHowTo: 'جاسوسان بدل جاسوس واحد (عند 6 لاعبين فأكثر).',
+    modeLabels: const ['جاسوس واحد', 'جاسوسان'],
+    minPlayers: 3,
+    maxPlayers: 8,
+    colors: const [Color(0xFFC0392B), Color(0xFF3A0F0A)],
+    icon: SpyIcon.new,
+    build: (_, __) => const SizedBox.shrink(), // ما تنلعب على نفس الجهاز
+    online: (room) => SpyGame(room: room),
     local: false,
     quick: false,
   ),

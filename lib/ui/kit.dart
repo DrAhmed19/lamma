@@ -141,9 +141,12 @@ class GlassIconButton extends StatelessWidget {
 
 /// غلاف كل لعبة: خلفية + زر إيقاف + زر رجوع الجهاز يفتح الإيقاف.
 class GameScaffold extends StatelessWidget {
-  const GameScaffold({super.key, required this.child, required this.onPause, this.room});
+  const GameScaffold({super.key, required this.child, required this.onPause, this.room, this.showPause = true});
   final Widget child;
   final VoidCallback onPause;
+
+  /// زر الإيقاف العايم (اللعبة اللي إلها شريط علوي تخفيه)
+  final bool showPause;
 
   /// أونلاين: زر التفاعلات السريعة، وتظهر تفاعلات الباقين فوق اللعبة
   final RoomConn? room;
@@ -168,13 +171,14 @@ class GameScaffold extends StatelessWidget {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    GlassIconButton(
-                      icon: Icons.pause_rounded,
-                      onTap: onPause,
-                      size: 42,
-                    ),
+                    if (showPause)
+                      GlassIconButton(
+                        icon: Icons.pause_rounded,
+                        onTap: onPause,
+                        size: 42,
+                      ),
                     if (room != null) ...[
-                      const SizedBox(height: 10),
+                      if (showPause) const SizedBox(height: 10),
                       ReactButton(room: room!),
                     ],
                   ],

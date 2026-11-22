@@ -21,16 +21,19 @@ abstract class LanPeer {
 }
 
 class _Player {
-  _Player(this.name, this.token, this.avatar);
+  _Player(this.name, this.token, this.avatar, {this.bot = false});
   String name, avatar;
   final String token;
+
+  /// كمبيوتر (يلعبه صاحب الغرفة بنفسه، "موجود" دائماً)
+  final bool bot;
 }
 
 /// أكثر عدد لاعبين لكل لعبة (نفس GAME_MAX بالسيرفر)
-const gameMax = {'xo': 2, 'connect4': 2, 'tug': 2, 'hockey': 2, 'pigeon': 4, 'reaction': 4, 'quiz': 4, 'muhaibes': 8, 'domino': 4, 'whois': 8};
+const gameMax = {'xo': 2, 'connect4': 2, 'tug': 2, 'hockey': 2, 'pigeon': 4, 'reaction': 4, 'quiz': 4, 'muhaibes': 8, 'domino': 4, 'whois': 8, 'spy': 8};
 
 /// أقل عدد لاعبين (نفس GAME_MIN، الباقي 2)
-const gameMin = {'muhaibes': 4, 'whois': 3};
+const gameMin = {'muhaibes': 4, 'whois': 3, 'spy': 3};
 /// ألعاب تنلعب بأعداد معينة بس (نفس GAME_COUNTS)
 const gameCounts = {
   'domino': [2, 4],
@@ -57,6 +60,9 @@ class LanRoom {
   int host = -1;
   String? game;
   bool crazy = false;
+
+  /// المستوى (سهل 0، متوسط 1، صعب 2) للألعاب اللي بيها مستويات
+  int level = 1;
   bool started = false;
   int round = 0;
   List<int> seats = [];
@@ -93,7 +99,56 @@ class LanRoom {
 
   // ------------------------------------------------------------ أدوات
 
-  Set<int> _online() => {for (final p in peers) if (p.seat >= 0) p.seat};
+  Set<int> _online() => {
+        for (final p in peers)
+          if (p.seat >= 0) p.seat,
+        for (final e in players.entries)
+          if (e.value.bot) e.key,
+      };
+
+  bool _isBot(int seat) => players[seat]?.bot ?? false;
+
+  // ------------------------------------------------------------ الكمبيوتر
+
+  /// أرقام الكمبيوترات باللعبة، ومتى يلعب كل واحد
+  List<int> _matchBots = [];
+  final _botAt = <int, int>{};
+
+  void _prepBots() {
+    _matchBots = [for (var i = 0; i < seats.length; i++) if (_isBot(seats[i])) i];
+    _botAt.clear();
+  }
+
+  /// يفكّر شوية وبعدين يلعب (نفس botTick بالسيرفر). true = لعب شي.
+  bool _botTick() {
+    final game = g;
+    if (game == null || _matchBots.isEmpty || game.over) return false;
+    var acted = false;
+    for (final p in _matchBots) {
+      final mv = botMove(game, p, level, _rnd);
+      if (mv == null) {
+        _botAt.remove(p);
+        continue;
+      }
+      final at = _botAt[p];
+      if (at == null) {
+        final a = mv['a'];
+        final wait = a == 'next'
+            ? 400
+            : a == 'draw'
+                ? 450
+                : (level == 2 ? 700 : 1000) + _rnd.nextInt(800);
+        _botAt[p] = _now + wait;
+        continue;
+      }
+      if (_now >= at) {
+        _botAt.remove(p);
+        game.input(p, mv);
+        acted = true;
+      }
+    }
+    return acted;
+  }
 
   void _send(LanPeer p, Object m) {
     try {
@@ -114,7 +169,7 @@ class LanRoom {
   Map<String, dynamic> _roomState() {
     final on = _online();
     final list = players.entries
-        .map((e) => {'seat': e.key, 'name': e.value.name, 'avatar': e.value.avatar, 'on': on.contains(e.key)})
+        .map((e) => {'seat': e.key, 'name': e.value.name, 'avatar': e.value.avatar, 'on': on.contains(e.key), 'bot': e.value.bot})
         .toList()
       ..sort((a, b) => (a['seat'] as int).compareTo(b['seat'] as int));
     return {
@@ -123,6 +178,7 @@ class LanRoom {
       'host': host,
       'game': game,
       'crazy': crazy,
+      'level': level,
       'public': false,
       'cap': cap,
       'started': started,
@@ -146,7 +202,7 @@ class LanRoom {
     final away = gone[host];
     final keep = exists && !force && (on.contains(host) || (away != null && _now - away < hostGraceMs));
     if (keep) return false;
-    final candidates = on.where((s) => players.containsKey(s) && s != host).toList()..sort();
+    final candidates = on.where((s) => players.containsKey(s) && !_isBot(s) && s != host).toList()..sort();
     final next = candidates.isNotEmpty ? candidates.first : (exists && on.contains(host) ? host : -1);
     if (next == host) return false;
     if (next < 0 && exists) return false;
@@ -196,6 +252,7 @@ class LanRoom {
         acc -= dt;
         steps++;
       }
+      if (_botTick()) steps++;
       if (steps > 0) _sendState();
       _watchOver();
     });
@@ -209,7 +266,8 @@ class LanRoom {
   void _syncLoop() {
     if (!started || g == null) return _stopLoop();
     final on = _online();
-    final anyone = seats.any((s) => on.contains(s) && !out.contains(s));
+    // لازم شخص حقيقي واحد على الأقل (الكمبيوتر ما يلعب وحده)
+    final anyone = seats.any((s) => on.contains(s) && !out.contains(s) && !_isBot(s));
     if (anyone && endAt == 0) {
       _startLoop();
     } else {
@@ -257,7 +315,8 @@ class LanRoom {
     endAt = 0;
     _stopLoop();
     _overSeen = false;
-    g = createModel(game!, players: s.length, crazy: crazy, seed: _rnd.nextInt(1 << 31));
+    g = createModel(game!, players: s.length, crazy: crazy, seed: _rnd.nextInt(1 << 31), level: level);
+    _prepBots();
   }
 
   void _afterChange() {
@@ -284,7 +343,7 @@ class LanRoom {
   void _checkMatch() {
     if (!started || endAt != 0) return;
     final left = seats.where((s) => !out.contains(s) && players.containsKey(s));
-    if (left.length < 2) {
+    if (left.length < 2 || !left.any((s) => !_isBot(s))) {
       endAt = _now + endDelayMs;
       _stopLoop();
     }
@@ -304,6 +363,13 @@ class LanRoom {
   void _removePlayer(int seat, {bool kicked = false}) {
     final pl = players[seat];
     if (pl == null) return;
+    if (pl.bot) {
+      // الكمبيوتر: ينشال بدون منع
+      if (started && _playerOf(seat) >= 0) _playerGone(seat, true);
+      players.remove(seat);
+      _checkMatch();
+      return;
+    }
     if (started && _playerOf(seat) >= 0) _playerGone(seat, true);
     _notice(kicked ? 'kicked' : 'left', seat);
     if (kicked) {
@@ -353,7 +419,25 @@ class LanRoom {
         final gm = msg['game'];
         game = gm is String ? (gm.length > 20 ? gm.substring(0, 20) : gm) : null;
         crazy = msg['crazy'] == true;
+        final lv = msg['level'];
+        if (lv is int) level = lv.clamp(0, 2);
         tour = null;
+        // لعبة ما يلعبها الكمبيوتر: نشيل الكمبيوترات
+        if (game == null || !botGames.contains(game)) players.removeWhere((_, pl) => pl.bot);
+        _sendRoom();
+
+      case 'bot':
+        // صاحب الغرفة يضيف كمبيوتر بمقعد فاضي (الألعاب اللي يلعبها)
+        if (!isHost || started || game == null || !botGames.contains(game)) return;
+        final max = math.min(cap, gameMax[game] ?? maxPlayers);
+        if (players.length >= max) return _send(peer, {'t': 'err', 'm': 'full'});
+        var free = -1;
+        for (var st = 0; st < maxPlayers && free < 0; st++) {
+          if (!players.containsKey(st)) free = st;
+        }
+        if (free < 0) return;
+        final k = players.values.where((pl) => pl.bot).length + 1;
+        players[free] = _Player(k == 1 ? 'الكمبيوتر' : 'كمبيوتر $k', '', '🤖', bot: true);
         _sendRoom();
 
       case 'cap':
@@ -380,7 +464,7 @@ class LanRoom {
         if (s.length < 2) return _send(peer, {'t': 'err', 'm': 'few'});
         final games = [
           for (final x in list)
-            if (x is String && gameFits(x, s.length) && onlineGames.contains(x)) x
+            if (x is String && gameFits(x, s.length) && onlineGames.contains(x) && (!s.any(_isBot) || botGames.contains(x))) x
         ].take(6).toList();
         if (games.length < 2) return _send(peer, {'t': 'err', 'm': 'tour'});
         tour = {'games': games, 'idx': 0, 'pts': <int, int>{}, 'scored': -1, 'done': false};
@@ -436,7 +520,7 @@ class LanRoom {
 
       case 'host':
         final s = (msg['seat'] as num?)?.toInt() ?? -1;
-        if (!isHost || s == seat || !_online().contains(s) || !players.containsKey(s)) return;
+        if (!isHost || s == seat || !_online().contains(s) || !players.containsKey(s) || _isBot(s)) return;
         host = s;
         _notice('host', s);
         _sendRoom();
