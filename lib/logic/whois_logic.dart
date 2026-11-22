@@ -137,11 +137,15 @@ class WhoisModel extends GameModel {
     emit('q', {'i': qi});
   }
 
+  /// كل الحاضرين صوّتوا؟ (إذا الكل غايب، ننتظر الوقت حتى ما تخلص الأسئلة بدون أحد)
   bool get _allVoted {
+    var present = 0;
     for (final p in alive) {
-      if (!away[p] && votes[p] == -1) return false;
+      if (away[p]) continue;
+      present++;
+      if (votes[p] == -1) return false;
     }
-    return true;
+    return present > 0;
   }
 
   void _reveal() {

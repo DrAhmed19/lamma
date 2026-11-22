@@ -432,7 +432,8 @@ class _WhoisState extends LoopState<WhoisGame> {
     final chosen = m.phase == 'vote' && _myVote == p;
     final voted = m.phase == 'vote' && m.votes[p] != -1;
     final isTop = m.phase == 'reveal' && _titleOn && m.top.contains(p);
-    final av = math.min(r.height * 0.5, r.width * 0.56);
+    // الصورة تاخذ اللي يبقى بعد الاسم والحالة (حتى بالشاشات الصغيرة ما تطلع برا البطاقة)
+    final av = math.max(18.0, math.min(r.height - 64, math.min(r.height * 0.5, r.width * 0.56)));
     final canTap = m.phase == 'vote' && me >= 0 && !m.out[me] && !mine;
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
@@ -519,6 +520,7 @@ class _WhoisState extends LoopState<WhoisGame> {
 
   ShareCardData _share() {
     final ps = _finalOrder.reversed.toList();
+    if (ps.isEmpty) return ShareCardData(game: 'منو بينا؟', winner: -1, players: const []);
     final idx = math.max(0, ps.indexOf(me));
     final facts = m.facts;
     return ShareCardData(

@@ -160,8 +160,10 @@ Future<void> main(List<String> args) async {
   await check(() => byPlayer(leader).state?['ring'] == -1 && byPlayer((leader + 2) % 4).state?['ring'] == -1, 'other team does NOT see the ring');
   byPlayer(leader).send({'t': 'in', 'd': {'a': 'bat', 'f': f}});
   await wait(800);
-  final ts = byPlayer(leader).state?['ts'] as List?;
-  await check(() => ts != null && ts[leader % 2] == 3, 'correct bat scores 3');
+  await check(() {
+    final ts = byPlayer(leader).state?['ts'] as List?;
+    return ts != null && ts[leader % 2] == 3;
+  }, 'correct bat scores 3 (${byPlayer(leader).state?['ts']} ph=${byPlayer(leader).state?['ph']} la=${byPlayer(leader).state?['la']})');
   for (final p in [...ps, extra]) {
     await p.ws.close();
   }

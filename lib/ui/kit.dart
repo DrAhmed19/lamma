@@ -550,15 +550,16 @@ class ResultOverlay extends StatelessWidget {
         children: [
           // تعتيم بدون تمويه (التمويه فوق لعبة شغالة غالي بالمتصفح)
           Positioned.fill(child: Container(color: alpha(const Color(0xFF05070F), 0.72))),
+          // FittedBox: بالشاشات الصغيرة (أو نص الشاشة للاعبين) النتيجة تصغر بدل ما تطلع برا
           if (dual)
             Column(
               children: [
-                Expanded(child: Center(child: RotatedBox(quarterTurns: 2, child: _banner()))),
-                Expanded(child: Center(child: panel)),
+                Expanded(child: Center(child: FittedBox(fit: BoxFit.scaleDown, child: RotatedBox(quarterTurns: 2, child: _banner())))),
+                Expanded(child: Center(child: Padding(padding: const EdgeInsets.all(8), child: FittedBox(fit: BoxFit.scaleDown, child: panel)))),
               ],
             )
           else
-            Center(child: panel),
+            Center(child: Padding(padding: const EdgeInsets.all(12), child: FittedBox(fit: BoxFit.scaleDown, child: panel))),
         ],
       ),
     );

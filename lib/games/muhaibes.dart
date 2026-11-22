@@ -295,7 +295,8 @@ class _MuhaibesState extends LoopState<MuhaibesGame> {
       ),
       child: LayoutBuilder(builder: (context, box) {
         final w = box.maxWidth / math.max(1, ps.length);
-        final fist = (math.min(w * 0.4, box.maxHeight * 0.42)).clamp(26.0, 72.0);
+        // قبضتين بالعرض (ويا المسافات) لازم يكفّن حتى بـ8 لاعبين على تلفون صغير
+        final fist = (math.min(w / 2.3, box.maxHeight * 0.42)).clamp(16.0, 72.0);
         return Row(
           children: [
             for (final p in ps) Expanded(child: _playerCard(p, fist)),

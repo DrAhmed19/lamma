@@ -538,20 +538,23 @@ class _PigeonState extends LoopState<PigeonGame> {
         if (!ready) return const NetWaiting();
         // أونلاين: الملعب بنفس الشكل عند الكل (بدون مطّ)، والزايد من الشاشة خلفية.
         // على نفس الجهاز العالم أصلاً بنسبة الشاشة، فياخذها كلها.
-        final field = online ? fitField(box.biggest, m.worldW / m.worldH) : Offset.zero & box.biggest;
+        final field = online ? fitField(box.biggest, m.worldW / m.worldH, dpr: dpr) : Offset.zero & box.biggest;
         size = field.size;
         return Stack(
           children: [
-            if (online) const Positioned.fill(child: ColoredBox(color: Color(0xFF0E1530))),
+            // الزايد من الشاشة: السطح يكمل لحافتها (نفس الكاشي)
+            if (online) Positioned.fill(child: CustomPaint(painter: _Surround(field, k))),
             Positioned.fromRect(
               rect: field,
-              child: Listener(
-                behavior: HitTestBehavior.opaque,
-                onPointerDown: _down,
-                onPointerMove: _move,
-                onPointerUp: (e) => _up(e.pointer),
-                onPointerCancel: (e) => _up(e.pointer, cancel: true),
-                child: CustomPaint(painter: _PigeonPainter(this)),
+              child: ClipRect(
+                child: Listener(
+                  behavior: HitTestBehavior.opaque,
+                  onPointerDown: _down,
+                  onPointerMove: _move,
+                  onPointerUp: (e) => _up(e.pointer),
+                  onPointerCancel: (e) => _up(e.pointer, cancel: true),
+                  child: CustomPaint(painter: _PigeonPainter(this)),
+                ),
               ),
             ),
             if (m.counting)
@@ -588,6 +591,39 @@ class _PigeonState extends LoopState<PigeonGame> {
 }
 
 // ================================================================ الرسم
+
+/// أونلاين: الشاشة أكبر من الملعب (نسبته ثابتة)، فالزايد يصير سطح كاشي مثل طرف السطح
+class _Surround extends CustomPainter {
+  _Surround(this.field, this.k);
+  final Rect field;
+  final double k;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas.drawRect(Offset.zero & size, Paint()..color = const Color(0xFFDDBB88));
+    final tile = Paint()
+      ..color = alpha(const Color(0xFF9C7444), 0.09)
+      ..strokeWidth = 1;
+    // الكاشي يمشي ويا كاشي الملعب (من نص الملعب)
+    final step = 36 * k;
+    final cx = field.center.dx;
+    for (var x = cx + step / 2; x < size.width; x += step) {
+      canvas.drawLine(Offset(x, 0), Offset(x, size.height), tile);
+    }
+    for (var x = cx - step / 2; x > 0; x -= step) {
+      canvas.drawLine(Offset(x, 0), Offset(x, size.height), tile);
+    }
+    for (var y = field.top - step; y > 0; y -= step) {
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), tile);
+    }
+    for (var y = field.bottom + step; y < size.height; y += step) {
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), tile);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_Surround old) => old.field != field || old.k != k;
+}
 
 double birdRadius(BirdKind kind, double k) => (kind == BirdKind.crow ? 25 : 23) * k;
 

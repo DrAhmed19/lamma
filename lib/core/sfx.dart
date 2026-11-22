@@ -29,6 +29,7 @@ class Sfx {
 
   /// يحمّل الأصوات قبل اللعب (يتسوّى مرة وحدة)
   static void preload(List<String> names) {
+    if (!enabled) return; // الصوت مطفي: ما نحمّل شي (play يحمّل وقت الحاجة إذا انشغل)
     if (WebAudio.available) {
       names.forEach(WebAudio.preload);
       return;

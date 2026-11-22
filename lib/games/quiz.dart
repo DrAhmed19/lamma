@@ -147,22 +147,24 @@ class _QuizState extends LoopState<QuizGame> {
 
   Widget _onlineView() {
     final me = session.me;
+    // الشاشات القصيرة: أزرار أصغر، والسؤال يصغر إذا ما كفّى المكان (بدل ما يطلع برا)
+    final short = MediaQuery.sizeOf(context).height < 680;
     return SafeArea(
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(60, 12, 16, 16),
+        padding: EdgeInsets.fromLTRB(60, short ? 8 : 12, 16, short ? 8 : 16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             _scoreRow(),
-            const SizedBox(height: 12),
+            SizedBox(height: short ? 8 : 12),
             _progress(),
-            const Spacer(),
-            _questionCard(big: true),
-            const Spacer(),
+            Expanded(
+              child: Center(child: FittedBox(fit: BoxFit.scaleDown, child: SizedBox(width: MediaQuery.sizeOf(context).width - 76, child: _questionCard(big: true)))),
+            ),
             for (var a = 0; a < 4; a++)
               Padding(
-                padding: const EdgeInsets.only(bottom: 10),
-                child: _option(me, a, height: 60, fontSize: 19),
+                padding: EdgeInsets.only(bottom: short ? 7 : 10),
+                child: _option(me, a, height: short ? 50 : 60, fontSize: short ? 17 : 19),
               ),
           ],
         ),
