@@ -328,11 +328,11 @@ class _GameSheetState extends State<_GameSheet> {
         builder: (ctx) => Container(
           margin: const EdgeInsets.all(10),
           padding: const EdgeInsets.fromLTRB(18, 18, 18, 22),
-          decoration: BoxDecoration(color: C.surface, borderRadius: BorderRadius.circular(28), border: Border.all(color: C.line)),
+          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(28)),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text('كم عدد اللاعبين؟', style: display(28)),
+              Text('كم عدد اللاعبين؟', style: display(28, color: L.ink)),
               const SizedBox(height: 14),
               Row(
                 children: [
@@ -345,14 +345,14 @@ class _GameSheetState extends State<_GameSheet> {
                           child: Container(
                             height: 90,
                             decoration: BoxDecoration(
-                              color: alpha(C.accent, 0.15),
+                              color: L.sky,
                               borderRadius: BorderRadius.circular(20),
-                              border: Border.all(color: alpha(C.accent, 0.6)),
+                              boxShadow: const [BoxShadow(color: L.sky2, offset: Offset(0, 4))],
                             ),
                             child: Column(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                Text('$k', style: display(38)),
+                                Text('$k', style: display(38, color: L.ink)),
                                 Row(
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
@@ -422,41 +422,55 @@ class _GameSheetState extends State<_GameSheet> {
         child: Container(
           margin: const EdgeInsets.all(10),
           padding: EdgeInsets.fromLTRB(20, 12, 20, 20 + MediaQuery.paddingOf(context).bottom),
-          decoration: BoxDecoration(color: C.surface, borderRadius: BorderRadius.circular(30), border: Border.all(color: C.line)),
+          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(30), boxShadow: const [BoxShadow(color: Color(0x331E325A), blurRadius: 30, offset: Offset(0, 10))]),
           child: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Center(
-                  child: Container(width: 42, height: 5, decoration: BoxDecoration(color: C.line, borderRadius: BorderRadius.circular(3))),
+                  child: Container(width: 42, height: 5, decoration: BoxDecoration(color: L.sky2, borderRadius: BorderRadius.circular(3))),
                 ),
                 const SizedBox(height: 14),
-                Row(
-                  children: [
-                    GameArt(g.id, fallback: g.icon, size: 72, radius: 22),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(g.title, style: display(32)),
-                          Text(g.tagline, style: body(15, color: C.muted)),
-                        ],
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(24),
+                    gradient: LinearGradient(begin: Alignment.topRight, end: Alignment.bottomLeft, colors: [lighten(g.colors[0], 0.12), g.colors[0]]),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(24),
+                          border: Border.all(color: Colors.white, width: 3),
+                          boxShadow: const [BoxShadow(color: Color(0x33000000), offset: Offset(0, 4))],
+                        ),
+                        child: GameArt(g.id, fallback: g.icon, size: 78, radius: 21),
                       ),
-                    ),
-                  ],
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(g.title, style: display(32, shadows: const [Shadow(color: Color(0x33000000), offset: Offset(0, 3))])),
+                            Text(g.tagline, style: body(14, weight: FontWeight.w800, color: alpha(Colors.white, 0.92))),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
                 const SizedBox(height: 14),
                 Container(
                   padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(color: alpha(Colors.white, 0.04), borderRadius: BorderRadius.circular(18)),
+                  decoration: BoxDecoration(color: L.sky, borderRadius: BorderRadius.circular(18)),
                   child: AnimatedSwitcher(
                     duration: const Duration(milliseconds: 200),
                     child: Text(
                       _crazy ? g.crazyHowTo! : g.howTo,
                       key: ValueKey(_crazy),
-                      style: body(15.5, color: alpha(Colors.white, 0.85)),
+                      style: body(15.5, weight: FontWeight.w700, color: L.ink),
                     ),
                   ),
                 ),
@@ -490,7 +504,7 @@ class _GameSheetState extends State<_GameSheet> {
                     icon: Icons.phone_android_rounded,
                     title: 'على هذا الجهاز',
                     subtitle: g.play != null ? 'وحدك ضد الكمبيوتر أو مع من حولك' : 'الجميع يلعبون على هذا الهاتف معًا',
-                    color: g.colors[0],
+                    color: const Color(0xFF2E9BF0),
                     primary: true,
                     onTap: _here,
                   ),
@@ -501,14 +515,14 @@ class _GameSheetState extends State<_GameSheet> {
                     icon: Icons.people_rounded,
                     title: 'مع أصدقائي',
                     subtitle: g.local ? 'كل شخص على هاتفه، وأرسل إليهم الدعوة' : 'كل شخص على هاتفه (${g.playersLabel})',
-                    color: const Color(0xFF16B46A),
+                    color: const Color(0xFF3DB56E),
                     primary: !g.local,
                     onTap: _friends,
                   ),
                 ],
                 if (!g.local && !canFriends) ...[
                   const SizedBox(height: 18),
-                  Text('تحتاج هذه اللعبة إلى أن يلعب كل شخص على هاتفه.', textAlign: TextAlign.center, style: body(14, color: C.muted)),
+                  Text('تحتاج هذه اللعبة إلى أن يلعب كل شخص على هاتفه.', textAlign: TextAlign.center, style: body(14, weight: FontWeight.w800, color: L.muted)),
                 ],
                 if (canOthers) ...[
                   const SizedBox(height: 10),
@@ -516,7 +530,7 @@ class _GameSheetState extends State<_GameSheet> {
                     icon: Icons.public_rounded,
                     title: 'مع لاعبين آخرين',
                     subtitle: 'العب مع أشخاص آخرين عبر الإنترنت',
-                    color: const Color(0xFF3D8BFF),
+                    color: const Color(0xFF9B5DE5),
                     onTap: _others,
                   ),
                 ],
@@ -547,37 +561,32 @@ class _Choice extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Pressable(
+    return Chunky(
+      color: color,
       onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        decoration: BoxDecoration(
-          gradient: primary ? LinearGradient(colors: [lighten(color, 0.08), darken(color, 0.15)]) : null,
-          color: primary ? null : alpha(color, 0.14),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: alpha(primary ? Colors.white : color, primary ? 0.25 : 0.6)),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 46,
-              height: 46,
-              decoration: BoxDecoration(color: alpha(Colors.white, primary ? 0.2 : 0.08), shape: BoxShape.circle),
-              child: Icon(icon, color: Colors.white, size: 24),
+      radius: 22,
+      edge: 5,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      child: Row(
+        children: [
+          Container(
+            width: 50,
+            height: 50,
+            decoration: BoxDecoration(color: alpha(Colors.white, 0.22), borderRadius: BorderRadius.circular(16)),
+            child: Icon(icon, color: Colors.white, size: 27),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: display(23)),
+                Text(subtitle, style: body(12.5, weight: FontWeight.w800, color: alpha(Colors.white, 0.92))),
+              ],
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(title, style: body(18, weight: FontWeight.w800)),
-                  Text(subtitle, style: body(13, color: alpha(Colors.white, 0.8))),
-                ],
-              ),
-            ),
-            const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white70, size: 16),
-          ],
-        ),
+          ),
+          const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white70, size: 16),
+        ],
       ),
     );
   }
@@ -596,15 +605,15 @@ class _ModeTile extends StatelessWidget {
       height: 48,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(16),
-        color: selected ? alpha(color, 0.22) : alpha(Colors.white, 0.04),
-        border: Border.all(color: selected ? alpha(color, 0.8) : C.line),
+        color: selected ? alpha(color, 0.2) : L.sky,
+        border: Border.all(color: selected ? color : L.sky2, width: 2),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(icon, size: 20, color: Colors.white),
+          Icon(icon, size: 20, color: L.ink),
           const SizedBox(width: 8),
-          Text(label, style: body(15, weight: FontWeight.w700)),
+          Text(label, style: body(15, weight: FontWeight.w800, color: L.ink)),
         ],
       ),
     );
