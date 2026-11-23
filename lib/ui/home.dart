@@ -13,6 +13,7 @@ import '../net/room.dart';
 import 'background.dart';
 import 'flow.dart';
 import 'icons.dart';
+import 'install_banner.dart';
 import 'invite.dart';
 import 'kit.dart';
 import 'profile_ui.dart';
@@ -129,6 +130,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                     SliverToBoxAdapter(child: _header()),
                     const SliverToBoxAdapter(child: UpdateBanner()),
                     const SliverToBoxAdapter(child: GetAppBanner()),
+                    const SliverToBoxAdapter(child: InstallBanner()),
                     SliverToBoxAdapter(child: _duo()),
                     SliverToBoxAdapter(child: _live()),
                     SliverToBoxAdapter(

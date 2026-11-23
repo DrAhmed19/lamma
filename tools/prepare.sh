@@ -26,6 +26,10 @@ grep -n "useLegacyPackaging" "$G"
 
 M=android/app/src/main/AndroidManifest.xml
 sed -i 's/android:label="[^"]*"/android:label="لمّة"/' "$M"
+# singleTask: «افتح» من شاشة التثبيت (بعد التحديث من داخل التطبيق) يرجع لنفس المهمة بدل نافذة ثانية بالتطبيقات الأخيرة
+sed -i 's/android:launchMode="[^"]*"/android:launchMode="singleTask"/' "$M"
+grep -q 'launchMode' "$M" || sed -i 's/android:name=".MainActivity"/android:name=".MainActivity"\n            android:launchMode="singleTask"/' "$M"
+grep -n "launchMode" "$M"
 grep -q 'screenOrientation' "$M" || sed -i 's/android:name=".MainActivity"/android:name=".MainActivity"\n            android:screenOrientation="portrait"/' "$M"
 # الإنترنت (للأونلاين). Flutter يحطه بس بنسخة التطوير، فلازم نضيفه للنسخة الأصلية.
 grep -q 'android.permission.INTERNET' "$M" || sed -i 's|<application|<uses-permission android:name="android.permission.INTERNET"/>\n    <application|' "$M"
@@ -65,8 +69,12 @@ done
 mkdir -p web/icons
 convert "$ICON" -resize 192x192 web/icons/Icon-192.png
 convert "$ICON" -resize 512x512 web/icons/Icon-512.png
-cp web/icons/Icon-192.png web/icons/Icon-maskable-192.png
-cp web/icons/Icon-512.png web/icons/Icon-maskable-512.png
+# maskable: الأيقونة بالمنطقة الآمنة (80%) فوق لون حافتها، حتى ما تنقص بالدوائر
+BG=$(convert "$ICON" -format '%[pixel:p{4,4}]' info:)
+for s in 192 512; do
+  i=$((s * 80 / 100))
+  convert -size ${s}x${s} "xc:$BG" \( "$ICON" -resize ${i}x${i} \) -gravity center -composite web/icons/Icon-maskable-$s.png
+done
 convert "$ICON" -resize 64x64 web/favicon.png
 convert "$ICON" -resize 180x180 web/icons/apple-touch-icon.png
 mkdir -p web/brand

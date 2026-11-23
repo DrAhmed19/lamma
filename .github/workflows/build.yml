@@ -77,7 +77,7 @@ jobs:
           cache: true
 
       - name: Prepare platforms
-        run: bash tools/prepare.sh
+        run: BUILD=${GITHUB_SHA::7} bash tools/prepare.sh
 
       - name: Analyze
         run: |
@@ -147,7 +147,7 @@ jobs:
           cp ci/debug.keystore ~/.android/debug.keystore
 
       - name: Prepare platforms
-        run: bash tools/prepare.sh
+        run: BUILD=${GITHUB_SHA::7} bash tools/prepare.sh
 
       # نسخة ويب داخل الـ APK: تلفون صاحب الغرفة المحلية يقدّمها للآيفون والمتصفحات بدون إنترنت
       # (بدون CDN حتى كل ملفاتها تكون داخلها)

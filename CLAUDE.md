@@ -8,6 +8,8 @@
   - رقم النسخة: `appVersion` بـ `lib/core/version.dart` + أول 7 حروف من الـ commit (`--dart-define=BUILD`)، ويطلع أسفل الشاشة الرئيسية.
   - حجم الـ APK: بس arm و arm64 (`--target-platform`)، ومكتبات المحرك مضغوطة (`useLegacyPackaging` بـ prepare.sh). نسخة الويب المحلية `web.zip` بنسخة canvaskit وحدة (`canvasKitVariant: "full"`) وبدون الأصوات والخطوط: `lan_io.dart` يقدّم `assets/assets/*` من ملفات التطبيق.
   - مفتاح التوقيع الثابت `ci/debug.keystore` (حتى التحديث ينزل فوق القديم).
+  - أندرويد `launchMode="singleTask"` (`prepare.sh`): بعد التحديث من داخل التطبيق «افتح» يرجع لنفس المهمة بدل نافذة ثانية بالتطبيقات الأخيرة.
+  - الويب كتطبيق (PWA، `patch_web.py`): `manifest.webmanifest` بألوان الهوية الجديدة (`#E7F2FC`) وأيقونة الـAPK (maskable بمنطقة آمنة)، و`tools/web/sw.js` «الشبكة أولاً» (النسخة الجديدة تطلع بكل رفعة، والكاش احتياط بدون نت؛ اسم الكاش برقم البناء `BUILD`). `window.lammaPwa` يلتقط `beforeinstallprompt`، والواجهة `lib/ui/install_banner.dart` (زر «ثبّت» لكروم وأشباهه، وتعليمات لمرة وحدة للآيفون/فايرفوكس، ويختفي بـstandalone والغرفة المحلية).
 - الكود:
   - `lib/core/loop.dart` حلقة الإطارات + الإيقاف المؤقت لكل لعبة.
   - `lib/ui/kit.dart` العد التنازلي، شاشة النتيجة، قائمة الإيقاف، الأزرار.
