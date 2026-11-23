@@ -134,7 +134,11 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                     SliverToBoxAdapter(
                       child: Padding(
                         padding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
-                        child: Text('كل الألعاب', style: display(23, color: L.ink)),
+                        child: Row(children: [
+                          Text('كل الألعاب', style: display(23, color: L.ink)),
+                          const Spacer(),
+                          Text('${games.length} لعبة', style: body(13, weight: FontWeight.w800, color: L.muted)),
+                        ]),
                       ),
                     ),
                     SliverPadding(
@@ -294,8 +298,9 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   /// بطاقتان كبيرتان: الانضمام إلى صديق، وادعُ صديق (واتساب)
   Widget _duo() {
     final canJoin = onlineAvailable || lanHostSupported;
-    final canInvite = lanOrigin == null;
-    if (!canJoin && !canInvite) return const SizedBox.shrink();
+    // «سوّي غرفة» (مثل النموذج): غرفة أصدقاء، واللعبة تنختار بالغرفة
+    final canRoom = lanOrigin == null && (onlineAvailable || lanHostSupported);
+    if (!canJoin && !canRoom) return const SizedBox.shrink();
     Widget tile(Color c, IconData icon, String title, String sub, VoidCallback tap) => Expanded(
           child: Chunky(
             color: c,
@@ -326,13 +331,16 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (canJoin) tile(const Color(0xFF3DB56E), Icons.group_add_rounded, 'الانضمام إلى صديق', 'هل أرسل لك صديقك رمزًا؟', () => showJoinSheet(context)),
-          if (canJoin && canInvite) const SizedBox(width: 10),
-          if (canInvite) tile(kWhatsApp, Icons.chat_rounded, 'ادعُ صديقًا', 'أرسل رابط لمّة بواتساب', () => sendWhatsApp(appInviteText)),
+          if (canJoin && canRoom) const SizedBox(width: 10),
+          if (canRoom) tile(const Color(0xFF3D7EE6), Icons.add_home_rounded, 'سوّي غرفة', 'وادعُ أصدقاءك بالواتساب', () => createFriendsRoom(context)),
         ],
       ),
     );
   }
 }
+
+/// الألعاب الجديدة (شريط «جديد» على أيقونتها بالرئيسية)
+const kNewGames = {'domino', 'spy'};
 
 class _GameCard extends StatelessWidget {
   const _GameCard({required this.game, required this.index, required this.onTap});
@@ -371,7 +379,27 @@ class _GameCard extends StatelessWidget {
                           const BoxShadow(color: Color(0x1E1E325A), blurRadius: 18, offset: Offset(0, 12))
                         ],
                       ),
-                      child: GameArt(game.id, fallback: game.icon, radius: 28),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(28),
+                        child: Stack(children: [
+                          Positioned.fill(child: GameArt(game.id, fallback: game.icon, radius: 28)),
+                          // شريط «جديد» بالزاوية (مثل النموذج)
+                          if (kNewGames.contains(game.id))
+                            Positioned(
+                              top: 14,
+                              left: -34,
+                              child: Transform.rotate(
+                                angle: -0.72,
+                                child: Container(
+                                  width: 120,
+                                  padding: const EdgeInsets.symmetric(vertical: 2),
+                                  color: const Color(0xFFFFB928),
+                                  child: Text('جديد', textAlign: TextAlign.center, style: display(13, shadows: const [Shadow(color: Color(0x40000000), offset: Offset(0, 1))])),
+                                ),
+                              ),
+                            ),
+                        ]),
+                      ),
                     ),
                   ),
                   ),

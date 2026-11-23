@@ -9,8 +9,16 @@ import 'theme.dart';
 const kLevelNames = ['سهل', 'متوسط', 'صعب'];
 const kLevelColors = [Color(0xFF2BD47A), Color(0xFFFFC53D), Color(0xFFFF4D5E)];
 
-/// شاشة البداية "على هذا الجهاز" للألعاب اللي بيها مستويات وكمبيوتر:
-/// المستوى (شريط ووجه الكمبيوتر يتغير)، و"منو يلعب؟" (+ شخص / + كمبيوتر)، و"العب"، و"؟".
+/// خيار جاهز بـ«شلون تلعبون؟»: عنوان، سطر توضيح، والمقاعد (true = كمبيوتر)
+class _Opt {
+  const _Opt(this.title, this.sub, this.bots);
+  final String title, sub;
+  final List<bool> bots;
+}
+
+/// شاشة البداية «على هذا الجهاز» للألعاب اللي بيها مستويات وكمبيوتر، حسب النموذج:
+/// سؤال واحد بكل شاشة: «كم شخص على هذا الهاتف؟» ← «ضد منو تلعب؟ / شلون تلعبون؟» (خيارات جاهزة)
+/// ← المستوى (وجه الكمبيوتر والشريط) و«العب». إذا الجواب واحد، الخطوة تنعبر وحدها.
 class SetupScreen extends StatefulWidget {
   const SetupScreen({super.key, required this.game});
   final GameInfo game;
@@ -20,40 +28,85 @@ class SetupScreen extends StatefulWidget {
 }
 
 class _SetupState extends State<SetupScreen> {
-  /// آخر اختيار لكل لعبة (طول ما التطبيق مفتوح)
-  static final Map<String, (int, List<bool>)> _memory = {};
+  /// آخر مستوى لكل لعبة (طول ما التطبيق مفتوح)
+  static final Map<String, int> _memory = {};
 
   late int level;
 
+  /// 0 = كم شخص، 1 = شلون تلعبون، 2 = المستوى
+  int step = 0;
+  int humans = 1;
+  List<_Opt> opts = const [];
+
   /// المقاعد: true = كمبيوتر
-  late List<bool> bots;
+  List<bool> bots = const [false, true];
 
   GameInfo get g => widget.game;
 
   @override
   void initState() {
     super.initState();
-    final m = _memory[g.id];
-    level = m?.$1 ?? 1;
-    bots = List.of(m?.$2 ?? [false, true]);
+    level = _memory[g.id] ?? 1;
   }
 
-  int get n => bots.length;
-  bool get teams => g.teamsAt.contains(n);
-  bool get valid => g.fits(n) && bots.contains(false);
+  int get maxHumans => g.maxPlayers < 4 ? g.maxPlayers : 4;
+  bool get fourTeams => g.teamsAt.contains(4) && g.fits(4);
 
-  String seatName(int i) {
-    if (bots[i]) {
-      final k = bots.where((b) => b).length;
-      return k == 1 ? 'الكمبيوتر' : 'كمبيوتر ${bots.sublist(0, i + 1).where((b) => b).length}';
+  /// الخيارات الجاهزة حسب عدد الأشخاص (مثل النموذج)
+  List<_Opt> _options(int h) {
+    final o = <_Opt>[];
+    if (h == 1) {
+      if (g.fits(2)) o.add(const _Opt('ضد الكمبيوتر', 'وجهًا لوجه', [false, true]));
+      if (fourTeams) {
+        o.add(const _Opt('أنا وكمبيوتر ضد كمبيوترين', 'أربعة، فريقان', [false, true, true, true]));
+      } else if (g.maxPlayers > 2 && g.fits(g.maxPlayers)) {
+        o.add(_Opt('ضد كمبيوترات أكثر', 'حتى ${g.maxPlayers} لاعبين', [false, for (var i = 1; i < g.maxPlayers; i++) true]));
+      }
+    } else {
+      if (g.fits(h)) o.add(_Opt('بينكم فقط', h == 2 ? 'واحد ضد واحد' : '$h لاعبين', List.filled(h, false)));
+      if (h == 2 && fourTeams) {
+        // الفرق بالمقاعد: 0 و2 فريق، 1 و3 فريق
+        o.add(const _Opt('أنتما فريق', 'ضد كمبيوترين', [false, true, false, true]));
+        o.add(const _Opt('كل واحد معه كمبيوتر', 'اثنان ضد اثنين', [false, false, true, true]));
+      } else if (h == 3 && fourTeams) {
+        o.add(const _Opt('مع كمبيوتر واحد', 'أربعة، فريقان', [false, false, false, true]));
+      } else if (h < g.maxPlayers && g.fits(h + 1)) {
+        o.add(_Opt('نضيف كمبيوتر', '${h + 1} لاعبين', [...List.filled(h, false), true]));
+      }
     }
-    final humans = bots.where((b) => !b).length;
-    return humans == 1 ? 'أنت' : C.playerNames[i];
+    return o;
+  }
+
+  void _pickHumans(int h) {
+    final o = _options(h);
+    if (o.isEmpty) return;
+    setState(() {
+      humans = h;
+      opts = o;
+      if (o.length == 1) {
+        bots = o.first.bots;
+        step = 2;
+      } else {
+        step = 1;
+      }
+    });
+  }
+
+  void _pickOpt(_Opt o) => setState(() {
+        bots = o.bots;
+        step = 2;
+      });
+
+  void _back() {
+    if (step == 0) {
+      Navigator.pop(context);
+    } else {
+      setState(() => step = step == 2 && opts.length > 1 ? 1 : 0);
+    }
   }
 
   void _play() {
-    if (!valid) return;
-    _memory[g.id] = (level, List.of(bots));
+    _memory[g.id] = level;
     final nav = Navigator.of(context);
     nav.pushReplacement(PageRouteBuilder(
       transitionDuration: const Duration(milliseconds: 380),
@@ -95,7 +148,7 @@ class _SetupState extends State<SetupScreen> {
                     ),
                   ),
                 const SizedBox(height: 10),
-                BigButton(label: 'فهمت', onTap: () => Navigator.pop(ctx)),
+                ChunkyButton(label: 'فهمت', onTap: () => Navigator.pop(ctx)),
               ],
             ),
           ),
@@ -104,168 +157,287 @@ class _SetupState extends State<SetupScreen> {
     );
   }
 
+  String get _question => switch (step) {
+        0 => 'كم شخص على هذا الهاتف؟',
+        1 => humans == 1 ? 'ضد من تلعب؟' : 'كيف تلعبون؟',
+        _ => g.title,
+      };
+
   @override
   Widget build(BuildContext context) {
-    final col = kLevelColors[level];
-    return Scaffold(
-      backgroundColor: L.sky,
-      body: Stack(children: [
-        // عالم اللعبة: لون اللعبة من فوق وحافة منحنية
-        Positioned(
-          top: 0,
-          left: 0,
-          right: 0,
-          height: 290,
-          child: ClipRRect(
-            borderRadius: BorderRadius.vertical(bottom: Radius.elliptical(MediaQuery.sizeOf(context).width, 70)),
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(begin: Alignment.topRight, end: Alignment.bottomLeft, colors: [lighten(g.colors[0], 0.15), g.colors[0]]),
+    return PopScope(
+      canPop: step == 0,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _back();
+      },
+      child: Scaffold(
+        backgroundColor: L.sky,
+        body: Stack(children: [
+          // عالم اللعبة: لون اللعبة من فوق وحافة منحنية
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            height: 290,
+            child: ClipRRect(
+              borderRadius: BorderRadius.vertical(bottom: Radius.elliptical(MediaQuery.sizeOf(context).width, 70)),
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(begin: Alignment.topRight, end: Alignment.bottomLeft, colors: [lighten(g.colors[0], 0.15), g.colors[0]]),
+                ),
+                // نقشة: صورة اللعبة مكررة بشفافية ومايلة (مثل النموذج)
+                child: RepaintBoundary(child: GamePattern(id: g.id, fallback: g.icon)),
               ),
-              // نقشة: صورة اللعبة مكررة بشفافية ومايلة (مثل النموذج)
-              child: RepaintBoundary(child: GamePattern(id: g.id, fallback: g.icon)),
             ),
           ),
-        ),
-        SafeArea(
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 520),
-              child: Column(
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(10, 6, 10, 0),
-                    child: Row(
-                      children: [
-                        _round(Icons.arrow_forward_rounded, () => Navigator.pop(context)),
-                        Expanded(child: Text(g.title, textAlign: TextAlign.center, style: display(30, shadows: const [Shadow(color: Color(0x33000000), offset: Offset(0, 3))]))),
-                        _round(Icons.question_mark_rounded, _help),
-                      ],
-                    ),
-                  ),
-                  Expanded(
-                    child: SingleChildScrollView(
-                      padding: const EdgeInsets.fromLTRB(18, 6, 18, 12),
-                      child: Column(
+          SafeArea(
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 520),
+                child: Column(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(10, 6, 10, 0),
+                      child: Row(
                         children: [
-                          // وجه الكمبيوتر يتغير ويا المستوى
-                          TweenAnimationBuilder<double>(
-                            tween: Tween(end: level.toDouble()),
-                            duration: const Duration(milliseconds: 380),
-                            curve: Curves.easeOutBack,
-                            builder: (context, v, _) => Container(
-                              width: 150,
-                              height: 150,
-                              alignment: Alignment.center,
-                              decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle, boxShadow: [BoxShadow(color: L.sky2, offset: Offset(0, 7)), BoxShadow(color: Color(0x1F1E325A), blurRadius: 22, offset: Offset(0, 14))]),
-                              child: SizedBox(width: 118, height: 118, child: CustomPaint(painter: BotFace(v))),
+                          _round(Icons.arrow_forward_rounded, _back),
+                          Expanded(
+                            child: FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: Text(_question, textAlign: TextAlign.center, style: display(28, shadows: const [Shadow(color: Color(0x33000000), offset: Offset(0, 3))])),
                             ),
                           ),
-                          const SizedBox(height: 4),
-                          AnimatedSwitcher(
-                            duration: const Duration(milliseconds: 200),
-                            child: Text(kLevelNames[level], key: ValueKey(level), style: display(34, color: col)),
-                          ),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6),
-                            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(32), boxShadow: const [BoxShadow(color: L.sky2, offset: Offset(0, 4))]),
-                            child: SliderTheme(
-                            data: SliderTheme.of(context).copyWith(
-                              activeTrackColor: col,
-                              inactiveTrackColor: const Color(0xFFCBD5E2),
-                              thumbColor: col,
-                              overlayColor: alpha(col, 0.2),
-                              trackHeight: 8,
-                              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 14),
-                              activeTickMarkColor: Colors.transparent,
-                              inactiveTickMarkColor: Colors.transparent,
-                            ),
-                            child: Slider(
-                              value: level.toDouble(),
-                              min: 0,
-                              max: 2,
-                              divisions: 2,
-                              onChanged: (v) => setState(() => level = v.round()),
-                            ),
-                            ),
-                          ),
-                          Row(
-                            children: [
-                              for (var i = 0; i < 3; i++)
-                                Expanded(
-                                  child: GestureDetector(
-                                    onTap: () => setState(() => level = i),
-                                    child: Text(kLevelNames[i],
-                                        textAlign: i == 0 ? TextAlign.start : (i == 1 ? TextAlign.center : TextAlign.end),
-                                        style: body(13, weight: FontWeight.w800, color: i == level ? darken(kLevelColors[i], 0.12) : L.muted)),
-                                  ),
-                                ),
-                            ],
-                          ),
-                          const SizedBox(height: 8),
-                          AnimatedSwitcher(
-                            duration: const Duration(milliseconds: 200),
-                            child: Container(
-                              key: ValueKey(level),
-                              width: double.infinity,
-                              padding: const EdgeInsets.all(12),
-                              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(18), boxShadow: const [BoxShadow(color: L.sky2, offset: Offset(0, 5))]),
-                              child: Text(g.levels![level], textAlign: TextAlign.center, style: body(14.5, weight: FontWeight.w800, color: L.ink)),
-                            ),
-                          ),
-                          const SizedBox(height: 18),
-                          Text('منو يلعب؟', style: display(26, color: L.ink)),
-                          const SizedBox(height: 8),
-                          _lineup(),
-                          const SizedBox(height: 10),
-                          Wrap(
-                            alignment: WrapAlignment.center,
-                            spacing: 10,
-                            runSpacing: 8,
-                            children: [
-                              if (n < g.maxPlayers) _addBtn('+ شخص', Icons.person_add_alt_1_rounded, false),
-                              if (n < g.maxPlayers) _addBtn('+ كمبيوتر', Icons.smart_toy_rounded, true),
-                            ],
-                          ),
-                          const SizedBox(height: 6),
-                          Text(
-                            !g.fits(n)
-                                ? 'تُلعب ${g.playersLabel}'
-                                : !bots.contains(false)
-                                    ? 'أضف شخصًا واحدًا على الأقل'
-                                    : 'اضغط على اللاعب لتبديله بين شخص وكمبيوتر',
-                            textAlign: TextAlign.center,
-                            style: body(13, weight: FontWeight.w800, color: g.fits(n) && bots.contains(false) ? L.muted : const Color(0xFFE5484D)),
-                          ),
+                          _round(Icons.question_mark_rounded, _help),
                         ],
                       ),
                     ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(18, 4, 18, 14),
-                    child: Opacity(
-                      opacity: valid ? 1 : 0.45,
-                      child: SizedBox(
-                        width: double.infinity,
-                        child: Chunky(
-                          color: col,
-                          onTap: _play,
-                          padding: const EdgeInsets.symmetric(vertical: 10),
-                          child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                            const Icon(Icons.play_arrow_rounded, color: Colors.white, size: 32),
-                            const SizedBox(width: 6),
-                            Text('العب', style: display(32, shadows: const [Shadow(color: Color(0x40000000), offset: Offset(0, 2))])),
-                          ]),
+                    const SizedBox(height: 8),
+                    // شريط الخطوات (3)
+                    Row(mainAxisSize: MainAxisSize.min, children: [
+                      for (var i = 0; i < 3; i++)
+                        AnimatedContainer(
+                          duration: const Duration(milliseconds: 250),
+                          width: 24,
+                          height: 7,
+                          margin: const EdgeInsets.symmetric(horizontal: 3),
+                          decoration: BoxDecoration(color: alpha(Colors.white, i <= step ? 1 : 0.45), borderRadius: BorderRadius.circular(4)),
+                        ),
+                    ]),
+                    Expanded(
+                      child: AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 250),
+                        child: KeyedSubtree(
+                          key: ValueKey('$step-$humans'),
+                          child: step == 0 ? _humansStep() : (step == 1 ? _optsStep() : _levelStep()),
                         ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
+        ]),
+      ),
+    );
+  }
+
+  /// الخطوة 1: أزرار كبيرة 1..4 بألوان المقاعد ويا أشخاص صغار
+  Widget _humansStep() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(18, 40, 18, 16),
+      child: Column(
+        children: [
+          GridView.count(
+            crossAxisCount: 2,
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            mainAxisSpacing: 14,
+            crossAxisSpacing: 14,
+            childAspectRatio: 1.15,
+            children: [
+              for (var h = 1; h <= maxHumans; h++)
+                if (_options(h).isNotEmpty)
+                  Chunky(
+                    color: C.players[h - 1],
+                    radius: 26,
+                    onTap: () => _pickHumans(h),
+                    padding: const EdgeInsets.all(8),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text('$h', style: display(54, shadows: const [Shadow(color: Color(0x33000000), offset: Offset(0, 3))])),
+                        Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                          for (var k = 0; k < h; k++) const Icon(Icons.person_rounded, color: Colors.white, size: 24),
+                        ]),
+                      ],
+                    ),
+                  ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Text('الكمبيوتر يكمّل الباقي إذا أردت', textAlign: TextAlign.center, style: body(14, weight: FontWeight.w800, color: L.muted)),
+        ],
+      ),
+    );
+  }
+
+  /// الخطوة 2: خيارات جاهزة عريضة ويا صور مصغّرة (أشخاص + كمبيوترات)
+  Widget _optsStep() {
+    const cols = [Color(0xFF3DB56E), Color(0xFF2E9BF0), Color(0xFF9B5DE5)];
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(18, 40, 18, 16),
+      child: Column(
+        children: [
+          for (var i = 0; i < opts.length; i++)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 14),
+              child: Chunky(
+                color: cols[i % cols.length],
+                onTap: () => _pickOpt(opts[i]),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Text(opts[i].title, style: display(22, shadows: const [Shadow(color: Color(0x33000000), offset: Offset(0, 2))])),
+                        Text(opts[i].sub, style: body(13, weight: FontWeight.w800, color: alpha(Colors.white, 0.92))),
+                      ]),
+                    ),
+                    const SizedBox(width: 8),
+                    _preview(opts[i].bots),
+                  ],
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  /// صور مصغّرة: الأشخاص بألوان مقاعدهم، و«+» والكمبيوترات
+  Widget _preview(List<bool> b) {
+    Widget dot(Color c, IconData i) => Container(
+          width: 30,
+          height: 30,
+          margin: const EdgeInsets.symmetric(horizontal: 1.5),
+          decoration: BoxDecoration(color: c, shape: BoxShape.circle, border: Border.all(color: alpha(Colors.white, 0.8), width: 2)),
+          child: Icon(i, size: 17, color: Colors.white),
+        );
+    final hs = [for (var i = 0; i < b.length; i++) if (!b[i]) dot(C.players[i], Icons.person_rounded)];
+    final bs = [for (var i = 0; i < b.length; i++) if (b[i]) dot(const Color(0xFF8FA0BD), Icons.smart_toy_rounded)];
+    return Row(mainAxisSize: MainAxisSize.min, children: [
+      ...hs,
+      if (bs.isNotEmpty) Padding(padding: const EdgeInsets.symmetric(horizontal: 3), child: Text('+', style: display(18))),
+      ...bs,
+    ]);
+  }
+
+  /// الخطوة 3: المستوى (وجه الكمبيوتر يتغير) و«العب»
+  Widget _levelStep() {
+    final col = kLevelColors[level];
+    return Column(
+      children: [
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(18, 10, 18, 12),
+            child: Column(
+              children: [
+                // وجه الكمبيوتر يتغير ويا المستوى
+                TweenAnimationBuilder<double>(
+                  tween: Tween(end: level.toDouble()),
+                  duration: const Duration(milliseconds: 380),
+                  curve: Curves.easeOutBack,
+                  builder: (context, v, _) => Container(
+                    width: 150,
+                    height: 150,
+                    alignment: Alignment.center,
+                    decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle, boxShadow: [BoxShadow(color: L.sky2, offset: Offset(0, 7)), BoxShadow(color: Color(0x1F1E325A), blurRadius: 22, offset: Offset(0, 14))]),
+                    child: SizedBox(width: 118, height: 118, child: CustomPaint(painter: BotFace(v))),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 200),
+                  child: Text(kLevelNames[level], key: ValueKey(level), style: display(34, color: col)),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6),
+                  decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(32), boxShadow: const [BoxShadow(color: L.sky2, offset: Offset(0, 4))]),
+                  child: SliderTheme(
+                    data: SliderTheme.of(context).copyWith(
+                      activeTrackColor: col,
+                      inactiveTrackColor: const Color(0xFFCBD5E2),
+                      thumbColor: col,
+                      overlayColor: alpha(col, 0.2),
+                      trackHeight: 8,
+                      thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 14),
+                      activeTickMarkColor: Colors.transparent,
+                      inactiveTickMarkColor: Colors.transparent,
+                    ),
+                    child: Slider(
+                      value: level.toDouble(),
+                      min: 0,
+                      max: 2,
+                      divisions: 2,
+                      onChanged: (v) => setState(() => level = v.round()),
+                    ),
+                  ),
+                ),
+                Row(
+                  children: [
+                    for (var i = 0; i < 3; i++)
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: () => setState(() => level = i),
+                          child: Text(kLevelNames[i],
+                              textAlign: i == 0 ? TextAlign.start : (i == 1 ? TextAlign.center : TextAlign.end),
+                              style: body(13, weight: FontWeight.w800, color: i == level ? darken(kLevelColors[i], 0.12) : L.muted)),
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                // مكان ثابت للوصف: تغيير المستوى ما يحرّك الأزرار
+                Container(
+                  width: double.infinity,
+                  constraints: const BoxConstraints(minHeight: 86),
+                  alignment: Alignment.center,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(18), boxShadow: const [BoxShadow(color: L.sky2, offset: Offset(0, 5))]),
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 200),
+                    child: Text(g.levels![level], key: ValueKey(level), textAlign: TextAlign.center, style: body(14.5, weight: FontWeight.w800, color: L.ink)),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                // تذكير بالتشكيلة المختارة
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(color: alpha(L.ink, 0.75), borderRadius: BorderRadius.circular(20)),
+                  child: _preview(bots),
+                ),
+              ],
+            ),
+          ),
         ),
-      ]),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(18, 4, 18, 14),
+          child: SizedBox(
+            width: double.infinity,
+            child: Chunky(
+              color: col,
+              onTap: _play,
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                const Icon(Icons.play_arrow_rounded, color: Colors.white, size: 32),
+                const SizedBox(width: 6),
+                Text('العب', style: display(32, shadows: const [Shadow(color: Color(0x40000000), offset: Offset(0, 2))])),
+              ]),
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -278,87 +450,6 @@ class _SetupState extends State<SetupScreen> {
           child: Icon(icon, color: L.ink, size: 24),
         ),
       );
-
-  Widget _addBtn(String label, IconData icon, bool bot) {
-    return Pressable(
-      onTap: () => setState(() => bots.add(bot)),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), boxShadow: const [BoxShadow(color: L.sky2, offset: Offset(0, 4))]),
-        child: Row(mainAxisSize: MainAxisSize.min, children: [
-          Icon(icon, size: 20, color: L.ink),
-          const SizedBox(width: 6),
-          Text(label, style: body(15, weight: FontWeight.w800, color: L.ink)),
-        ]),
-      ),
-    );
-  }
-
-  Widget _lineup() {
-    if (!teams) {
-      return Wrap(alignment: WrapAlignment.center, spacing: 8, runSpacing: 8, children: [for (var i = 0; i < n; i++) _seat(i)]);
-    }
-    // فريقين: المقاعد الزوجية فريق والفردية فريق (الشركاء متقابلين)
-    Widget team(int t) => Expanded(
-          child: Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(color: alpha(C.players[t], 0.14), borderRadius: BorderRadius.circular(18), border: Border.all(color: alpha(C.players[t], 0.6), width: 2)),
-            child: Column(children: [
-              Text('الفريق ${t + 1}', style: body(13, weight: FontWeight.w900, color: darken(C.players[t], 0.2))),
-              const SizedBox(height: 6),
-              for (var i = t; i < n; i += 2) Padding(padding: const EdgeInsets.only(bottom: 6), child: _seat(i, swap: true)),
-            ]),
-          ),
-        );
-    return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [team(0), const SizedBox(width: 8), team(1)]);
-  }
-
-  Widget _seat(int i, {bool swap = false}) {
-    final bot = bots[i];
-    final c = C.players[i % C.players.length];
-    final canRemove = n > 1;
-    return Pressable(
-      onTap: () => setState(() => bots[i] = !bots[i]),
-      child: Container(
-        width: swap ? double.infinity : 150,
-        padding: const EdgeInsets.fromLTRB(8, 8, 4, 8),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: c, width: 2),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 30,
-              height: 30,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(color: c, shape: BoxShape.circle),
-              child: Icon(bot ? Icons.smart_toy_rounded : Icons.person_rounded, size: 19, color: Colors.white),
-            ),
-            const SizedBox(width: 6),
-            Expanded(child: Text(seatName(i), maxLines: 1, overflow: TextOverflow.ellipsis, style: body(13, weight: FontWeight.w800, color: L.ink))),
-            if (swap)
-              GestureDetector(
-                onTap: () => setState(() {
-                  // ينقل للفريق الثاني: يتبادل ويا اللي بعده
-                  final j = (i + 1) % n;
-                  final x = bots[i];
-                  bots[i] = bots[j];
-                  bots[j] = x;
-                }),
-                child: const Padding(padding: EdgeInsets.all(4), child: Icon(Icons.swap_horiz_rounded, size: 20, color: L.muted)),
-              ),
-            if (canRemove)
-              GestureDetector(
-                onTap: () => setState(() => bots.removeAt(i)),
-                child: const Padding(padding: EdgeInsets.all(4), child: Icon(Icons.close_rounded, size: 18, color: L.muted)),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
 }
 
 /// وجه الكمبيوتر: [v] من 0 (سهل: مبتسم أخضر) لـ 2 (صعب: معصّب أحمر بقرون)

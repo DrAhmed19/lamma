@@ -85,7 +85,7 @@ void main() {
       await t.pumpWidget(const LammaApp());
       await t.pump(const Duration(seconds: 1));
       // أقسام الرئيسية: نفتح كل وحدة ونرجع
-      for (final label in ['الانضمام إلى صديق', 'ادعُ صديقًا', 'ملفي']) {
+      for (final label in ['الانضمام إلى صديق', 'سوّي غرفة', 'ملفي']) {
         final f = find.textContaining(label);
         if (f.evaluate().isEmpty) continue;
         await t.tap(f.first, warnIfMissed: false);
@@ -131,10 +131,20 @@ void main() {
         addTearDown(t.view.reset);
         await t.pumpWidget(app(SetupScreen(game: g)));
         await t.pump(const Duration(milliseconds: 600));
-        for (final label in ['+ كمبيوتر', '+ شخص', 'صعب', 'سهل']) {
+        // الخطوات: كم شخص ← شلون تلعبون ← المستوى (ونرجع ونجرب طريق ثاني)
+        Future<void> tapText(String label) async {
           final f = find.text(label);
           if (f.evaluate().isNotEmpty) await t.tap(f.first, warnIfMissed: false);
           await t.pump(const Duration(milliseconds: 400));
+        }
+
+        for (final label in ['2', 'كل واحد معه كمبيوتر', 'صعب', 'سهل']) {
+          await tapText(label);
+        }
+        await t.state<NavigatorState>(find.byType(Navigator).first).maybePop();
+        await t.pump(const Duration(milliseconds: 400));
+        for (final label in ['ضد الكمبيوتر', 'متوسط']) {
+          await tapText(label);
         }
         await poke(t, e.value, math.Random(7), 3);
       });
