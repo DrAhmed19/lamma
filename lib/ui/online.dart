@@ -26,13 +26,13 @@ import 'art.dart';
 import 'theme.dart';
 import '../net/wake_stub.dart' if (dart.library.js_interop) '../net/wake_web.dart';
 
-Widget _note(String text, {Color color = C.muted, IconData? icon}) {
+Widget _note(String text, {Color color = L.muted, IconData? icon}) {
   return Container(
     padding: const EdgeInsets.all(14),
     decoration: BoxDecoration(
-      color: alpha(color, 0.1),
+      color: Colors.white,
       borderRadius: BorderRadius.circular(16),
-      border: Border.all(color: alpha(color, 0.4)),
+      border: Border.all(color: alpha(color, 0.6), width: 2),
     ),
     child: Row(
       children: [
@@ -40,7 +40,7 @@ Widget _note(String text, {Color color = C.muted, IconData? icon}) {
           Icon(icon, color: color, size: 22),
           const SizedBox(width: 10),
         ],
-        Expanded(child: Text(text, style: body(15, color: Colors.white))),
+        Expanded(child: Text(text, style: body(15, weight: FontWeight.w700, color: L.ink))),
       ],
     ),
   );
@@ -117,11 +117,11 @@ class _LobbyScreenState extends State<LobbyScreen> {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: C.surface,
-        title: Text('إغلاق الغرفة؟', style: display(26)),
-        content: Text('الغرفة تعمل على هاتفك. إذا خرجت ستُغلق على الجميع.', style: body(15, color: C.muted)),
+        backgroundColor: Colors.white,
+        title: Text('إغلاق الغرفة؟', style: display(26, color: L.ink)),
+        content: Text('الغرفة تعمل على هاتفك. إذا خرجت ستُغلق على الجميع.', style: body(15, color: L.muted)),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text('البقاء', style: body(16, weight: FontWeight.w800))),
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text('البقاء', style: body(16, weight: FontWeight.w800, color: L.ink))),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
             child: Text('إغلاق', style: body(16, weight: FontWeight.w800, color: const Color(0xFFFF4D6A))),
@@ -149,8 +149,8 @@ class _LobbyScreenState extends State<LobbyScreen> {
       ..showSnackBar(SnackBar(
         behavior: SnackBarBehavior.floating,
         duration: const Duration(seconds: 3),
-        backgroundColor: C.surface2,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14), side: const BorderSide(color: C.line)),
+        backgroundColor: L.ink,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         content: Text(text, style: body(15, weight: FontWeight.w700, color: Colors.white)),
       ));
   }
@@ -162,18 +162,18 @@ class _LobbyScreenState extends State<LobbyScreen> {
       builder: (ctx) => Container(
         margin: const EdgeInsets.all(10),
         padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
-        decoration: BoxDecoration(color: C.surface, borderRadius: BorderRadius.circular(26), border: Border.all(color: C.line)),
+        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(26), boxShadow: const [BoxShadow(color: Color(0x331E325A), blurRadius: 30, offset: Offset(0, 10))]),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text('${p.avatar} ${p.name}', textAlign: TextAlign.center, style: display(28)),
+            Text('${p.avatar} ${p.name}', textAlign: TextAlign.center, style: display(28, color: L.ink)),
             const SizedBox(height: 14),
             if (p.on && !p.bot) ...[
-              BigButton(label: 'اجعله مدير الغرفة', icon: Icons.star_rounded, filled: false, onTap: () => Navigator.pop(ctx, 'host')),
+              ChunkyButton(label: 'اجعله مدير الغرفة', icon: Icons.star_rounded, filled: false, onTap: () => Navigator.pop(ctx, 'host')),
               const SizedBox(height: 10),
             ],
-            BigButton(
+            ChunkyButton(
               label: 'إخراجه من الغرفة',
               icon: Icons.block_rounded,
               color: const Color(0xFFFF4D6A),
@@ -270,7 +270,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
       child: Scaffold(
         body: Stack(
           children: [
-            const Positioned.fill(child: LammaBackground()),
+            const Positioned.fill(child: LightBackground()),
             SafeArea(
               child: ListenableBuilder(
                 listenable: room,
@@ -306,11 +306,11 @@ class _LobbyScreenState extends State<LobbyScreen> {
             _note(msg, color: const Color(0xFFFF4D6A), icon: Icons.error_outline_rounded),
             const SizedBox(height: 16),
             if (room.error == 'name') ...[
-              BigButton(label: 'تغيير الاسم', icon: Icons.edit_rounded, onTap: _renameAndRejoin),
+              ChunkyButton(label: 'تغيير الاسم', icon: Icons.edit_rounded, onTap: _renameAndRejoin),
               const SizedBox(height: 10),
             ],
             if (room.error == 'notfound' && !_local) ...[
-              BigButton(
+              ChunkyButton(
                 label: 'سوّي غرفة جديدة',
                 icon: Icons.add_rounded,
                 onTap: () {
@@ -321,7 +321,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
               ),
               const SizedBox(height: 10),
             ],
-            BigButton(
+            ChunkyButton(
               label: 'رجوع',
               filled: (room.error != 'notfound' || _local) && room.error != 'name',
               onTap: () => Navigator.of(context).pop(),
@@ -360,13 +360,13 @@ class _LobbyScreenState extends State<LobbyScreen> {
   Widget _topBar(GameInfo? chosen) {
     return Row(
       children: [
-        IconButton(onPressed: _leave, icon: const Icon(Icons.arrow_forward_rounded, color: Colors.white)),
+        IconButton(onPressed: _leave, icon: const Icon(Icons.arrow_forward_rounded, color: L.ink)),
         const SizedBox(width: 4),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(room.isPublic ? 'لعب مع الآخرين' : 'الغرفة', style: display(30)),
+              Text(room.isPublic ? 'لعب مع الآخرين' : 'الغرفة', style: display(30, color: L.ink)),
               if (room.status != RoomStatus.online)
                 Text(room.status == RoomStatus.connecting ? 'جارٍ الاتصال...' : 'انقطع الاتصال، جارٍ إعادة الاتصال...',
                     style: body(13, color: const Color(0xFFFFB627)))
@@ -410,14 +410,14 @@ class _LobbyScreenState extends State<LobbyScreen> {
           child: Container(
             margin: const EdgeInsets.all(10),
             padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
-            decoration: BoxDecoration(color: C.surface, borderRadius: BorderRadius.circular(26), border: Border.all(color: C.line)),
+            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(26), boxShadow: const [BoxShadow(color: Color(0x331E325A), blurRadius: 30, offset: Offset(0, 10))]),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text('${p.avatar} ${p.name}', textAlign: TextAlign.center, style: display(28)),
+                Text('${p.avatar} ${p.name}', textAlign: TextAlign.center, style: display(28, color: L.ink)),
                 const SizedBox(height: 10),
-                Text('إبلاغ عن هذا اللاعب', style: body(14, weight: FontWeight.w800, color: C.muted)),
+                Text('إبلاغ عن هذا اللاعب', style: body(14, weight: FontWeight.w800, color: L.muted)),
                 const SizedBox(height: 6),
                 Wrap(
                   spacing: 8,
@@ -429,16 +429,16 @@ class _LobbyScreenState extends State<LobbyScreen> {
                         child: Container(
                           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                           decoration: BoxDecoration(
-                            color: alpha(Colors.white, 0.05),
+                            color: Colors.white,
                             borderRadius: BorderRadius.circular(14),
-                            border: Border.all(color: C.line),
+                            border: Border.all(color: L.sky2, width: 2),
                           ),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               Icon(icon, size: 18, color: const Color(0xFFFF8A8A)),
                               const SizedBox(width: 6),
-                              Text(label, style: body(14, weight: FontWeight.w700)),
+                              Text(label, style: body(14, weight: FontWeight.w700, color: L.ink)),
                             ],
                           ),
                         ),
@@ -446,7 +446,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
                   ],
                 ),
                 const SizedBox(height: 14),
-                BigButton(
+                ChunkyButton(
                   label: blocked ? 'إلغاء الحظر' : 'حظر (لن تُجمع معه مرة أخرى)',
                   icon: Icons.block_rounded,
                   color: const Color(0xFFFF4D6A),
@@ -493,8 +493,8 @@ class _LobbyScreenState extends State<LobbyScreen> {
       ..hideCurrentSnackBar()
       ..showSnackBar(SnackBar(
         behavior: SnackBarBehavior.floating,
-        backgroundColor: C.surface2,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14), side: const BorderSide(color: C.line)),
+        backgroundColor: L.ink,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         content: Text(text, style: body(15, weight: FontWeight.w700, color: Colors.white)),
       ));
   }
@@ -520,14 +520,14 @@ class _LobbyScreenState extends State<LobbyScreen> {
     showDialog<void>(
       context: context,
       builder: (ctx) => Dialog(
-        backgroundColor: C.surface,
+        backgroundColor: Colors.white,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
         child: Padding(
           padding: const EdgeInsets.all(20),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(room.code, style: display(40, color: Colors.white).copyWith(letterSpacing: 8)),
+              Text(room.code, style: display(40, color: L.ink).copyWith(letterSpacing: 8)),
               const SizedBox(height: 12),
               Container(
                 padding: const EdgeInsets.all(12),
@@ -538,7 +538,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
               Text(
                 room.isLan ? 'امسح الرمز بكاميرا الهاتف (يجب أن تكونوا على شبكة Wi‑Fi نفسها)' : 'امسح الرمز بكاميرا الهاتف',
                 textAlign: TextAlign.center,
-                style: body(14, color: C.muted),
+                style: body(14, color: L.muted),
               ),
             ],
           ),
@@ -552,8 +552,8 @@ class _LobbyScreenState extends State<LobbyScreen> {
         child: Container(
           width: 52,
           height: 52,
-          decoration: BoxDecoration(color: alpha(Colors.white, 0.06), borderRadius: BorderRadius.circular(16), border: Border.all(color: C.line)),
-          child: Icon(icon, color: Colors.white),
+          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: L.sky2, width: 2)),
+          child: Icon(icon, color: L.ink),
         ),
       );
 
@@ -561,7 +561,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
   Widget _inviteCard() {
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
-      decoration: BoxDecoration(color: C.surface, borderRadius: BorderRadius.circular(22), border: Border.all(color: C.line)),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(22), boxShadow: const [BoxShadow(color: Color(0x331E325A), blurRadius: 30, offset: Offset(0, 10))]),
       child: Column(
         children: [
           Row(
@@ -570,8 +570,8 @@ class _LobbyScreenState extends State<LobbyScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('رمز الغرفة', style: body(13, color: C.muted)),
-                    Text(room.code, style: display(40, color: Colors.white).copyWith(letterSpacing: 8, height: 1.1)),
+                    Text('رمز الغرفة', style: body(13, color: L.muted)),
+                    Text(room.code, style: display(40, color: L.ink).copyWith(letterSpacing: 8, height: 1.1)),
                   ],
                 ),
               ),
@@ -590,10 +590,10 @@ class _LobbyScreenState extends State<LobbyScreen> {
               ],
             )
           else
-            BigButton(label: 'إرسال الدعوة', icon: Icons.share_rounded, filled: true, onTap: _share),
+            ChunkyButton(label: 'إرسال الدعوة', icon: Icons.share_rounded, filled: true, onTap: _share),
           if (widget.lanHost != null) ...[
             const SizedBox(height: 8),
-            Text('على شبكة Wi‑Fi نفسها · أبقِ التطبيق مفتوحًا طوال اللعب', textAlign: TextAlign.center, style: body(12, color: const Color(0xFFFFB627))),
+            Text('على شبكة Wi‑Fi نفسها · أبقِ التطبيق مفتوحًا طوال اللعب', textAlign: TextAlign.center, style: body(12, weight: FontWeight.w800, color: const Color(0xFFD9822B))),
           ],
         ],
       ),
@@ -606,7 +606,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text('اللاعبون (${room.players.length})', style: body(15, weight: FontWeight.w800, color: C.muted)),
+        Text('اللاعبون (${room.players.length})', style: body(15, weight: FontWeight.w800, color: L.muted)),
         const SizedBox(height: 8),
         for (final p in room.players) _seat(p),
         if (_canAddBot)
@@ -618,13 +618,13 @@ class _LobbyScreenState extends State<LobbyScreen> {
                 padding: const EdgeInsets.symmetric(vertical: 12),
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(18),
-                  border: Border.all(color: alpha(Colors.white, 0.25)),
-                  color: alpha(Colors.white, 0.04),
+                  border: Border.all(color: L.sky2, width: 2),
+                  color: Colors.white,
                 ),
                 child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                  const Icon(Icons.smart_toy_rounded, size: 20, color: Colors.white),
+                  const Icon(Icons.smart_toy_rounded, size: 20, color: L.ink),
                   const SizedBox(width: 8),
-                  Text('+ كمبيوتر', style: body(16, weight: FontWeight.w800)),
+                  Text('+ كمبيوتر', style: body(16, weight: FontWeight.w800, color: L.ink)),
                 ]),
               ),
             ),
@@ -636,7 +636,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
               children: [
                 const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
                 const SizedBox(width: 10),
-                Text(room.isPublic ? 'جارٍ البحث عن لاعبين...' : 'بانتظار انضمام أصدقائك...', style: body(14, color: C.muted)),
+                Text(room.isPublic ? 'جارٍ البحث عن لاعبين...' : 'بانتظار انضمام أصدقائك...', style: body(14, color: L.muted)),
               ],
             ),
           ),
@@ -684,7 +684,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
             Expanded(
               child: Text(
                 '${p.name}${p.seat == room.mySeat ? ' (أنت)' : ''}',
-                style: body(17, weight: FontWeight.w800),
+                style: body(17, weight: FontWeight.w800, color: L.ink),
               ),
             ),
             if (p.seat == room.host && !room.isPublic) ...[
@@ -700,7 +700,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
               const SizedBox(width: 6),
               const Icon(Icons.block_rounded, color: Color(0xFFFF8A8A), size: 18),
             ],
-            if (canManage || canReport) const Icon(Icons.more_vert_rounded, color: C.muted, size: 20),
+            if (canManage || canReport) const Icon(Icons.more_vert_rounded, color: L.muted, size: 20),
           ],
         ),
       ),
@@ -723,7 +723,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(t.done ? '🏆 انتهت البطولة' : '🏆 البطولة: اللعبة ${t.idx + 1} من ${t.games.length}',
-              style: body(17, weight: FontWeight.w800)),
+              style: body(17, weight: FontWeight.w800, color: L.ink)),
           if (champion >= 0) ...[
             const SizedBox(height: 4),
             Text('البطل: ${room.avatarOfSeat(champion)} ${room.nameOfSeat(champion)}', style: display(26, color: const Color(0xFFFFD34D))),
@@ -734,15 +734,15 @@ class _LobbyScreenState extends State<LobbyScreen> {
               padding: const EdgeInsets.only(bottom: 4),
               child: Row(
                 children: [
-                  SizedBox(width: 26, child: Text('${i + 1}', style: display(20, color: C.muted))),
+                  SizedBox(width: 26, child: Text('${i + 1}', style: display(20, color: L.muted))),
                   Avatar(room.avatarOfSeat(ranking[i].key), size: 24),
                   const SizedBox(width: 6),
-                  Expanded(child: Text(room.nameOfSeat(ranking[i].key), style: body(15, weight: FontWeight.w700))),
+                  Expanded(child: Text(room.nameOfSeat(ranking[i].key), style: body(15, weight: FontWeight.w700, color: L.ink))),
                   Text('${ranking[i].value} نقطة', style: body(15, weight: FontWeight.w800, color: const Color(0xFFFFD34D))),
                 ],
               ),
             ),
-          if (ranking.isEmpty) Text('الفوز بأي لعبة = 3 نقاط، والتعادل = نقطة للجميع.', style: body(13, color: C.muted)),
+          if (ranking.isEmpty) Text('الفوز بأي لعبة = 3 نقاط، والتعادل = نقطة للجميع.', style: body(13, color: L.muted)),
           if (t.done && ranking.isNotEmpty) ShareResultButton(data: () => tourCard(room, t)),
         ],
       ),
@@ -755,9 +755,9 @@ class _LobbyScreenState extends State<LobbyScreen> {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        gradient: LinearGradient(colors: [alpha(g.colors[0], 0.5), alpha(g.colors[1], 0.5)]),
+        gradient: LinearGradient(begin: Alignment.topRight, end: Alignment.bottomLeft, colors: [lighten(g.colors[0], 0.12), g.colors[0]]),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: alpha(Colors.white, 0.18)),
+        boxShadow: [BoxShadow(color: darken(g.colors[0], 0.3), offset: const Offset(0, 5))],
       ),
       child: Row(
         children: [
@@ -767,12 +767,12 @@ class _LobbyScreenState extends State<LobbyScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(g.title, style: display(26)),
+                Text(g.title, style: display(26, shadows: const [Shadow(color: Color(0x33000000), offset: Offset(0, 2))])),
                 Text(
                     g.levels != null
                         ? 'المستوى: ${kLevelNames[room.level.clamp(0, 2)]}'
                         : (room.crazy && g.crazyHowTo != null ? (g.modeLabels?[1] ?? 'الوضع المجنون') : g.tagline),
-                    style: body(13, color: alpha(Colors.white, 0.8))),
+                    style: body(13, weight: FontWeight.w800, color: alpha(Colors.white, 0.92))),
               ],
             ),
           ),
@@ -797,14 +797,14 @@ class _LobbyScreenState extends State<LobbyScreen> {
           children: [
             _note('توجد مباراة جارية الآن. يمكنك مشاهدتها، وستشارك في الجولة القادمة.', icon: Icons.visibility_rounded),
             const SizedBox(height: 12),
-            BigButton(label: 'مشاهدة المباراة', icon: Icons.visibility_rounded, filled: false, onTap: _openGame),
+            ChunkyButton(label: 'مشاهدة المباراة', icon: Icons.visibility_rounded, filled: false, onTap: _openGame),
           ],
         );
       }
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          BigButton(
+          ChunkyButton(
             label: room.playing ? 'العودة إلى اللعبة' : 'مشاهدة اللعبة',
             icon: Icons.sports_esports_rounded,
             color: chosen?.colors.first ?? C.accent,
@@ -812,7 +812,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
           ),
           if (room.isHost && !room.isPublic) ...[
             const SizedBox(height: 10),
-            BigButton(label: 'إعادة الجميع إلى الغرفة', icon: Icons.meeting_room_rounded, filled: false, onTap: room.toLobby),
+            ChunkyButton(label: 'إعادة الجميع إلى الغرفة', icon: Icons.meeting_room_rounded, filled: false, onTap: room.toLobby),
           ],
         ],
       );
@@ -830,7 +830,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
           const SizedBox(height: 12),
           if (others.isNotEmpty) _opponentCard(others, left) else _note('جارٍ البحث عن خصم...', icon: Icons.search_rounded),
           const SizedBox(height: 12),
-          BigButton(label: 'خروج', icon: Icons.close_rounded, filled: false, onTap: () => Navigator.of(context).pop()),
+          ChunkyButton(label: 'خروج', icon: Icons.close_rounded, filled: false, onTap: () => Navigator.of(context).pop()),
         ],
       );
     }
@@ -867,7 +867,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
             ],
           ),
           const SizedBox(height: 6),
-          Text(chosen!.levels![room.level.clamp(0, 2)], textAlign: TextAlign.center, style: body(13, color: C.muted)),
+          Text(chosen!.levels![room.level.clamp(0, 2)], textAlign: TextAlign.center, style: body(13, color: L.muted)),
         ] else if (chosen?.crazyHowTo != null) ...[
           const SizedBox(height: 10),
           Row(
@@ -881,7 +881,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
         const SizedBox(height: 14),
         Opacity(
           opacity: canStart ? 1 : 0.5,
-          child: BigButton(
+          child: ChunkyButton(
             label: canStart ? 'ابدأ اللعب' : _needText(chosen, onCount),
             icon: Icons.play_arrow_rounded,
             color: chosen?.colors.first ?? C.accent,
@@ -890,7 +890,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
         ),
         if (onCount >= 2) ...[
           const SizedBox(height: 10),
-          BigButton(label: 'بطولة (عدة ألعاب)', icon: Icons.emoji_events_rounded, filled: false, onTap: () => _pickTour(onCount)),
+          ChunkyButton(label: 'بطولة (عدة ألعاب)', icon: Icons.emoji_events_rounded, filled: false, onTap: () => _pickTour(onCount)),
         ],
         const SizedBox(height: 12),
         _capRow(),
@@ -910,8 +910,8 @@ class _LobbyScreenState extends State<LobbyScreen> {
           child: Container(
             width: 40,
             height: 40,
-            decoration: BoxDecoration(color: alpha(Colors.white, 0.06), shape: BoxShape.circle, border: Border.all(color: C.line)),
-            child: Icon(icon, color: Colors.white, size: 20),
+            decoration: BoxDecoration(color: Colors.white, shape: BoxShape.circle, border: Border.all(color: L.sky2, width: 2)),
+            child: Icon(icon, color: L.ink, size: 20),
           ),
         ),
       );
@@ -919,14 +919,14 @@ class _LobbyScreenState extends State<LobbyScreen> {
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-      decoration: BoxDecoration(color: alpha(Colors.white, 0.04), borderRadius: BorderRadius.circular(18), border: Border.all(color: C.line)),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(18), border: Border.all(color: L.sky2, width: 2)),
       child: Row(
         children: [
-          const Icon(Icons.groups_rounded, color: C.muted, size: 22),
+          const Icon(Icons.groups_rounded, color: L.muted, size: 22),
           const SizedBox(width: 10),
-          Expanded(child: Text('أقصى عدد للاعبين', style: body(15, weight: FontWeight.w700))),
+          Expanded(child: Text('أقصى عدد للاعبين', style: body(15, weight: FontWeight.w700, color: L.ink))),
           btn(Icons.remove_rounded, room.cap - 1),
-          SizedBox(width: 44, child: Text('${room.cap}', textAlign: TextAlign.center, style: display(26))),
+          SizedBox(width: 44, child: Text('${room.cap}', textAlign: TextAlign.center, style: display(26, color: L.ink))),
           btn(Icons.add_rounded, room.cap + 1),
         ],
       ),
@@ -938,13 +938,13 @@ class _LobbyScreenState extends State<LobbyScreen> {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: C.surface,
+        color: Colors.white,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: alpha(C.accent, 0.6)),
+        boxShadow: const [BoxShadow(color: L.sky2, offset: Offset(0, 6))],
       ),
       child: Column(
         children: [
-          Text(others.length == 1 ? 'خصمك' : 'خصومك', style: body(15, weight: FontWeight.w800, color: C.muted)),
+          Text(others.length == 1 ? 'خصمك' : 'خصومك', style: body(15, weight: FontWeight.w800, color: L.muted)),
           const SizedBox(height: 10),
           Wrap(
             alignment: WrapAlignment.center,
@@ -967,17 +967,17 @@ class _LobbyScreenState extends State<LobbyScreen> {
                       child: Avatar(p.avatar, size: 42),
                     ),
                     const SizedBox(height: 4),
-                    Text(p.name, style: body(17, weight: FontWeight.w800)),
+                    Text(p.name, style: body(17, weight: FontWeight.w800, color: L.ink)),
                   ],
                 ),
             ],
           ),
           const SizedBox(height: 12),
           if (left != null) ...[
-            Text('$left', style: display(56, color: const Color(0xFFFFD34D))),
-            Text('تبدأ المباراة...', style: body(14, color: C.muted)),
+            Text('$left', style: display(56, color: const Color(0xFFFF8A3D))),
+            Text('تبدأ المباراة...', style: body(14, color: L.muted)),
           ] else
-            Text('بانتظار لاعبين آخرين...', style: body(14, color: C.muted)),
+            Text('بانتظار لاعبين آخرين...', style: body(14, color: L.muted)),
         ],
       ),
     );
@@ -999,11 +999,11 @@ class _LobbyScreenState extends State<LobbyScreen> {
         height: 46,
         alignment: Alignment.center,
         decoration: BoxDecoration(
-          color: sel ? alpha(c, 0.22) : alpha(Colors.white, 0.04),
+          color: sel ? alpha(c, 0.22) : Colors.white,
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: sel ? alpha(c, 0.9) : C.line, width: sel ? 2 : 1),
+          border: Border.all(color: sel ? c : L.sky2, width: 2),
         ),
-        child: Text(kLevelNames[i], style: body(16, weight: FontWeight.w800, color: sel ? c : Colors.white)),
+        child: Text(kLevelNames[i], style: body(16, weight: FontWeight.w800, color: sel ? darken(c, 0.25) : L.ink)),
       ),
     );
   }
@@ -1015,11 +1015,11 @@ class _LobbyScreenState extends State<LobbyScreen> {
         height: 46,
         alignment: Alignment.center,
         decoration: BoxDecoration(
-          color: selected ? alpha(const Color(0xFFFF8A1F), 0.22) : alpha(Colors.white, 0.04),
+          color: selected ? alpha(const Color(0xFFFF8A1F), 0.22) : Colors.white,
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: selected ? alpha(const Color(0xFFFF8A1F), 0.8) : C.line),
+          border: Border.all(color: selected ? const Color(0xFFFF8A1F) : L.sky2, width: 2),
         ),
-        child: Text(label, style: body(16, weight: FontWeight.w700)),
+        child: Text(label, style: body(16, weight: FontWeight.w700, color: L.ink)),
       ),
     );
   }
@@ -1084,16 +1084,16 @@ class _LobbyScreenState extends State<LobbyScreen> {
                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                         decoration: BoxDecoration(
                           gradient: picked.contains(g.id) ? LinearGradient(colors: g.colors) : null,
-                          color: picked.contains(g.id) ? null : alpha(Colors.white, 0.05),
+                          color: picked.contains(g.id) ? null : Colors.white,
                           borderRadius: BorderRadius.circular(14),
-                          border: Border.all(color: picked.contains(g.id) ? alpha(Colors.white, 0.5) : C.line),
+                          border: Border.all(color: picked.contains(g.id) ? Colors.white : L.sky2, width: 2),
                         ),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(picked.contains(g.id) ? Icons.check_circle_rounded : Icons.circle_outlined, size: 18, color: Colors.white),
+                            Icon(picked.contains(g.id) ? Icons.check_circle_rounded : Icons.circle_outlined, size: 18, color: picked.contains(g.id) ? Colors.white : L.muted),
                             const SizedBox(width: 6),
-                            Text(g.title, style: body(15, weight: FontWeight.w800)),
+                            Text(g.title, style: body(15, weight: FontWeight.w800, color: picked.contains(g.id) ? Colors.white : L.ink)),
                           ],
                         ),
                       ),
@@ -1103,7 +1103,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
               const SizedBox(height: 16),
               Opacity(
                 opacity: picked.length >= 2 ? 1 : 0.5,
-                child: BigButton(
+                child: ChunkyButton(
                   label: 'ابدأ البطولة (${picked.length} ألعاب)',
                   icon: Icons.emoji_events_rounded,
                   color: const Color(0xFFFF8A1F),
@@ -1128,16 +1128,16 @@ class _LobbyScreenState extends State<LobbyScreen> {
         child: Container(
           margin: const EdgeInsets.all(10),
           padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
-          decoration: BoxDecoration(color: C.surface, borderRadius: BorderRadius.circular(28), border: Border.all(color: C.line)),
+          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(28), boxShadow: const [BoxShadow(color: Color(0x331E325A), blurRadius: 30, offset: Offset(0, 10))]),
           child: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text(title, textAlign: TextAlign.center, style: display(28)),
+                Text(title, textAlign: TextAlign.center, style: display(28, color: L.ink)),
                 if (subtitle != null) ...[
                   const SizedBox(height: 4),
-                  Text(subtitle, textAlign: TextAlign.center, style: body(14, color: C.muted)),
+                  Text(subtitle, textAlign: TextAlign.center, style: body(14, color: L.muted)),
                 ],
                 const SizedBox(height: 14),
                 child,
@@ -1195,8 +1195,8 @@ Widget? tourFooter(Session s) {
           room.wantNew = true;
           Navigator.of(context).pop();
         },
-        icon: const Icon(Icons.person_search_rounded, color: Colors.white),
-        label: Text('خصم جديد', style: body(16, weight: FontWeight.w800)),
+        icon: const Icon(Icons.person_search_rounded, color: L.ink),
+        label: Text('خصم جديد', style: body(16, weight: FontWeight.w800, color: L.ink)),
       ),
     );
   }
@@ -1212,13 +1212,13 @@ Widget? tourFooter(Session s) {
     child: Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text('🏆 البطولة: ${t.idx + 1} من ${t.games.length}', style: body(14, weight: FontWeight.w800)),
+        Text('🏆 البطولة: ${t.idx + 1} من ${t.games.length}', style: body(14, weight: FontWeight.w800, color: L.ink)),
         const SizedBox(height: 4),
         Wrap(
           spacing: 12,
           children: [
             for (final e in t.ranking)
-              Text('${room.avatarOfSeat(e.key)} ${room.nameOfSeat(e.key)}: ${e.value}', style: body(13, weight: FontWeight.w700)),
+              Text('${room.avatarOfSeat(e.key)} ${room.nameOfSeat(e.key)}: ${e.value}', style: body(13, weight: FontWeight.w700, color: L.ink)),
           ],
         ),
       ],
