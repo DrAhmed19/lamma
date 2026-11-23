@@ -372,3 +372,42 @@ class GamePattern extends StatelessWidget {
     );
   }
 }
+
+/// حركة خفيفة دائمة (تمايل وطفو) حتى الشاشة تبين حية. [phase] يفرّق توقيت كل عنصر.
+/// الرسم نفسه ما يتعاد (RepaintBoundary)؛ بس التحويل يتغير، فهي رخيصة.
+class Idle extends StatefulWidget {
+  const Idle({super.key, required this.child, this.phase = 0, this.lift = 3, this.tilt = 0.025, this.period = 3.2});
+  final Widget child;
+  final double phase, lift, tilt, period;
+
+  @override
+  State<Idle> createState() => _IdleState();
+}
+
+class _IdleState extends State<Idle> with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(vsync: this, duration: Duration(milliseconds: (widget.period * 1000).round()))..repeat();
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final child = RepaintBoundary(child: widget.child);
+    // اللي مفعّل «تقليل الحركة» بالجهاز ما نحرّك له شي
+    if (MediaQuery.maybeDisableAnimationsOf(context) ?? false) return child;
+    return AnimatedBuilder(
+      animation: _c,
+      child: child,
+      builder: (context, child) {
+        final a = (_c.value + widget.phase) * 2 * math.pi;
+        return Transform.translate(
+          offset: Offset(0, -widget.lift * (0.5 + 0.5 * math.sin(a))),
+          child: Transform.rotate(angle: widget.tilt * math.sin(a * 0.5), child: child),
+        );
+      },
+    );
+  }
+}

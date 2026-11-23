@@ -162,7 +162,7 @@ class ProfileScreen extends StatelessWidget {
                       ],
                     ),
                     const SizedBox(height: 8),
-                    Center(child: Avatar(p.avatar, size: 92)),
+                    Center(child: Idle(lift: 5, period: 2.6, child: Avatar(p.avatar, size: 92))),
                     Center(child: Text(p.hasName ? p.name : 'بدون اسم', style: display(32, color: L.ink))),
                     Center(
                       child: TextButton.icon(

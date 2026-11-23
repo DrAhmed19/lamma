@@ -274,7 +274,9 @@ class _GameCard extends StatelessWidget {
               child: Padding(
                 padding: const EdgeInsets.only(bottom: 6),
                 child: Center(
-                  child: AspectRatio(
+                  child: Idle(
+                    phase: index * 0.37,
+                    child: AspectRatio(
                     aspectRatio: 1,
                     child: DecoratedBox(
                       decoration: BoxDecoration(
@@ -286,6 +288,7 @@ class _GameCard extends StatelessWidget {
                       ),
                       child: GameArt(game.id, fallback: game.icon, radius: 28),
                     ),
+                  ),
                   ),
                 ),
               ),
