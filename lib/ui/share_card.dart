@@ -462,8 +462,8 @@ class ShareResultButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return TextButton.icon(
       onPressed: () => showShareSheet(context, data()),
-      icon: const Icon(Icons.ios_share_rounded, color: Colors.white),
-      label: Text('شارك النتيجة', style: body(16, weight: FontWeight.w800)),
+      icon: const Icon(Icons.ios_share_rounded, color: L.ink),
+      label: Text('شارك النتيجة', style: body(16, weight: FontWeight.w800, color: L.ink)),
     );
   }
 }

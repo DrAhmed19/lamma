@@ -204,10 +204,10 @@ class GlassIconButton extends StatelessWidget {
         height: size,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          color: alpha(const Color(0xFF0B1022), 0.62),
-          border: Border.all(color: alpha(Colors.white, 0.22)),
+          color: Colors.white,
+          boxShadow: [BoxShadow(color: alpha(const Color(0xFF1E325A), 0.35), offset: const Offset(0, 3))],
         ),
-        child: Icon(icon, color: Colors.white, size: size * 0.5),
+        child: Icon(icon, color: L.ink, size: size * 0.52),
       ),
     );
   }
@@ -311,33 +311,33 @@ class _PauseMenu extends StatelessWidget {
           width: 300,
           padding: const EdgeInsets.fromLTRB(22, 26, 22, 22),
           decoration: BoxDecoration(
-            color: C.surface,
+            color: Colors.white,
             borderRadius: BorderRadius.circular(28),
-            border: Border.all(color: C.line),
             boxShadow: [
-              BoxShadow(color: alpha(Colors.black, 0.5), blurRadius: 40),
+              BoxShadow(color: alpha(Colors.black, 0.3), blurRadius: 40),
             ],
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text('إيقاف مؤقت', textAlign: TextAlign.center, style: display(38)),
+              Text('إيقاف مؤقت', textAlign: TextAlign.center, style: display(38, color: L.ink)),
               const SizedBox(height: 18),
-              BigButton(
+              ChunkyButton(
                 label: 'متابعة',
                 icon: Icons.play_arrow_rounded,
+                color: const Color(0xFF3DB56E),
                 onTap: () => Navigator.pop(context, PauseAction.resume),
               ),
-              const SizedBox(height: 10),
-              BigButton(
+              const SizedBox(height: 8),
+              ChunkyButton(
                 label: 'إعادة اللعبة',
                 icon: Icons.replay_rounded,
                 filled: false,
                 onTap: () => Navigator.pop(context, PauseAction.restart),
               ),
-              const SizedBox(height: 10),
-              BigButton(
+              const SizedBox(height: 8),
+              ChunkyButton(
                 label: 'الخروج',
                 icon: Icons.grid_view_rounded,
                 filled: false,
@@ -512,9 +512,10 @@ class ResultOverlay extends StatelessWidget {
   final String? subtitle;
 
   String get _title => winner < 0 ? 'تعادل!' : 'فاز ${names != null && winner < names!.length ? names![winner] : C.playerNames[_seat(winner)]}!';
-  Color get _color => winner < 0 ? Colors.white : C.players[_seat(winner)];
+  Color get _color => winner < 0 ? L.ink : C.players[_seat(winner)];
 
-  Widget _banner() {
+  Widget _banner({bool card = true}) {
+    final col = winner < 0 && !card ? Colors.white : _color;
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -527,14 +528,14 @@ class ResultOverlay extends StatelessWidget {
         Text(
           _title,
           textAlign: TextAlign.center,
-          style: display(46, color: _color, shadows: [
-            Shadow(color: alpha(_color, 0.6), blurRadius: 24),
+          style: display(46, color: col, shadows: [
+            Shadow(color: alpha(darken(col, 0.4), 0.35), offset: const Offset(0, 3)),
           ]),
         ),
         if (subtitle != null)
           Padding(
             padding: const EdgeInsets.only(top: 2),
-            child: Text(subtitle!, style: body(16, color: C.muted)),
+            child: Text(subtitle!, textAlign: TextAlign.center, style: body(16, weight: FontWeight.w800, color: card ? L.muted : Colors.white70)),
           ),
       ],
     );
@@ -550,9 +551,9 @@ class ResultOverlay extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
             decoration: BoxDecoration(
-              color: alpha(C.players[_seat(i)], i == winner ? 0.28 : 0.12),
+              color: i == winner ? alpha(C.players[_seat(i)], 0.16) : L.sky,
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: alpha(C.players[_seat(i)], i == winner ? 0.9 : 0.35)),
+              border: Border.all(color: i == winner ? C.players[_seat(i)] : L.sky2, width: 2),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
@@ -563,7 +564,7 @@ class ResultOverlay extends StatelessWidget {
                   decoration: BoxDecoration(color: C.players[_seat(i)], shape: BoxShape.circle),
                 ),
                 const SizedBox(width: 8),
-                Text('${scores[i]}', style: display(24)),
+                Text('${scores[i]}', style: display(24, color: L.ink)),
               ],
             ),
           ),
@@ -573,7 +574,10 @@ class ResultOverlay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final panel = Column(
+    final panel = Container(
+      padding: const EdgeInsets.fromLTRB(22, 18, 22, 16),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(30), boxShadow: [BoxShadow(color: alpha(Colors.black, 0.3), blurRadius: 30, offset: const Offset(0, 10))]),
+      child: Column(
       mainAxisSize: MainAxisSize.min,
       children: [
         _banner(),
@@ -591,17 +595,17 @@ class ResultOverlay extends StatelessWidget {
             if (_publicRoom != null)
               ListenableBuilder(
                 listenable: _publicRoom!,
-                builder: (context, _) => BigButton(
+                builder: (context, _) => ChunkyButton(
                   label: againLabelOf(session!) ?? 'مرة أخرى',
                   icon: Icons.replay_rounded,
                   onTap: onAgain,
-                  color: winner >= 0 ? _color : C.accent,
+                  color: winner >= 0 ? _color : const Color(0xFF2E9BF0),
                 ),
               )
             else
-              BigButton(label: againLabel ?? 'العب مرة أخرى', icon: Icons.replay_rounded, onTap: onAgain, color: winner >= 0 ? _color : C.accent),
+              ChunkyButton(label: againLabel ?? 'العب مرة أخرى', icon: Icons.replay_rounded, onTap: onAgain, color: winner >= 0 ? _color : const Color(0xFF2E9BF0)),
             const SizedBox(width: 10),
-            BigButton(
+            ChunkyButton(
               // الغرف العامة: الخروج يرجّع للرئيسية (مو للغرفة)
               label: _publicRoom != null ? 'الرئيسية' : (menuLabel ?? 'الرئيسية'),
               filled: false,
@@ -614,6 +618,7 @@ class ResultOverlay extends StatelessWidget {
           ShareResultButton(data: _shareData),
         ],
       ],
+    ),
     );
 
     return TweenAnimationBuilder<double>(
@@ -627,12 +632,12 @@ class ResultOverlay extends StatelessWidget {
       child: Stack(
         children: [
           // تعتيم بدون تمويه (التمويه فوق لعبة شغالة غالي بالمتصفح)
-          Positioned.fill(child: Container(color: alpha(const Color(0xFF05070F), 0.72))),
+          Positioned.fill(child: Container(color: alpha(const Color(0xFF14203A), 0.55))),
           // FittedBox: بالشاشات الصغيرة (أو نص الشاشة للاعبين) النتيجة تصغر بدل ما تطلع برا
           if (dual)
             Column(
               children: [
-                Expanded(child: Center(child: FittedBox(fit: BoxFit.scaleDown, child: RotatedBox(quarterTurns: 2, child: _banner())))),
+                Expanded(child: Center(child: FittedBox(fit: BoxFit.scaleDown, child: RotatedBox(quarterTurns: 2, child: _banner(card: false))))),
                 Expanded(child: Center(child: Padding(padding: const EdgeInsets.all(8), child: FittedBox(fit: BoxFit.scaleDown, child: panel)))),
               ],
             )
@@ -660,10 +665,10 @@ class TurnBadge extends StatelessWidget {
       curve: Curves.easeOut,
       padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
       decoration: BoxDecoration(
-        color: alpha(c, active ? 0.22 : 0.06),
+        color: active ? Colors.white : alpha(Colors.white, 0.75),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: alpha(c, active ? 0.9 : 0.25), width: active ? 2.0 : 1.0),
-        boxShadow: active ? [BoxShadow(color: alpha(c, 0.35), blurRadius: 20)] : null,
+        border: Border.all(color: active ? c : Colors.transparent, width: 3),
+        boxShadow: [BoxShadow(color: active ? darken(c, 0.2) : alpha(const Color(0xFF1E325A), 0.25), offset: const Offset(0, 4))],
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -676,10 +681,10 @@ class TurnBadge extends StatelessWidget {
           const SizedBox(width: 10),
           Text(
             label ?? (active ? 'دورك' : C.playerNames[player]),
-            style: body(18, weight: FontWeight.w800, color: active ? Colors.white : C.muted),
+            style: body(18, weight: FontWeight.w800, color: active ? L.ink : L.muted),
           ),
           const SizedBox(width: 14),
-          Text('$score', style: display(26, color: c)),
+          Text('$score', style: display(26, color: darken(c, 0.08))),
         ],
       ),
     );

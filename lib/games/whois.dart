@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../core/draw.dart';
 import '../core/fx.dart';
 import '../core/loop.dart';
 import '../core/sfx.dart';
@@ -686,9 +687,9 @@ class _Backdrop extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const DecoratedBox(
+    return DecoratedBox(
       decoration: BoxDecoration(
-        gradient: RadialGradient(center: Alignment(0, -0.5), radius: 1.2, colors: [Color(0xFF1F2F5C), C.bg]),
+        gradient: RadialGradient(center: const Alignment(0, -0.5), radius: 1.2, colors: [lighten(kWorld['whois']!, 0.05), darken(kWorld['whois']!, 0.4)]),
       ),
     );
   }

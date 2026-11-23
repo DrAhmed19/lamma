@@ -129,3 +129,35 @@ double easeOutCubic(double t) {
   final x = 1 - t;
   return 1 - x * x * x;
 }
+
+/// «عالم» اللعبة: خلفية بلون أيقونتها (فاتحة من فوق) ويا دوائر ناعمة، حسب النموذج الجديد.
+void paintWorld(Canvas canvas, Rect r, Color col) {
+  canvas.drawRect(
+    r,
+    Paint()
+      ..shader = LinearGradient(
+        begin: Alignment.topRight,
+        end: Alignment.bottomLeft,
+        colors: [lighten(col, 0.2), col, darken(col, 0.12)],
+        stops: const [0, 0.55, 1],
+      ).createShader(r),
+  );
+  final p = Paint()..color = alpha(Colors.white, 0.08);
+  final m = r.shortestSide;
+  canvas.drawCircle(Offset(r.left + r.width * 0.88, r.top + r.height * 0.06), m * 0.38, p);
+  canvas.drawCircle(Offset(r.left + r.width * 0.06, r.top + r.height * 0.52), m * 0.26, p);
+  canvas.drawCircle(Offset(r.left + r.width * 0.78, r.top + r.height * 0.95), m * 0.32, p);
+}
+
+/// ألوان عوالم الألعاب (نفس خلفية أيقونة كل لعبة)
+const kWorld = {
+  'xo': Color(0xFF5A6CF0),
+  'connect4': Color(0xFFF2545B),
+  'hockey': Color(0xFF3B8CF5),
+  'reaction': Color(0xFF2EB872),
+  'tug': Color(0xFFD9954E),
+  'quiz': Color(0xFF9B5DE5),
+  'whois': Color(0xFFFF9A3D),
+  'spy': Color(0xFFE5583D),
+  'muhaibes': Color(0xFFEC4D93),
+};

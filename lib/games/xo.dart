@@ -168,25 +168,18 @@ class _XoPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final rect = Offset.zero & size;
-    canvas.drawRect(
-      rect,
-      Paint()
-        ..shader = const RadialGradient(
-          colors: [Color(0xFF1E1748), C.bg],
-          radius: 0.9,
-        ).createShader(rect),
-    );
+    paintWorld(canvas, rect, kWorld['xo']!);
     if (!s.ready) return;
     final m = s.m;
 
     final b = s.boardRect;
     final cs = b.width / 3;
     final panel = RRect.fromRectAndRadius(b.inflate(14), const Radius.circular(30));
-    canvas.drawRRect(panel, Paint()..color = alpha(Colors.white, 0.04));
-    canvas.drawRRect(panel, Paint()..style = PaintingStyle.stroke..strokeWidth = 1.5..color = C.line);
+    canvas.drawRRect(panel.shift(const Offset(0, 7)), Paint()..color = darken(kWorld['xo']!, 0.3));
+    canvas.drawRRect(panel, Paint()..color = Colors.white);
 
     final grid = Paint()
-      ..color = alpha(Colors.white, 0.22)
+      ..color = const Color(0xFFD6E0EE)
       ..strokeWidth = math.max(5.0, cs * 0.05)
       ..strokeCap = StrokeCap.round;
     for (var k = 1; k < 3; k++) {
@@ -239,8 +232,8 @@ class _XoPainter extends CustomPainter {
       final dir = (z - a) / (z - a).distance;
       final a0 = a - dir * cs * 0.38, z0 = z + dir * cs * 0.38;
       final e = Offset.lerp(a0, z0, easeOutCubic(t))!;
-      canvas.drawLine(a0, e, Paint()..color = alpha(Colors.white, 0.6)..strokeWidth = cs * 0.14..strokeCap = StrokeCap.round..maskFilter = MaskFilter.blur(BlurStyle.normal, cs * 0.08));
-      canvas.drawLine(a0, e, Paint()..color = Colors.white..strokeWidth = cs * 0.07..strokeCap = StrokeCap.round);
+      canvas.drawLine(a0, e, Paint()..color = alpha(L.ink, 0.25)..strokeWidth = cs * 0.14..strokeCap = StrokeCap.round);
+      canvas.drawLine(a0, e, Paint()..color = L.ink..strokeWidth = cs * 0.07..strokeCap = StrokeCap.round);
     }
   }
 

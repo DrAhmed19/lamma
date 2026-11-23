@@ -195,7 +195,7 @@ class _ReactionPainter extends CustomPainter {
     final zs = s.zones(size);
     final playing = s.phase == GamePhase.play;
 
-    canvas.drawRect(Offset.zero & size, Paint()..color = C.bg);
+    paintWorld(canvas, Offset.zero & size, kWorld['reaction']!);
 
     final ord = s.order;
     for (var zi = 0; zi < zs.length; zi++) {
@@ -205,14 +205,14 @@ class _ReactionPainter extends CustomPainter {
       final isWin = s.rs == ReactionModel.roundEnd && s.roundWinner == i;
       final r = z.rect.deflate(5);
       final rr = RRect.fromRectAndRadius(r, const Radius.circular(26));
-      var fill = darken(col, 0.68);
+      var fill = darken(col, 0.45);
       if (isWin) {
         final k = 0.5 + 0.5 * math.sin(s.time * 14);
         fill = Color.lerp(darken(col, 0.2), col, k)!;
       } else if (s.fouled[i]) {
-        fill = darken(col, 0.85);
+        fill = darken(col, 0.7);
       } else if (s.rs == ReactionModel.go) {
-        fill = darken(col, 0.45);
+        fill = darken(col, 0.12);
       }
       canvas.drawRRect(
         rr,
@@ -322,7 +322,7 @@ class _ReactionPainter extends CustomPainter {
       final k = 0.5 + 0.5 * math.sin(s.time * 3);
       canvas.drawCircle(c, R * (1.08 + 0.05 * k), Paint()..style = PaintingStyle.stroke..strokeWidth = 3..color = alpha(const Color(0xFFFF4D6A), 0.35 + 0.3 * k));
     }
-    canvas.drawCircle(c, R + 6, Paint()..color = C.bg);
+    canvas.drawCircle(c, R + 6, Paint()..color = Colors.white);
     canvas.drawCircle(
       c,
       R,

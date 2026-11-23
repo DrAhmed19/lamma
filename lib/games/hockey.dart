@@ -271,13 +271,15 @@ class _HockeyPainter extends CustomPainter {
     final dual = !s.online;
     final goals = s.m.goals;
 
-    canvas.drawRect(Offset.zero & size, Paint()..color = const Color(0xFF05070D));
+    paintWorld(canvas, Offset.zero & size, kWorld['hockey']!);
     final tr = RRect.fromRectAndRadius(t, Radius.circular(w * 0.08));
+    // طاولة ثلج بيضاء بحافة سفلية (مثل الأيقونة)
+    canvas.drawRRect(tr.shift(const Offset(0, 6)), Paint()..color = darken(kWorld['hockey']!, 0.3));
     canvas.drawRRect(
       tr,
       Paint()
         ..shader = const RadialGradient(
-          colors: [Color(0xFF1B2448), Color(0xFF0D1229)],
+          colors: [Color(0xFFFFFFFF), Color(0xFFE9F1FB)],
           radius: 0.9,
         ).createShader(t),
     );
@@ -290,10 +292,10 @@ class _HockeyPainter extends CustomPainter {
     final line = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 3
-      ..color = alpha(Colors.white, 0.16);
+      ..color = alpha(L.ink, 0.16);
     canvas.drawLine(Offset(t.left, c.dy), Offset(t.right, c.dy), line);
     canvas.drawCircle(c, w * 0.17, line);
-    canvas.drawCircle(c, 6, Paint()..color = alpha(Colors.white, 0.25));
+    canvas.drawCircle(c, 6, Paint()..color = alpha(L.ink, 0.3));
     // منطقة المرمى
     canvas.drawArc(Rect.fromCircle(center: Offset(c.dx, t.top), radius: s.gw * 1.25), 0, math.pi, false, line..color = alpha(p1, 0.35));
     canvas.drawArc(Rect.fromCircle(center: Offset(c.dx, t.bottom), radius: s.gw * 1.25), math.pi, math.pi, false, Paint()..style = PaintingStyle.stroke..strokeWidth = 3..color = alpha(p0, 0.35));
@@ -307,11 +309,11 @@ class _HockeyPainter extends CustomPainter {
     final edge = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 5
-      ..color = alpha(Colors.white, 0.35);
+      ..color = const Color(0xFFCADAEE);
     canvas.drawRRect(tr, edge);
     void goal(double y, Color col) {
       final a = Offset(c.dx - s.gw, y), bb = Offset(c.dx + s.gw, y);
-      canvas.drawLine(a, bb, Paint()..color = const Color(0xFF05070D)..strokeWidth = 9);
+      canvas.drawLine(a, bb, Paint()..color = L.ink..strokeWidth = 9);
       canvas.drawLine(a, bb, Paint()..color = alpha(col, 0.35)..strokeWidth = 11..strokeCap = StrokeCap.round);
       canvas.drawLine(a, bb, Paint()..color = alpha(col, 0.8)..strokeWidth = 7..strokeCap = StrokeCap.round);
       canvas.drawLine(a, bb, Paint()..color = col..strokeWidth = 4..strokeCap = StrokeCap.round);
@@ -323,7 +325,7 @@ class _HockeyPainter extends CustomPainter {
     // أثر القرص
     for (var i = 0; i < s.trail.length; i++) {
       final k = (i + 1) / s.trail.length;
-      canvas.drawCircle(s.trail[i], s.rk * (0.4 + 0.5 * k), Paint()..color = alpha(Colors.white, 0.08 * k));
+      canvas.drawCircle(s.trail[i], s.rk * (0.4 + 0.5 * k), Paint()..color = alpha(L.ink, 0.07 * k));
     }
 
     // القرص

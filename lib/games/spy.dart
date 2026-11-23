@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../core/draw.dart';
 import '../core/fx.dart';
 import '../core/loop.dart';
 import '../core/sfx.dart';
@@ -186,10 +187,10 @@ class _SpyState extends LoopState<SpyGame> {
       room: widget.room,
       child: Stack(
         children: [
-          const Positioned.fill(
+          Positioned.fill(
             child: DecoratedBox(
               decoration: BoxDecoration(
-                gradient: RadialGradient(center: Alignment(0, -0.5), radius: 1.2, colors: [Color(0xFF3A1B2E), C.bg]),
+                gradient: RadialGradient(center: const Alignment(0, -0.5), radius: 1.2, colors: [lighten(kWorld['spy']!, 0.05), darken(kWorld['spy']!, 0.45)]),
               ),
             ),
           ),
@@ -280,14 +281,16 @@ class _SpyState extends LoopState<SpyGame> {
         constraints: const BoxConstraints(maxWidth: 420),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
         decoration: BoxDecoration(
-          color: alpha(on && spy ? _red : C.accent, 0.18),
+          // بطاقة بيضاء حتى تبين على خلفية الجاسوس الحمرة
+          color: Colors.white,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: alpha(on && spy ? _red : C.accent, 0.8), width: 2),
+          border: Border.all(color: on && spy ? _red : Colors.white, width: 3),
+          boxShadow: [BoxShadow(color: alpha(Colors.black, 0.25), offset: const Offset(0, 5))],
         ),
         child: Column(
           children: [
-            Text(big, textAlign: TextAlign.center, style: display(on ? 28 : 20, color: on && spy ? _red : Colors.white)),
-            if (small.isNotEmpty) Text(small, textAlign: TextAlign.center, style: body(13, color: C.muted)),
+            Text(big, textAlign: TextAlign.center, style: display(on ? 28 : 20, color: on && spy ? _red : L.ink)),
+            if (small.isNotEmpty) Text(small, textAlign: TextAlign.center, style: body(13, weight: FontWeight.w800, color: L.muted)),
           ],
         ),
       ),

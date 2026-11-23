@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../core/draw.dart';
 import '../core/fx.dart';
 import '../core/loop.dart';
 import '../core/sfx.dart';
@@ -103,11 +104,11 @@ class _QuizState extends LoopState<QuizGame> {
               children: [
                 Positioned.fill(
                   child: Container(
-                    decoration: const BoxDecoration(
+                    decoration: BoxDecoration(
                       gradient: LinearGradient(
                         begin: Alignment.topCenter,
                         end: Alignment.bottomCenter,
-                        colors: [Color(0xFF1A1240), Color(0xFF0B0A24)],
+                        colors: [lighten(kWorld['quiz']!, 0.12), darken(kWorld['quiz']!, 0.3)],
                       ),
                     ),
                   ),

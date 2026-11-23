@@ -206,11 +206,7 @@ class _C4Painter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final rect = Offset.zero & size;
-    canvas.drawRect(
-      rect,
-      Paint()
-        ..shader = const RadialGradient(colors: [Color(0xFF1A2350), C.bg], radius: 0.9).createShader(rect),
-    );
+    paintWorld(canvas, rect, kWorld['connect4']!);
     if (!s.ready) return;
     final m = s.m;
     final b = s.boardRect;
@@ -220,7 +216,7 @@ class _C4Painter extends CustomPainter {
     Offset cc(int c, double r) => Offset(b.left + cs * (c + 0.5), b.top + cs * (r + 0.5));
 
     // خلفية الثقوب
-    canvas.drawRRect(RRect.fromRectAndRadius(b, Radius.circular(cs * 0.3)), Paint()..color = const Color(0xFF0B1028));
+    canvas.drawRRect(RRect.fromRectAndRadius(b, Radius.circular(cs * 0.3)), Paint()..color = darken(kWorld['connect4']!, 0.3));
 
     // القطع
     for (var r = 0; r < _C4State.rows; r++) {
@@ -288,7 +284,8 @@ class _C4Painter extends CustomPainter {
       final y = atBottom ? b.bottom + cs * 0.55 : b.top - cs * 0.55;
       final bob = math.sin(s.time * 5) * cs * 0.06;
       for (var c = 0; c < _C4State.cols; c++) {
-        canvas.drawCircle(Offset(cc(c, 0).dx, y + bob), cs * 0.07, Paint()..color = alpha(col, 0.55));
+        canvas.drawCircle(Offset(cc(c, 0).dx, y + bob), cs * 0.1, Paint()..color = alpha(Colors.white, 0.9));
+        canvas.drawCircle(Offset(cc(c, 0).dx, y + bob), cs * 0.065, Paint()..color = col);
       }
     }
   }

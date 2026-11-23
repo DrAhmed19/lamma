@@ -5,7 +5,10 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
 
+import 'dart:ui' show ImageByteFormat;
+
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -119,6 +122,17 @@ class Bot {
 
 Future<void> real(WidgetTester t, int ms) => t.runAsync(() => Future.delayed(Duration(milliseconds: ms)));
 
+/// لقطة للمراجعة: SHOT_DIR=/مسار flutter test tools/ui_online_test.dart (بس حجم «تلفون»)
+Future<void> shot(WidgetTester t, GlobalKey key, String name) async {
+  final dir = Platform.environment['SHOT_DIR'];
+  if (dir == null || !name.endsWith('_تلفون')) return;
+  await t.runAsync(() async {
+    final b = key.currentContext!.findRenderObject() as RenderRepaintBoundary;
+    final img = await b.toImage(pixelRatio: 1);
+    File('$dir/$name.png').writeAsBytesSync((await img.toByteData(format: ImageByteFormat.png))!.buffer.asUint8List());
+  });
+}
+
 void main() {
   setUpAll(() async {
     // ignore: invalid_use_of_visible_for_testing_member
@@ -145,7 +159,8 @@ void main() {
         final host = (await t.runAsync(LanHost.start))!;
         // الاتصال لازم ينبني بالوقت الحقيقي (مو الوقت الوهمي مال الاختبار)
         final room = (await t.runAsync(() async => RoomConn.join(host.code, Profile.I.name, server: host.selfServer)))!;
-        await t.pumpWidget(MaterialApp(
+        final shotKey = GlobalKey();
+        await t.pumpWidget(RepaintBoundary(key: shotKey, child: MaterialApp(
           theme: buildTheme(),
           locale: const Locale('ar'),
           supportedLocales: const [Locale('ar')],
@@ -155,7 +170,7 @@ void main() {
             GlobalCupertinoLocalizations.delegate,
           ],
           home: LobbyScreen(room: room, lanHost: host),
-        ));
+        )));
         await real(t, 300);
         await t.pump(const Duration(milliseconds: 300));
 
@@ -178,6 +193,7 @@ void main() {
           await t.pump(const Duration(milliseconds: 300));
         }
         expect(room.players.length, n, reason: 'كل اللاعبين دخلوا الغرفة');
+        await shot(t, shotKey, '${id}_lobby_${e.key}');
         room.start();
         await real(t, 300);
         await t.pump(const Duration(seconds: 1));
@@ -201,6 +217,7 @@ void main() {
           }
           await real(t, 40);
           await t.pump(const Duration(milliseconds: 150));
+          if (step == 40) await shot(t, shotKey, '${id}_${e.key}');
         }
 
         for (final b in bots) {

@@ -183,7 +183,7 @@ class _TugPainter extends CustomPainter {
         ..shader = LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [darken(p1, 0.72), darken(p1, 0.25)],
+          colors: [darken(p1, 0.35), lighten(p1, 0.08)],
         ).createShader(top),
     );
     // منطقة اللاعب الأول (تحت)
@@ -194,7 +194,7 @@ class _TugPainter extends CustomPainter {
         ..shader = LinearGradient(
           begin: Alignment.bottomCenter,
           end: Alignment.topCenter,
-          colors: [darken(p0, 0.72), darken(p0, 0.25)],
+          colors: [darken(p0, 0.35), lighten(p0, 0.08)],
         ).createShader(bottom),
     );
 
