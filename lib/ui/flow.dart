@@ -312,8 +312,9 @@ Future<void> showJoinSheet(BuildContext context, {String? code}) async {
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
                               for (var i = 0; i < 4; i++)
-                                Container(
-                                  width: 58,
+                                Flexible(
+                                  child: Container(
+                                  constraints: const BoxConstraints(maxWidth: 58),
                                   height: 66,
                                   margin: const EdgeInsets.symmetric(horizontal: 4),
                                   alignment: Alignment.center,
@@ -323,6 +324,7 @@ Future<void> showJoinSheet(BuildContext context, {String? code}) async {
                                     border: Border.all(color: i == v.text.length ? const Color(0xFF2E9BF0) : L.sky2, width: 2),
                                   ),
                                   child: Text(i < v.text.length ? v.text[i] : '', style: display(36, color: L.ink)),
+                                ),
                                 ),
                             ],
                           ),
