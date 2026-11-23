@@ -84,8 +84,8 @@ void main() {
       addTearDown(t.view.reset);
       await t.pumpWidget(const LammaApp());
       await t.pump(const Duration(seconds: 1));
-      // أقسام الرئيسية: نفتح كل وحدة ونرجع
-      for (final label in ['الانضمام إلى صديق', 'سوّي غرفة', 'ملفي']) {
+      // أقسام الرئيسية: نفتح كل وحدة ونرجع («سوّي غرفة» يفتح غرفة حقيقية؛ الغرف بـ ui_online_test)
+      for (final label in ['الانضمام إلى صديق', 'ملفي']) {
         final f = find.textContaining(label);
         if (f.evaluate().isEmpty) continue;
         await t.tap(f.first, warnIfMissed: false);
