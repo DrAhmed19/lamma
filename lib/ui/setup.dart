@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../games/registry.dart';
+import 'art.dart';
 import 'kit.dart';
 import 'theme.dart';
 
@@ -115,10 +116,14 @@ class _SetupState extends State<SetupScreen> {
           left: 0,
           right: 0,
           height: 290,
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(begin: Alignment.topRight, end: Alignment.bottomLeft, colors: [lighten(g.colors[0], 0.15), g.colors[0]]),
-              borderRadius: BorderRadius.vertical(bottom: Radius.elliptical(MediaQuery.sizeOf(context).width, 70)),
+          child: ClipRRect(
+            borderRadius: BorderRadius.vertical(bottom: Radius.elliptical(MediaQuery.sizeOf(context).width, 70)),
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(begin: Alignment.topRight, end: Alignment.bottomLeft, colors: [lighten(g.colors[0], 0.15), g.colors[0]]),
+              ),
+              // نقشة: صورة اللعبة مكررة بشفافية ومايلة (مثل النموذج)
+              child: RepaintBoundary(child: GamePattern(id: g.id, fallback: g.icon)),
             ),
           ),
         ),

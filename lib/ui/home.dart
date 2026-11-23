@@ -279,7 +279,10 @@ class _GameCard extends StatelessWidget {
                     child: DecoratedBox(
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(28),
-                        boxShadow: [BoxShadow(color: darken(c1, 0.25), offset: const Offset(0, 6)), const BoxShadow(color: Color(0x1E1E325A), blurRadius: 18, offset: Offset(0, 12))],
+                        boxShadow: [
+                          BoxShadow(color: darken(c1, 0.25), offset: const Offset(0, 6)),
+                          const BoxShadow(color: Color(0x1E1E325A), blurRadius: 18, offset: Offset(0, 12))
+                        ],
                       ),
                       child: GameArt(game.id, fallback: game.icon, radius: 28),
                     ),
@@ -422,7 +425,10 @@ class _GameSheetState extends State<_GameSheet> {
         child: Container(
           margin: const EdgeInsets.all(10),
           padding: EdgeInsets.fromLTRB(20, 12, 20, 20 + MediaQuery.paddingOf(context).bottom),
-          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(30), boxShadow: const [BoxShadow(color: Color(0x331E325A), blurRadius: 30, offset: Offset(0, 10))]),
+          decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(30),
+              boxShadow: const [BoxShadow(color: Color(0x331E325A), blurRadius: 30, offset: Offset(0, 10))]),
           child: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -433,33 +439,39 @@ class _GameSheetState extends State<_GameSheet> {
                 ),
                 const SizedBox(height: 14),
                 Container(
-                  padding: const EdgeInsets.all(12),
+                  clipBehavior: Clip.antiAlias,
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(24),
                     gradient: LinearGradient(begin: Alignment.topRight, end: Alignment.bottomLeft, colors: [lighten(g.colors[0], 0.12), g.colors[0]]),
                   ),
-                  child: Row(
-                    children: [
-                      Container(
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(24),
-                          border: Border.all(color: Colors.white, width: 3),
-                          boxShadow: const [BoxShadow(color: Color(0x33000000), offset: Offset(0, 4))],
-                        ),
-                        child: GameArt(g.id, fallback: g.icon, size: 78, radius: 21),
+                  child: Stack(children: [
+                    Positioned.fill(child: RepaintBoundary(child: GamePattern(id: g.id, fallback: g.icon, cell: 52))),
+                    Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Row(
+                        children: [
+                          Container(
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(24),
+                              border: Border.all(color: Colors.white, width: 3),
+                              boxShadow: const [BoxShadow(color: Color(0x33000000), offset: Offset(0, 4))],
+                            ),
+                            child: GameArt(g.id, fallback: g.icon, size: 78, radius: 21),
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(g.title, style: display(32, shadows: const [Shadow(color: Color(0x33000000), offset: Offset(0, 3))])),
+                                Text(g.tagline, style: body(14, weight: FontWeight.w800, color: alpha(Colors.white, 0.92))),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(g.title, style: display(32, shadows: const [Shadow(color: Color(0x33000000), offset: Offset(0, 3))])),
-                            Text(g.tagline, style: body(14, weight: FontWeight.w800, color: alpha(Colors.white, 0.92))),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
+                    ),
+                  ]),
                 ),
                 const SizedBox(height: 14),
                 Container(

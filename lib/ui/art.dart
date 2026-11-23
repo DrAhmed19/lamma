@@ -326,3 +326,49 @@ class GameArt extends StatelessWidget {
     return size == null ? img : SizedBox(width: size, height: size, child: img);
   }
 }
+
+/// نقشة خلفية: صورة اللعبة مكررة صغيرة بشفافية ومايلة شوية (ترويسات شاشات اللعبة)
+class GamePattern extends StatelessWidget {
+  const GamePattern({super.key, required this.id, required this.fallback, this.opacity = 0.16, this.cell = 64});
+  final String id;
+  final CustomPainter Function() fallback;
+  final double opacity, cell;
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      child: LayoutBuilder(builder: (context, c) {
+        final cols = (c.maxWidth / cell).ceil() + 3;
+        final rows = (c.maxHeight / cell).ceil() + 3;
+        return ClipRect(
+          child: OverflowBox(
+            maxWidth: double.infinity,
+            maxHeight: double.infinity,
+            child: Opacity(
+              opacity: opacity,
+              child: Transform.rotate(
+                angle: -0.2,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    for (var r = 0; r < rows; r++)
+                      Padding(
+                        padding: EdgeInsetsDirectional.only(start: r.isOdd ? cell / 2 : 0),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            for (var k = 0; k < cols; k++)
+                              Padding(padding: EdgeInsets.all(cell * 0.14), child: GameArt(id, fallback: fallback, size: cell * 0.72, radius: cell * 0.2)),
+                          ],
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      }),
+    );
+  }
+}
