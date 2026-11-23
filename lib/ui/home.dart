@@ -515,6 +515,52 @@ class _GameSheetState extends State<_GameSheet> {
     ));
   }
 
+  void _howTo() {
+    final g = widget.game;
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(26)),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 460, maxHeight: 600),
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Center(child: GameArt(g.id, fallback: g.icon, size: 72, radius: 20)),
+                const SizedBox(height: 8),
+                Text('كيف تلعب؟', textAlign: TextAlign.center, style: display(30, color: L.ink)),
+                const SizedBox(height: 10),
+                Text(g.howTo, style: body(15.5, weight: FontWeight.w700, color: L.ink)),
+                if (g.crazyHowTo != null && g.levels == null) ...[
+                  const SizedBox(height: 10),
+                  Text('${g.modeLabels?[1] ?? 'الوضع المجنون'}:', style: body(15, weight: FontWeight.w900, color: const Color(0xFFFF8A1F))),
+                  Text(g.crazyHowTo!, style: body(14.5, weight: FontWeight.w700, color: L.ink)),
+                ],
+                if (g.levels != null) ...[
+                  const SizedBox(height: 10),
+                  for (var i = 0; i < 3; i++)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 6),
+                      child: Text.rich(TextSpan(children: [
+                        TextSpan(text: '${kLevelNames[i]}: ', style: body(15, weight: FontWeight.w900, color: darken(kLevelColors[i], 0.1))),
+                        TextSpan(text: g.levels![i], style: body(14.5, weight: FontWeight.w700, color: L.ink)),
+                      ])),
+                    ),
+                ],
+                const SizedBox(height: 12),
+                ChunkyButton(label: 'فهمت', onTap: () => Navigator.pop(ctx)),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   void _friends() {
     final nav = Navigator.of(context);
     final ctx = nav.context;
@@ -598,9 +644,16 @@ class _GameSheetState extends State<_GameSheet> {
                     child: Text(
                       _crazy ? g.crazyHowTo! : g.howTo,
                       key: ValueKey(_crazy),
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
                       style: body(15.5, weight: FontWeight.w700, color: L.ink),
                     ),
                   ),
+                ),
+                const SizedBox(height: 10),
+                // «كيف تلعب؟» (مثل النموذج): الشرح كامل ومستويات اللعبة
+                Center(
+                  child: ChunkyButton(label: 'كيف تلعب؟', icon: Icons.play_circle_fill_rounded, color: const Color(0xFF6E7E98), onTap: _howTo),
                 ),
                 if (g.crazyHowTo != null && g.levels == null) ...[
                   const SizedBox(height: 12),

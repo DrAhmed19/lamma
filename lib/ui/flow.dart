@@ -299,26 +299,56 @@ Future<void> showJoinSheet(BuildContext context, {String? code}) async {
                 const SizedBox(height: 6),
                 Text('اكتب الرمز الذي أرسله إليك صديقك', textAlign: TextAlign.center, style: body(15, weight: FontWeight.w800, color: L.muted)),
                 const SizedBox(height: 18),
-                TextField(
-                  controller: c,
-                  autofocus: code == null,
-                  maxLength: 4,
-                  textAlign: TextAlign.center,
-                  textCapitalization: TextCapitalization.characters,
-                  inputFormatters: [FilteringTextInputFormatter.allow(RegExp('[a-zA-Z]')), UpperCaseFormatter()],
-                  style: display(44, color: L.ink).copyWith(letterSpacing: 16),
-                  onSubmitted: (_) => Navigator.pop(ctx, true),
-                  decoration: InputDecoration(
-                    hintText: 'ABCD',
-                    counterText: '',
-                    hintStyle: display(44, color: alpha(L.muted, 0.35)).copyWith(letterSpacing: 16),
-                    filled: true,
-                    fillColor: L.sky,
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(20), borderSide: const BorderSide(color: L.sky2, width: 2)),
-                    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(20), borderSide: const BorderSide(color: L.sky2, width: 2)),
-                    focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(20), borderSide: const BorderSide(color: Color(0xFF2E9BF0), width: 2)),
-                  ),
+                // أربع خانات (مثل النموذج): حقل كتابة مخفي فوقها ياخذ الحروف
+                SizedBox(
+                  height: 70,
+                  child: Stack(children: [
+                    Directionality(
+                      textDirection: TextDirection.ltr,
+                      child: IgnorePointer(
+                        child: ValueListenableBuilder<TextEditingValue>(
+                          valueListenable: c,
+                          builder: (context, v, _) => Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              for (var i = 0; i < 4; i++)
+                                Container(
+                                  width: 58,
+                                  height: 66,
+                                  margin: const EdgeInsets.symmetric(horizontal: 4),
+                                  alignment: Alignment.center,
+                                  decoration: BoxDecoration(
+                                    color: L.sky,
+                                    borderRadius: BorderRadius.circular(16),
+                                    border: Border.all(color: i == v.text.length ? const Color(0xFF2E9BF0) : L.sky2, width: 2),
+                                  ),
+                                  child: Text(i < v.text.length ? v.text[i] : '', style: display(36, color: L.ink)),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    Positioned.fill(
+                      child: Opacity(
+                        opacity: 0,
+                        child: TextField(
+                          controller: c,
+                          autofocus: code == null,
+                          maxLength: 4,
+                          showCursor: false,
+                          enableInteractiveSelection: false,
+                          textCapitalization: TextCapitalization.characters,
+                          inputFormatters: [FilteringTextInputFormatter.allow(RegExp('[a-zA-Z]')), UpperCaseFormatter()],
+                          onSubmitted: (_) => Navigator.pop(ctx, true),
+                          decoration: const InputDecoration(counterText: '', border: InputBorder.none),
+                        ),
+                      ),
+                    ),
+                  ]),
                 ),
+                const SizedBox(height: 8),
+                Text('أو امسح رمز QR من هاتف صاحب الغرفة بكاميرا هاتفك', textAlign: TextAlign.center, style: body(13, weight: FontWeight.w800, color: L.muted)),
                 const SizedBox(height: 16),
                 ChunkyButton(label: 'انضمام', icon: Icons.login_rounded, onTap: () => Navigator.pop(ctx, true)),
                 if (lanHostSupported) ...[
