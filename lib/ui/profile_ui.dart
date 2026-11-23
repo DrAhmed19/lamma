@@ -37,7 +37,7 @@ Future<bool> editProfile(BuildContext context, {bool first = false, bool invited
             child: Container(
               margin: const EdgeInsets.all(10),
               padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
-              decoration: BoxDecoration(color: C.surface, borderRadius: BorderRadius.circular(30), border: Border.all(color: C.line)),
+              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(30), boxShadow: const [BoxShadow(color: Color(0x331E325A), blurRadius: 30, offset: Offset(0, 10))]),
               child: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -45,12 +45,12 @@ Future<bool> editProfile(BuildContext context, {bool first = false, bool invited
                   children: [
                     Center(child: Avatar(avatar, size: 84)),
                     const SizedBox(height: 4),
-                    Text(first ? 'أهلًا بك! ما اسمك؟' : 'ملفك الشخصي', textAlign: TextAlign.center, style: display(28)),
+                    Text(first ? 'أهلًا بك! ما اسمك؟' : 'ملفك الشخصي', textAlign: TextAlign.center, style: display(28, color: L.ink)),
                     if (first)
                       Text(
                         invited ? 'اكتب اسمك واختر صورتك، ثم ندخلك إلى الغرفة مباشرة' : 'سيظهر اسمك لأصدقائك عند اللعب معهم',
                         textAlign: TextAlign.center,
-                        style: body(14, color: C.muted),
+                        style: body(14, color: L.muted),
                       ),
                     const SizedBox(height: 16),
                     TextField(
@@ -58,7 +58,7 @@ Future<bool> editProfile(BuildContext context, {bool first = false, bool invited
                       autofocus: first,
                       maxLength: 14,
                       textAlign: TextAlign.center,
-                      style: body(22, weight: FontWeight.w800),
+                      style: body(22, weight: FontWeight.w800, color: L.ink),
                       onChanged: (_) {
                         if (nameError != null) set(() => nameError = null);
                       },
@@ -68,17 +68,17 @@ Future<bool> editProfile(BuildContext context, {bool first = false, bool invited
                         errorMaxLines: 2,
                         errorStyle: body(13, weight: FontWeight.w700, color: const Color(0xFFFF6B81)),
                         counterText: '',
-                        hintStyle: body(20, color: alpha(C.muted, 0.5)),
+                        hintStyle: body(20, color: alpha(L.muted, 0.5)),
                         filled: true,
-                        fillColor: alpha(Colors.white, 0.06),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(18), borderSide: BorderSide(color: C.line)),
-                        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(18), borderSide: BorderSide(color: C.line)),
+                        fillColor: L.sky,
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(18), borderSide: const BorderSide(color: L.sky2, width: 2)),
+                        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(18), borderSide: const BorderSide(color: L.sky2, width: 2)),
                         focusedBorder:
-                            OutlineInputBorder(borderRadius: BorderRadius.circular(18), borderSide: BorderSide(color: alpha(C.accent, 0.8))),
+                            OutlineInputBorder(borderRadius: BorderRadius.circular(18), borderSide: const BorderSide(color: Color(0xFF2E9BF0), width: 2)),
                       ),
                     ),
                     const SizedBox(height: 14),
-                    Text('اختر صورتك', style: body(14, weight: FontWeight.w700, color: C.muted)),
+                    Text('اختر صورتك', style: body(14, weight: FontWeight.w700, color: L.muted)),
                     const SizedBox(height: 8),
                     Wrap(
                       alignment: WrapAlignment.center,
@@ -93,17 +93,17 @@ Future<bool> editProfile(BuildContext context, {bool first = false, bool invited
                               height: 50,
                               alignment: Alignment.center,
                               decoration: BoxDecoration(
-                                color: a == avatar ? alpha(C.accent, 0.3) : alpha(Colors.white, 0.05),
+                                color: a == avatar ? alpha(const Color(0xFF2E9BF0), 0.18) : Colors.white,
                                 borderRadius: BorderRadius.circular(14),
-                                border: Border.all(color: a == avatar ? C.accent : C.line, width: a == avatar ? 2 : 1),
+                                border: Border.all(color: a == avatar ? const Color(0xFF2E9BF0) : L.sky2, width: 2),
                               ),
-                              child: Text(a, style: const TextStyle(fontSize: 26)),
+                              child: Avatar(a, size: 36),
                             ),
                           ),
                       ],
                     ),
                     const SizedBox(height: 18),
-                    BigButton(
+                    ChunkyButton(
                       label: invited ? 'دخول الغرفة' : (first ? 'متابعة' : 'حفظ'),
                       icon: Icons.check_rounded,
                       onTap: () {
@@ -141,7 +141,7 @@ class ProfileScreen extends StatelessWidget {
     return Scaffold(
       body: Stack(
         children: [
-          const Positioned.fill(child: LammaBackground()),
+          const Positioned.fill(child: LightBackground()),
           SafeArea(
             child: ListenableBuilder(
               listenable: Profile.I,
@@ -155,20 +155,20 @@ class ProfileScreen extends StatelessWidget {
                       children: [
                         IconButton(
                           onPressed: () => Navigator.of(context).pop(),
-                          icon: const Icon(Icons.arrow_forward_rounded, color: Colors.white),
+                          icon: const Icon(Icons.arrow_forward_rounded, color: L.ink),
                         ),
                         const SizedBox(width: 4),
-                        Text('ملفي', style: display(34)),
+                        Text('ملفي', style: display(34, color: L.ink)),
                       ],
                     ),
                     const SizedBox(height: 8),
                     Center(child: Avatar(p.avatar, size: 92)),
-                    Center(child: Text(p.hasName ? p.name : 'بدون اسم', style: display(32))),
+                    Center(child: Text(p.hasName ? p.name : 'بدون اسم', style: display(32, color: L.ink))),
                     Center(
                       child: TextButton.icon(
                         onPressed: () => editProfile(context),
-                        icon: const Icon(Icons.edit_rounded, size: 18, color: C.muted),
-                        label: Text('تعديل الاسم والصورة', style: body(14, weight: FontWeight.w700, color: C.muted)),
+                        icon: const Icon(Icons.edit_rounded, size: 18, color: L.muted),
+                        label: Text('تعديل الاسم والصورة', style: body(14, weight: FontWeight.w700, color: L.muted)),
                       ),
                     ),
                     const SizedBox(height: 12),
@@ -182,7 +182,7 @@ class ProfileScreen extends StatelessWidget {
                       ],
                     ),
                     const SizedBox(height: 22),
-                    Text('الألقاب', style: body(16, weight: FontWeight.w800, color: C.muted)),
+                    Text('الألقاب', style: body(16, weight: FontWeight.w800, color: L.muted)),
                     const SizedBox(height: 8),
                     Wrap(
                       spacing: 8,
@@ -195,16 +195,16 @@ class ProfileScreen extends StatelessWidget {
                               width: 160,
                               padding: const EdgeInsets.all(12),
                               decoration: BoxDecoration(
-                                color: alpha(earned.contains(t.name) ? C.accent : Colors.white, earned.contains(t.name) ? 0.18 : 0.04),
+                                color: earned.contains(t.name) ? alpha(const Color(0xFFFFB928), 0.18) : Colors.white,
                                 borderRadius: BorderRadius.circular(16),
-                                border: Border.all(color: earned.contains(t.name) ? alpha(C.accent, 0.7) : C.line),
+                                border: Border.all(color: earned.contains(t.name) ? const Color(0xFFFFB928) : L.sky2, width: 2),
                               ),
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(earned.contains(t.name) ? t.icon : '🔒', style: const TextStyle(fontSize: 26)),
-                                  Text(t.name, style: body(15, weight: FontWeight.w800)),
-                                  Text(t.how, style: body(12, color: C.muted)),
+                                  Text(t.name, style: body(15, weight: FontWeight.w800, color: L.ink)),
+                                  Text(t.how, style: body(12, color: L.muted)),
                                 ],
                               ),
                             ),
@@ -213,23 +213,23 @@ class ProfileScreen extends StatelessWidget {
                     ),
                     if (p.blocked.isNotEmpty) ...[
                       const SizedBox(height: 22),
-                      Text('المحظورون', style: body(16, weight: FontWeight.w800, color: C.muted)),
-                      Text('لن تُجمع معهم عند اللعب مع لاعبين آخرين.', style: body(13, color: C.muted)),
+                      Text('المحظورون', style: body(16, weight: FontWeight.w800, color: L.muted)),
+                      Text('لن تُجمع معهم عند اللعب مع لاعبين آخرين.', style: body(13, color: L.muted)),
                       const SizedBox(height: 8),
                       for (final e in p.blocked.entries)
                         Container(
                           margin: const EdgeInsets.only(bottom: 6),
                           padding: const EdgeInsets.fromLTRB(14, 4, 6, 4),
                           decoration: BoxDecoration(
-                            color: alpha(Colors.white, 0.04),
+                            color: Colors.white,
                             borderRadius: BorderRadius.circular(14),
-                            border: Border.all(color: C.line),
+                            border: Border.all(color: L.sky2, width: 2),
                           ),
                           child: Row(
                             children: [
-                              const Icon(Icons.block_rounded, color: C.muted, size: 18),
+                              const Icon(Icons.block_rounded, color: L.muted, size: 18),
                               const SizedBox(width: 8),
-                              Expanded(child: Text(e.value.isEmpty ? 'لاعب' : e.value, style: body(15, weight: FontWeight.w700))),
+                              Expanded(child: Text(e.value.isEmpty ? 'لاعب' : e.value, style: body(15, weight: FontWeight.w700, color: L.ink))),
                               TextButton(
                                 onPressed: () => p.unblock(e.key),
                                 child: Text('إلغاء الحظر', style: body(13, weight: FontWeight.w800, color: const Color(0xFFC9B8FF))),
@@ -239,19 +239,19 @@ class ProfileScreen extends StatelessWidget {
                         ),
                     ],
                     const SizedBox(height: 22),
-                    Text('الألعاب', style: body(16, weight: FontWeight.w800, color: C.muted)),
+                    Text('الألعاب', style: body(16, weight: FontWeight.w800, color: L.muted)),
                     const SizedBox(height: 8),
                     for (final g in games)
                       Container(
                         margin: const EdgeInsets.only(bottom: 8),
                         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                        decoration: BoxDecoration(color: alpha(Colors.white, 0.04), borderRadius: BorderRadius.circular(16), border: Border.all(color: C.line)),
+                        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: L.sky2, width: 2)),
                         child: Row(
                           children: [
                             GameArt(g.id, fallback: g.icon, size: 40, radius: 12),
                             const SizedBox(width: 12),
-                            Expanded(child: Text(g.title, style: body(16, weight: FontWeight.w800))),
-                            Text('${p.stats[g.id]?.played ?? 0} مباراة', style: body(13, color: C.muted)),
+                            Expanded(child: Text(g.title, style: body(16, weight: FontWeight.w800, color: L.ink))),
+                            Text('${p.stats[g.id]?.played ?? 0} مباراة', style: body(13, color: L.muted)),
                             const SizedBox(width: 10),
                             Text('${p.stats[g.id]?.won ?? 0} فوز', style: body(13, weight: FontWeight.w800, color: C.go)),
                           ],
@@ -270,12 +270,12 @@ class ProfileScreen extends StatelessWidget {
   Widget _stat(String icon, String value, String label) => Expanded(
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 6),
-          decoration: BoxDecoration(color: alpha(Colors.white, 0.05), borderRadius: BorderRadius.circular(18), border: Border.all(color: C.line)),
+          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(18), border: Border.all(color: L.sky2, width: 2)),
           child: Column(
             children: [
               Text(icon, style: const TextStyle(fontSize: 22)),
-              Text(value, style: display(26)),
-              Text(label, textAlign: TextAlign.center, style: body(11.5, color: C.muted)),
+              Text(value, style: display(26, color: L.ink)),
+              Text(label, textAlign: TextAlign.center, style: body(11.5, color: L.muted)),
             ],
           ),
         ),
