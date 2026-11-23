@@ -286,11 +286,23 @@ class Avatar extends StatelessWidget {
         child: Center(child: Text(avatar.isEmpty ? '🙂' : avatar, style: TextStyle(fontSize: size * 0.8, height: 1))),
       );
     }
-    return RepaintBoundary(
+    final drawn = RepaintBoundary(
       child: SizedBox(width: size, height: size, child: CustomPaint(painter: MascotPainter(kind))),
+    );
+    if (!kAvatarImages.contains(kind)) return drawn;
+    // صورة مولّدة (assets/avatars/<kind>.webp) مقصوصة دائرة، وإذا ما انفتحت نرجع للرسم
+    return SizedBox(
+      width: size,
+      height: size,
+      child: ClipOval(
+        child: Image.asset('assets/avatars/$kind.webp', fit: BoxFit.cover, filterQuality: FilterQuality.medium, errorBuilder: (_, __, ___) => drawn),
+      ),
     );
   }
 }
+
+/// الشخصيات اللي إلها صورة مولّدة (الباقي يبقى بالرسم لحد ما تجي صورته)
+const kAvatarImages = {'panda', 'fox', 'lion', 'cat', 'frog'};
 
 /// صورة اللعبة (assets/games/<id>.webp). إذا الملف ناقص يرجع للرسم بالكود.
 class GameArt extends StatelessWidget {
