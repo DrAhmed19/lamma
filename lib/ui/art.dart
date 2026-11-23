@@ -302,7 +302,7 @@ class Avatar extends StatelessWidget {
 }
 
 /// الشخصيات اللي إلها صورة مولّدة (الباقي يبقى بالرسم لحد ما تجي صورته)
-const kAvatarImages = {'panda', 'fox', 'lion', 'cat', 'frog'};
+const kAvatarImages = {'panda', 'fox', 'lion', 'cat', 'frog', 'monkey', 'tiger', 'robot'};
 
 /// صورة اللعبة (assets/games/<id>.webp). إذا الملف ناقص يرجع للرسم بالكود.
 class GameArt extends StatelessWidget {
