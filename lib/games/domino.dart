@@ -41,7 +41,15 @@ class DominoGame extends StatefulWidget {
   State<DominoGame> createState() => _DominoState();
 }
 
-const _felt = Color(0xFF0E4D3A);
+const _felt = Color(0xFF58B08F);
+// لوحات الطاولة (النتيجة، المخزن، الهدف) مثل النموذج: أخضر غامق بحافة سفلية
+const _plaque = Color(0xFF1D4A3B);
+BoxDecoration _plaqueBox({double r = 14, Color? border}) => BoxDecoration(
+      gradient: const LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Color(0xFF25584A), _plaque]),
+      borderRadius: BorderRadius.circular(r),
+      border: border == null ? null : Border.all(color: border, width: 2),
+      boxShadow: const [BoxShadow(color: Color(0x40000000), offset: Offset(0, 3))],
+    );
 const _gold = Color(0xFFFFD34D);
 
 class _DominoState extends LoopState<DominoGame> {
@@ -708,16 +716,12 @@ class _DominoState extends LoopState<DominoGame> {
       return Expanded(
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          decoration: BoxDecoration(
-            color: alpha(c, 0.16),
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: alpha(c, 0.6)),
-          ),
+          decoration: _plaqueBox(border: c),
           child: Row(
             children: [
               Expanded(child: Text(sideName(s), maxLines: 1, overflow: TextOverflow.ellipsis, style: body(13, weight: FontWeight.w800))),
-              Text('${m.side[s]}', style: display(24, color: c)),
-              Text(' / ${m.target}', style: body(11, color: C.muted)),
+              Text('${m.side[s]}', style: display(24, color: _gold)),
+              Text(' / ${m.target}', style: body(11, weight: FontWeight.w700, color: alpha(Colors.white, 0.7))),
             ],
           ),
         ),
@@ -912,11 +916,7 @@ class _DominoState extends LoopState<DominoGame> {
           },
           child: Container(
             padding: const EdgeInsets.fromLTRB(6, 4, 6, 3),
-            decoration: BoxDecoration(
-              color: alpha(Colors.black, 0.25),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: alpha(canDraw ? _gold : Colors.white, canDraw ? 0.9 : 0.15), width: canDraw ? 2 : 1),
-            ),
+            decoration: _plaqueBox(r: 12, border: canDraw ? _gold : null),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -1033,15 +1033,15 @@ class _DominoState extends LoopState<DominoGame> {
               fit: BoxFit.scaleDown,
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                decoration: BoxDecoration(color: alpha(Colors.black, 0.25), borderRadius: BorderRadius.circular(14)),
+                decoration: _plaqueBox(),
                 child: Row(mainAxisSize: MainAxisSize.min, children: [
                   if (lv >= 0) ...[
                     Container(width: 10, height: 10, decoration: BoxDecoration(color: kLevelColors[lv], shape: BoxShape.circle)),
                     const SizedBox(width: 5),
                     Text(kLevelNames[lv], style: body(13, weight: FontWeight.w800, color: kLevelColors[lv])),
-                    Text('  •  ', style: body(12, color: C.muted)),
+                    Text('  •  ', style: body(12, color: alpha(Colors.white, 0.6))),
                   ],
-                  Text('الهدف ${m.goal}', style: body(13, weight: FontWeight.w800)),
+                  Text('الهدف ${m.goal}', style: body(13, weight: FontWeight.w800, color: _gold)),
                 ]),
               ),
             ),
@@ -1346,7 +1346,7 @@ class _Felt extends StatelessWidget {
   Widget build(BuildContext context) {
     return const DecoratedBox(
       decoration: BoxDecoration(
-        gradient: RadialGradient(radius: 1.1, colors: [Color(0xFF16684F), _felt, Color(0xFF07261C)], stops: [0, 0.6, 1]),
+        gradient: RadialGradient(radius: 1.1, colors: [Color(0xFF66BD9B), _felt, Color(0xFF2E7A5D)], stops: [0, 0.45, 1]),
       ),
     );
   }
