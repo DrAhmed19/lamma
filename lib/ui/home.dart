@@ -24,6 +24,9 @@ import 'update.dart';
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
+  /// للاختبارات: «العب الآن» بأعداد وهمية (بدون سيرفر)
+  static Map<String, int>? fakeWaiting;
+
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
@@ -36,6 +39,13 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     super.initState();
     _spin = AnimationController(vsync: this, duration: const Duration(seconds: 18))..repeat();
     Updater.I.check();
+    // «العب الآن»: نسأل السيرفر كل 30 ثانية منو ينتظر (بس بالإنترنت)
+    if (HomeScreen.fakeWaiting != null) {
+      _waiting = HomeScreen.fakeWaiting!;
+    } else if (onlineAvailable && lanOrigin == null) {
+      _pollWaiting();
+      _waitTimer = Timer.periodic(const Duration(seconds: 30), (_) => _pollWaiting());
+    }
     // رابط دعوة بالويب (/j/CODE يتحول لـ ?room=CODE): يدخل الغرفة مباشرة
     final q = Uri.base.queryParameters;
     final code = q['room'];
@@ -51,6 +61,18 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   }
 
   StreamSubscription<Uri>? _links;
+  Timer? _waitTimer;
+
+  /// عدد اللي ينتظرون بكل لعبة (اللعب ويا الآخرين)
+  Map<String, int> _waiting = const {};
+
+  Future<void> _pollWaiting() async {
+    // ما نسأل والرئيسية مغطاة بغرفة أو لعبة
+    if (!mounted || !(ModalRoute.of(context)?.isCurrent ?? true)) return;
+    final w = await RoomConn.waiting();
+    if (w != null && mounted) setState(() => _waiting = w);
+  }
+
   String? _lastLink;
   DateTime _lastLinkAt = DateTime(0);
 
@@ -76,6 +98,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   @override
   void dispose() {
     _links?.cancel();
+    _waitTimer?.cancel();
     _spin.dispose();
     super.dispose();
   }
@@ -107,6 +130,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                     const SliverToBoxAdapter(child: UpdateBanner()),
                     const SliverToBoxAdapter(child: GetAppBanner()),
                     SliverToBoxAdapter(child: _duo()),
+                    SliverToBoxAdapter(child: _live()),
                     SliverToBoxAdapter(
                       child: Padding(
                         padding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
@@ -199,6 +223,67 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                   Text(Profile.I.hasName ? Profile.I.name : 'ملفي', style: body(12, weight: FontWeight.w800, color: L.ink)),
                 ],
               ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// «العب الآن»: ألعاب بيها ناس ينتظرون هسه، وزر يدخلك ويّاهم مباشرة
+  Widget _live() {
+    final live = [for (final g in games) if (g.quick && g.online != null && (_waiting[g.id] ?? 0) > 0) g];
+    if (live.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(top: 18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Row(children: [
+              Text('العب الآن', style: display(23, color: L.ink)),
+              const Spacer(),
+              Container(width: 9, height: 9, decoration: const BoxDecoration(color: Color(0xFF43C16B), shape: BoxShape.circle)),
+              const SizedBox(width: 6),
+              Text('أشخاص ينتظرون', style: body(13, weight: FontWeight.w800, color: L.muted)),
+            ]),
+          ),
+          const SizedBox(height: 10),
+          SizedBox(
+            height: 132,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              itemCount: live.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 10),
+              itemBuilder: (context, i) {
+                final g = live[i];
+                final n = _waiting[g.id] ?? 0;
+                return Container(
+                  width: 200,
+                  margin: const EdgeInsets.only(bottom: 8),
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(22), boxShadow: const [BoxShadow(color: L.sky2, offset: Offset(0, 6))]),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Row(children: [
+                        GameArt(g.id, fallback: g.icon, size: 46, radius: 14),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                            FittedBox(fit: BoxFit.scaleDown, child: Text(g.title, maxLines: 1, style: display(19, color: L.ink))),
+                            Text(n == 1 ? 'شخص واحد ينتظر' : '$n ينتظرون', maxLines: 1, style: body(12, weight: FontWeight.w800, color: L.muted)),
+                          ]),
+                        ),
+                      ]),
+                      const Spacer(),
+                      ChunkyButton(label: 'ادخل', color: g.colors[0], onTap: () => quickMatch(context, g)),
+                    ],
+                  ),
+                );
+              },
             ),
           ),
         ],

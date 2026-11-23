@@ -2,6 +2,7 @@
 //
 // GET  /new              → { code }  يسوّي غرفة جديدة بكود من 4 حروف
 // GET  /quick?game=ID    → { code }  لعب سريع ويا ناس ثانين: يلگي غرفة عامة تنتظر، أو يسوّي وحدة
+// GET  /waiting          → { games: {ID: عدد} }  كم واحد ينتظر بكل لعبة (للرئيسية «العب الآن»؛ بس أعداد)
 // GET  /info/<CODE>      → { exists, players, game, host }  (رابط الدعوة /j/CODE يقراه)
 // GET  /ws/<CODE>        → WebSocket للغرفة
 //
@@ -126,6 +127,11 @@ export default {
       return json(out, r.status);
     }
 
+    if (url.pathname === "/waiting") {
+      const mm = env.MATCH.get(env.MATCH.idFromName("mm"));
+      return json(await (await mm.fetch("https://mm/waiting")).json());
+    }
+
     // صفحة الإدارة (برابط سري): الإبلاغات والممنوعين
     if (url.pathname === "/admin" || url.pathname === "/admin/act") {
       const key = env.ADMIN_KEY;
@@ -186,6 +192,13 @@ export class Match {
       }
       await this.ctx.storage.put("open", list);
       return new Response("ok");
+    }
+
+    if (url.pathname === "/waiting") {
+      // بس أعداد لكل لعبة (بدون رموز الغرف أو أي شي عن اللاعبين)
+      const games = {};
+      for (const r of Object.values(list)) if (r.n < r.max) games[r.game] = (games[r.game] ?? 0) + r.n;
+      return json({ games });
     }
 
     if (url.pathname === "/find") {

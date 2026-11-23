@@ -12,6 +12,7 @@ import 'package:lamma/core/profile.dart';
 import 'package:lamma/core/sfx.dart';
 import 'package:lamma/games/registry.dart';
 import 'package:lamma/main.dart';
+import 'package:lamma/ui/home.dart';
 import 'package:lamma/ui/setup.dart';
 import 'package:lamma/ui/theme.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -72,6 +73,8 @@ void main() {
     await loadFont('Vazirmatn', ['assets/fonts/Vazirmatn-Regular.ttf', 'assets/fonts/Vazirmatn-Bold.ttf', 'assets/fonts/Vazirmatn-ExtraBold.ttf', 'assets/fonts/Vazirmatn-Black.ttf']);
     await loadFont('Lalezar', ['assets/fonts/Lalezar-Regular.ttf']);
     await Profile.I.load();
+    // «العب الآن» يطلع بالرئيسية حتى نفحصه بكل الأحجام
+    HomeScreen.fakeWaiting = {'xo': 1, 'domino': 3, 'pigeon': 2, 'hockey': 1};
   });
 
   for (final e in sizes.entries) {

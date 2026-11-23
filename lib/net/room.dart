@@ -248,6 +248,19 @@ class RoomConn extends ChangeNotifier {
     return QuickResult(m['code'] as String, warn: m['warn'] as String?);
   }
 
+  /// «العب الآن»: كم واحد ينتظر بكل لعبة بالغرف العامة (بس أعداد). null إذا ما وصل.
+  static Future<Map<String, int>?> waiting() async {
+    if (kServer.isEmpty || lanOrigin != null) return null;
+    try {
+      final r = await http.get(Uri.parse('$kServer/waiting')).timeout(const Duration(seconds: 6));
+      if (r.statusCode != 200) return null;
+      final g = (jsonDecode(r.body) as Map)['games'] as Map? ?? {};
+      return {for (final e in g.entries) '${e.key}': (e.value as num).toInt()};
+    } catch (_) {
+      return null;
+    }
+  }
+
   /// إبلاغ عن لاعب بغرفة عامة (name / abuse / cheat / other)
   void report(int seat, String reason) => _send({'t': 'report', 'seat': seat, 'r': reason});
 

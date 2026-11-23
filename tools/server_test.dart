@@ -115,6 +115,10 @@ Future<void> main(List<String> args) async {
   final c = Client('stranger1');
   await c.connect(base, q1);
   await wait(400);
+  // «العب الآن» بالرئيسية: عدد اللي ينتظرون بكل لعبة (بدون رموز أو أسماء)
+  final wt = await getJson('/waiting');
+  await check(() => ((wt['games'] as Map?)?['xo'] ?? 0) >= 1, '/waiting counts the waiting player (${wt['games']})');
+  await check(() => !jsonEncode(wt).contains(q1), '/waiting does not leak room codes');
   final q2 = (await getJson('/quick?game=xo'))['code'] as String;
   await check(() => q1 == q2, 'quick match pairs into the same room ($q1, $q2)');
   final d = Client('stranger2');
