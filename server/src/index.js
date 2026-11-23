@@ -32,6 +32,7 @@ const LOBBY_DROP_DEFAULT = 3 * 60 * 1000; // بالغرفة: اللي انقطع
 const PUBLIC_DROP_MS = 30 * 1000; // بالغرف العامة أسرع
 const END_DELAY_DEFAULT = 4000; // بعد ما تخلص المباراة لأن طلع لاعب
 const AUTO_START_MS = 12 * 1000; // الغرف العامة: تبدي بعد 12 ثانية من وصول لاعبين
+const BOT_FILL_MS = 20 * 1000; // الغرف العامة: إذا واحد بس انتظر 20 ثانية، يكمّل وياه الكمبيوتر (مكتوب عليه «الكمبيوتر»)
 const FULL_START_MS = 5 * 1000; // الغرف العامة: إذا اكتملت، عدّ تنازلي 5 ثواني (يشوفون الخصم ويگدرون يطلعون)
 const SAVE_EVERY_MS = 2000;
 const EMOJIS = 12; // عدد التفاعلات (القائمة بالتطبيق)
@@ -257,6 +258,7 @@ export class Room {
     this.endDelayMs = Number(env.END_DELAY_MS ?? END_DELAY_DEFAULT);
     this.autoStartMs = Number(env.AUTO_START_MS ?? AUTO_START_MS);
     this.fullStartMs = Number(env.FULL_START_MS ?? FULL_START_MS);
+    this.botFillMs = Number(env.BOT_FILL_MS ?? BOT_FILL_MS);
   }
 
   // ------------------------------------------------------------ تخزين
@@ -530,11 +532,20 @@ export class Room {
     const n = [...this.online()].filter((s) => meta.players[s]).length;
     const max = quickMax(meta.game) ?? 2;
     if (n >= max) {
+      meta.fillBot = false;
       const at = Date.now() + this.fullStartMs;
       if (!meta.autoAt || meta.autoAt > at) meta.autoAt = at;
     } else if (n >= 2) {
+      // وصل لاعب حقيقي: نلغي وقت الكمبيوتر ونحسب من جديد
+      if (meta.fillBot) meta.autoAt = 0;
+      meta.fillBot = false;
       if (!meta.autoAt) meta.autoAt = Date.now() + this.autoStartMs;
+    } else if (n === 1 && globalThis.lamma.bots(meta.game) && gameFits(meta.game, 2)) {
+      // واحد بس ينتظر: بعد 20 ثانية يكمّل وياه الكمبيوتر
+      meta.fillBot = true;
+      if (!meta.autoAt) meta.autoAt = Date.now() + this.botFillMs;
     } else {
+      meta.fillBot = false;
       meta.autoAt = 0;
     }
     return meta.autoAt && Date.now() >= meta.autoAt;
@@ -882,7 +893,8 @@ export class Room {
         if (meta.public) {
           // الغرف العامة: مرة ثانية بس إذا الكل وافقوا (والخصم بعده موجود)
           const active = meta.seats.filter((s) => meta.players[s] && !meta.out.includes(s) && on.has(s));
-          meta.votes = [...new Set([...(meta.votes ?? []), me.seat])].filter((s) => active.includes(s));
+          // الكمبيوتر يوافق دائماً
+          meta.votes = [...new Set([...(meta.votes ?? []), me.seat, ...active.filter((s) => this.isBot(meta, s))])].filter((s) => active.includes(s));
           if (active.length < 2 || !active.every((s) => meta.votes.includes(s))) {
             await this.saveMeta(meta);
             this.broadcast(this.roomState(meta));
@@ -1102,6 +1114,15 @@ export class Room {
       if (meta.players[meta.host] === undefined) this.fixHost(meta, { force: true });
       // الغرف العامة: وقت البداية التلقائية
       if (this.autoStart(meta)) {
+        if (meta.fillBot) {
+          // مقعد فاضي للكمبيوتر
+          const taken = new Set(Object.keys(meta.players).map(Number));
+          let seat = 0;
+          while (taken.has(seat)) seat++;
+          meta.players[seat] = { name: "الكمبيوتر", token: "", avatar: "🤖", pid: "", bot: true };
+          meta.fillBot = false;
+          this.trackBots(meta);
+        }
         const seats = [...this.online()].filter((s) => meta.players[s]).sort((a, b) => a - b);
         if (seats.length >= 2) {
           this.newMatch(meta, seats);

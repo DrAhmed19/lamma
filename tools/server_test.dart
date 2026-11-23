@@ -127,6 +127,14 @@ Future<void> main(List<String> args) async {
   await check(() => c.room?['public'] == true, 'quick room is public');
   await check(() => c.room?['started'] == true && c.state != null, 'quick room auto-starts when full', 9000);
   await c.ws.close();
+  // واحد بس ينتظر دومينو: بعد 20 ثانية يكمّل وياه الكمبيوتر
+  final qd = (await getJson('/quick?game=domino'))['code'] as String;
+  final soloD = Client('soloDomino');
+  await soloD.connect(base, qd);
+  await check(() => soloD.room?['started'] == true, 'public domino alone starts with the computer after 20s', 30000);
+  await check(() => ((soloD.room?['players'] as List?) ?? []).any((p) => p['bot'] == true), 'the computer joined the public room');
+  await soloD.ws.close();
+
   await d.ws.close();
 
   // المحيبس ما يطلع باللعب السريع

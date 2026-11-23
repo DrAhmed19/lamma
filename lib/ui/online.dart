@@ -977,7 +977,13 @@ class _LobbyScreenState extends State<LobbyScreen> {
             Text('$left', style: display(56, color: const Color(0xFFFF8A3D))),
             Text('تبدأ المباراة...', style: body(14, color: L.muted)),
           ] else
-            Text('بانتظار لاعبين آخرين...', style: body(14, color: L.muted)),
+            Text(
+              botGames.contains(room.game) && others.isEmpty
+                  ? 'بانتظار لاعبين آخرين... وإذا لم يصل أحد خلال 20 ثانية يلعب معك الكمبيوتر'
+                  : 'بانتظار لاعبين آخرين...',
+              textAlign: TextAlign.center,
+              style: body(14, color: L.muted),
+            ),
         ],
       ),
     );
