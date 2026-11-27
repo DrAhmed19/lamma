@@ -143,7 +143,24 @@ void main() {
       expect(sawThinking, isTrue);
       expect(m.goal, const [50, 100, 200][level]);
       expect(m.fives, level >= 1);
-      await t.pump(const Duration(seconds: 2));
+      for (var k = 0; k < 30; k++) {
+        await t.pump(const Duration(milliseconds: 100));
+      }
+      // «العب مرة أخرى»: لازم تبدي مباراة جديدة وتكمل (بدون ما نطلع ونرجع)
+      expect(find.text('العب مرة أخرى'), findsOneWidget, reason: 'result overlay shown');
+      await t.tap(find.text('العب مرة أخرى'));
+      await t.pump(const Duration(milliseconds: 300));
+      expect(m.over, isFalse, reason: 'rematch starts');
+      expect(find.text('العب مرة أخرى'), findsNothing, reason: 'overlay gone');
+      final before = m.chain.length + m.up.length + m.dn.length;
+      for (var k = 0; k < 200; k++) {
+        await t.pump(const Duration(milliseconds: 200));
+        if (m.turn == 0 && m.phase == 'play') {
+          final mv = DominoBot.move(m, 0, 2, r);
+          if (mv != null) m.input(0, mv);
+        }
+      }
+      expect(m.chain.length + m.up.length + m.dn.length, greaterThan(before), reason: 'rematch keeps playing');
     });
   }
 }
