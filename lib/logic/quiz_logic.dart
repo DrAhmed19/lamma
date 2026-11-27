@@ -5,9 +5,11 @@ import 'quiz_bank.dart';
 
 /// قواعد "سؤال وجواب": 2-4 لاعبين، 10 أسئلة.
 /// كل سؤال 12 ثانية. الجواب الصحيح بنقطة، وأسرع جواب صحيح ياخذ نقطة زيادة.
+/// [level] 2 (صعب): الجواب الغلط ينقص نقطة. المستوى يحدد قوة الكمبيوتر أيضاً.
 class QuizModel extends GameModel {
-  QuizModel({required super.players, required super.crazy, required super.seed})
-      : score = List.filled(players, 0),
+  QuizModel({required super.players, required super.crazy, required super.seed, int level = 1})
+      : level = level.clamp(0, 2),
+        score = List.filled(players, 0),
         answers = List.filled(players, -1),
         answeredAt = List.filled(players, 0),
         out = List.filled(players, false) {
@@ -29,6 +31,7 @@ class QuizModel extends GameModel {
         startAt = (j['start'] as num).toDouble(),
         win = j['win'] as int,
         finished = j['fin'] == true,
+        level = (j['lv'] as int?) ?? 1,
         super.restore();
 
   static const questions = 10;
@@ -43,6 +46,7 @@ class QuizModel extends GameModel {
   @override
   int get localHz => 20;
 
+  final int level;
   List<int> score, answers;
   List<double> answeredAt;
   List<bool> out;
@@ -96,6 +100,7 @@ class QuizModel extends GameModel {
     final c = current.$3;
     var best = double.infinity;
     for (var p = 0; p < players; p++) {
+      if (answers[p] != c && answers[p] >= 0 && level == 2 && score[p] > 0) score[p]--;
       if (answers[p] == c) {
         score[p]++;
         if (answeredAt[p] < best) {
@@ -194,5 +199,6 @@ class QuizModel extends GameModel {
         'start': startAt,
         'win': win,
         'fin': finished,
+        'lv': level,
       };
 }

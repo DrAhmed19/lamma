@@ -113,6 +113,12 @@ final games = <GameInfo>[
     colors: const [Color(0xFF8B5CF6), Color(0xFF3B1C8C)],
     icon: QuizIcon.new,
     build: (n, _) => QuizGame(players: n),
+    levels: const [
+      'عشرة أسئلة، والكمبيوتر هادئ ويغلط كثيرًا.',
+      'عشرة أسئلة بنقاط السرعة. الكمبيوتر يعرف أغلب الأجوبة.',
+      'الجواب الخاطئ ينقص نقطة! والكمبيوتر سريع ودقيق.',
+    ],
+    play: (level, bots) => QuizGame(players: bots.length, level: level, bots: bots),
     online: (room) => QuizGame(players: room.seats.length, room: room),
   ),
   GameInfo(

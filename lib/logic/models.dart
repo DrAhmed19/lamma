@@ -20,10 +20,10 @@ import 'xo_logic.dart';
 const onlineGames = {'xo', 'connect4', 'tug', 'pigeon', 'hockey', 'reaction', 'quiz', 'muhaibes', 'domino', 'whois', 'spy'};
 
 /// ألعاب يلعبها الكمبيوتر (بالغرف وعلى الجهاز)
-const botGames = {'domino', 'xo', 'connect4'};
+const botGames = {'domino', 'xo', 'connect4', 'quiz'};
 
 /// ألعاب بيها مستويات (سهل/متوسط/صعب) بدل عادي/مجنون
-const levelGames = {'domino', 'xo', 'connect4'};
+const levelGames = {'domino', 'xo', 'connect4', 'quiz'};
 
 /// حركة الكمبيوتر بلعبة [m] للاعب [player] بمستوى [level] (0-2). null = ماكو شي يسويه هسة.
 /// [peek] = بس نسأل "عنده شي يسويه؟" بدون ما يحسب الحركة (رخيص، كل إطار).
@@ -32,6 +32,19 @@ Map<String, dynamic>? botMove(GameModel m, int player, int level, math.Random r,
     if (m.over) return null;
     if (m.phase == 'round') return m.nextOk[player] ? null : {'a': 'next'};
     return DominoBot.move(m, player, const [1, 3, 4][level.clamp(0, 2)], r);
+  }
+  if (m is QuizModel) {
+    if (!m.started || m.reveal || m.over || m.answers[player] >= 0 || m.out[player]) return null;
+    // وقت جوابه ثابت لكل سؤال (الأقوى أسرع)، وبعدها يجاوب صح باحتمال حسب المستوى
+    final lv = m.level.clamp(0, 2);
+    final wait = const [6.0, 4.0, 2.5][lv] + ((m.qi * 37 + player * 11) % 30) / 10;
+    if (m.time - m.askedAt < wait) return null;
+    if (peek) return const {};
+    final right = r.nextDouble() < const [0.4, 0.65, 0.85][lv];
+    final c = m.current.$3;
+    var a = c;
+    if (!right) a = (c + 1 + r.nextInt(3)) % 4;
+    return {'m': 'ans', 'a': a};
   }
   if (m is Connect4Model) {
     if (peek) return !m.over && m.turn == player ? const {} : null;
@@ -59,7 +72,7 @@ GameModel createModel(String id, {required int players, required bool crazy, req
     case 'reaction':
       return ReactionModel(players: players, crazy: crazy, seed: seed);
     case 'quiz':
-      return QuizModel(players: players, crazy: crazy, seed: seed);
+      return QuizModel(players: players, crazy: crazy, seed: seed, level: level < 0 ? 1 : level);
     case 'muhaibes':
       return MuhaibesModel(players: players, crazy: crazy, seed: seed);
     case 'domino':

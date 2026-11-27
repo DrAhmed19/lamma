@@ -16,8 +16,12 @@ import '../ui/theme.dart';
 /// سؤال وجواب: 2-4 لاعبين. القواعد بـ QuizModel (نفسها بالسيرفر).
 /// على جهاز واحد: الشاشة نصّين (اللي فوق مقلوب)، وكل لاعب إله أزراره.
 class QuizGame extends StatefulWidget {
-  const QuizGame({super.key, required this.players, this.room});
+  const QuizGame({super.key, required this.players, this.room, this.level = 1, this.bots});
   final int players;
+
+  /// على نفس الجهاز: المستوى ومقاعد الكمبيوتر (من شاشة البداية)
+  final int level;
+  final List<bool>? bots;
   final RoomConn? room;
 
   @override
@@ -29,7 +33,14 @@ const _letters = ['أ', 'ب', 'ج', 'د'];
 class _QuizState extends LoopState<QuizGame> {
   late final Session<QuizModel> session = widget.room != null
       ? OnlineSession<QuizModel>(widget.room!)
-      : LocalSession(QuizModel(players: widget.players, crazy: false, seed: DateTime.now().microsecondsSinceEpoch));
+      : LocalSession(QuizModel(players: widget.players, crazy: false, seed: DateTime.now().microsecondsSinceEpoch, level: widget.level),
+          bots: widget.bots, level: widget.level);
+
+  bool isBot(int p) {
+    final s = session;
+    if (s is LocalSession<QuizModel>) return s.isBot(p);
+    return false;
+  }
 
   QuizModel get m => session.model;
   @override
@@ -87,11 +98,11 @@ class _QuizState extends LoopState<QuizGame> {
   }
 
   void _answer(int p, int a) {
-    if (!ready || m.counting || m.over || m.reveal || paused || m.answers[p] >= 0) return;
+    if (!ready || m.counting || m.over || m.reveal || paused || m.answers[p] >= 0 || isBot(p)) return;
     session.input(p, {'m': 'ans', 'a': a});
   }
 
-  String _name(int p) => online ? session.nameOf(p) : C.playerNames[p];
+  String _name(int p) => online ? session.nameOf(p) : (isBot(p) ? 'الكمبيوتر' : C.playerNames[p]);
 
   @override
   Widget build(BuildContext context) {
