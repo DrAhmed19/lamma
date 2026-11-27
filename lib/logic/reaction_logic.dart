@@ -4,9 +4,11 @@ import 'game_model.dart';
 
 /// قواعد أسرع إصبع: 2-4 لاعبين. الإشارة (الانتظار، الخدعة، الأخضر) كلها يقررها الموديل،
 /// واللاعب بس يدز "tap". كل شي بالوقت حتى يشتغل بالسيرفر نفسه.
+/// [level]: 0 سهل (بدون خدع)، 1 متوسط (خدع أحياناً)، 2 صعب (خدع كثيرة وأحياناً اثنتين).
 class ReactionModel extends GameModel {
-  ReactionModel({required super.players, required super.crazy, required super.seed})
-      : score = List.filled(players, 0),
+  ReactionModel({required super.players, required super.crazy, required super.seed, int level = 1})
+      : level = level.clamp(0, 2),
+        score = List.filled(players, 0),
         fouled = List.filled(players, false),
         out = List.filled(players, false);
 
@@ -27,6 +29,7 @@ class ReactionModel extends GameModel {
         wonByFoul = j['wbf'] == true,
         win = j['win'] as int,
         finished = j['fin'] == true,
+        level = (j['lv'] as int?) ?? 1,
         super.restore();
 
   static const target = 5;
@@ -43,6 +46,7 @@ class ReactionModel extends GameModel {
   @override
   int get localHz => 60;
 
+  final int level;
   List<int> score;
   List<bool> fouled;
 
@@ -77,7 +81,7 @@ class ReactionModel extends GameModel {
     rs = waiting;
     final wait = 1.6 + rng.next() * 2.8;
     nextAt = time + wait;
-    decoyAt = rng.next() < 0.35 ? time + wait * (0.35 + rng.next() * 0.3) : -1;
+    decoyAt = rng.next() < const [0.0, 0.35, 0.75][level] ? time + wait * (0.35 + rng.next() * 0.3) : -1;
   }
 
   void _endRound(int p, {bool byFoul = false}) {
@@ -208,5 +212,6 @@ class ReactionModel extends GameModel {
         'wbf': wonByFoul,
         'win': win,
         'fin': finished,
+        'lv': level,
       };
 }

@@ -16,8 +16,12 @@ import '../ui/theme.dart';
 /// هوكي الهواء: لاعبين. القواعد والفيزياء بـ HockeyModel (نفسها بالسيرفر).
 /// الطاولة تتكيف ويا حجم الشاشة (تلفون، ايباد، لابتوب) بنفس الشكل.
 class HockeyGame extends StatefulWidget {
-  const HockeyGame({super.key, this.room});
+  const HockeyGame({super.key, this.room, this.level = 0, this.bots});
   final RoomConn? room;
+
+  /// على نفس الجهاز: المستوى ومقاعد الكمبيوتر (من شاشة البداية)
+  final int level;
+  final List<bool>? bots;
 
   @override
   State<HockeyGame> createState() => _HockeyState();
@@ -26,7 +30,16 @@ class HockeyGame extends StatefulWidget {
 class _HockeyState extends LoopState<HockeyGame> {
   late final Session<HockeyModel> session = widget.room != null
       ? OnlineSession<HockeyModel>(widget.room!)
-      : LocalSession(HockeyModel(players: 2, crazy: false, seed: DateTime.now().microsecondsSinceEpoch));
+      : LocalSession(HockeyModel(players: 2, crazy: false, seed: DateTime.now().microsecondsSinceEpoch, level: widget.level),
+          bots: widget.bots, level: widget.level);
+
+  bool isBot(int p) {
+    final s = session;
+    if (s is LocalSession<HockeyModel>) return s.isBot(p);
+    return false;
+  }
+
+  bool get anyBot => isBot(0) || isBot(1);
 
   HockeyModel get m => session.model;
   @override
@@ -172,7 +185,7 @@ class _HockeyState extends LoopState<HockeyGame> {
   void _down(PointerDownEvent e) {
     if (!ready) return;
     final p = _playerOf(e.localPosition);
-    if (p < 0) return;
+    if (p < 0 || isBot(p)) return;
     final l = toLogic(e.localPosition);
     owners[e.pointer] = p;
     // نحفظ الفرق حتى المضرب ما ينط لمكان الإصبع
@@ -268,7 +281,7 @@ class _HockeyPainter extends CustomPainter {
     final c = t.center;
     final b = s.bottomP, tp = 1 - b;
     final p0 = C.players[b], p1 = C.players[tp];
-    final dual = !s.online;
+    final dual = !s.online && !s.anyBot;
     final goals = s.m.goals;
 
     paintWorld(canvas, Offset.zero & size, kWorld['hockey']!);
@@ -321,6 +334,22 @@ class _HockeyPainter extends CustomPainter {
 
     goal(t.top, p1);
     goal(t.bottom, p0);
+
+    // المصدّات (المتوسط والصعب): تظهر وتختفي بنعومة
+    if (s.m.level >= 1 && !s.m.counting) {
+      final ph = (s.m.time - s.m.startAt) % HockeyModel.bumpCycle;
+      final a = ph < 0.4 ? ph / 0.4 : (ph < HockeyModel.bumpOnFor - 0.6 ? 1.0 : (ph < HockeyModel.bumpOnFor ? (HockeyModel.bumpOnFor - ph) / 0.6 * (0.5 + 0.5 * math.sin(ph * 25)) : 0.0));
+      if (a > 0) {
+        for (final bp in HockeyModel.bumpers) {
+          final bc = s.toScreen(bp.$1, bp.$2);
+          final br = HockeyModel.bumpR * w;
+          canvas.drawCircle(bc.translate(0, br * 0.15), br * 1.05, Paint()..color = alpha(Colors.black, 0.2 * a));
+          canvas.drawCircle(bc, br, Paint()..color = alpha(const Color(0xFFFF9A3D), a));
+          canvas.drawCircle(bc, br * 0.55, Paint()..color = alpha(Colors.white, 0.85 * a));
+          canvas.drawCircle(bc, br, Paint()..style = PaintingStyle.stroke..strokeWidth = br * 0.16..color = alpha(const Color(0xFFD9722A), a));
+        }
+      }
+    }
 
     // أثر القرص
     for (var i = 0; i < s.trail.length; i++) {

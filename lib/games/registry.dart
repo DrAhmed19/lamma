@@ -101,7 +101,13 @@ final games = <GameInfo>[
     colors: const [Color(0xFF2EB8E6), Color(0xFF0B4566)],
     icon: PigeonIcon.new,
     build: (n, crazy) => PigeonGame(players: n, crazy: crazy),
-    online: (room) => PigeonGame(players: room.seats.length, crazy: room.crazy, room: room),
+    levels: const [
+      'حمام فقط بسرعة هادئة. أول من يصل 10 نقاط يفوز.',
+      'حمامة ذهبية بنقطتين، وغراب يخصم نقطة، وصناديق قوى، والوقت دقيقة واحدة.',
+      'كل ما سبق، والطيور أسرع بكثير. والكمبيوتر بأقوى حالاته.',
+    ],
+    play: (level, bots) => PigeonGame(players: bots.length, level: level, bots: bots),
+    online: (room) => PigeonGame(players: room.seats.length, crazy: room.level >= 1, room: room),
   ),
   GameInfo(
     id: 'quiz',
@@ -158,6 +164,11 @@ final games = <GameInfo>[
     colors: const [Color(0xFFC2185B), Color(0xFF4A1030)],
     icon: MuhaibesIcon.new,
     build: (_, __) => const SizedBox.shrink(), // ما تنلعب على نفس الجهاز
+    levels: const [
+      'وقت أطول للتخبئة والتخمين، مناسب للعائلة.',
+      'الوقت العادي: 20 ثانية للتخبئة و15 لكل حركة.',
+      'وقت قصير جدًا: 12 ثانية للتخبئة و9 لكل حركة. فكّر بسرعة!',
+    ],
     online: (room) => MuhaibesGame(room: room),
     local: false,
     quick: false,
@@ -208,6 +219,12 @@ final games = <GameInfo>[
     colors: const [Color(0xFF1E6BFF), Color(0xFF0B2A6B)],
     icon: HockeyIcon.new,
     build: (n, _) => const HockeyGame(),
+    levels: const [
+      'الطاولة العادية: سجّل 7 أهداف قبل خصمك.',
+      'تظهر مصدّات برتقالية بنص الطاولة وتختفي بالتناوب، والقرص يرتد عنها.',
+      'المصدّات، والقرص يزداد سرعة مع كل ضربة. والكمبيوتر بأقوى حالاته.',
+    ],
+    play: (level, bots) => HockeyGame(level: level, bots: bots),
     online: (room) => HockeyGame(room: room),
   ),
   GameInfo(
@@ -220,6 +237,12 @@ final games = <GameInfo>[
     colors: const [Color(0xFF16B46A), Color(0xFF0A4A33)],
     icon: ReactionIcon.new,
     build: (n, _) => ReactionGame(players: n),
+    levels: const [
+      'اضغط لمّا تصير الدائرة خضراء. بدون خدع، والكمبيوتر بطيء.',
+      'أحيانًا تظهر دائرة برتقالية خدعة، والضغط عليها يخرجك من الجولة.',
+      'الخدع كثيرة، والكمبيوتر سريع جدًا.',
+    ],
+    play: (level, bots) => ReactionGame(players: bots.length, level: level, bots: bots),
     online: (room) => ReactionGame(players: room.seats.length, room: room),
   ),
   GameInfo(
@@ -232,6 +255,12 @@ final games = <GameInfo>[
     colors: const [Color(0xFFFF5A5F), Color(0xFF7A1630)],
     icon: TugIcon.new,
     build: (n, _) => const TugGame(),
+    levels: const [
+      'اضغط بأسرع ما تقدر. كل ضغطة تسحب الحبل نحوك.',
+      'تظهر لحظات «توقف!» بين الحين والآخر: من يضغط فيها يرجع الحبل إلى الخلف!',
+      '«توقف!» تأتي أكثر وأسرع، والكمبيوتر يضغط بسرعة كبيرة.',
+    ],
+    play: (level, bots) => TugGame(level: level, bots: bots),
     online: (room) => TugGame(room: room),
   ),
   GameInfo(

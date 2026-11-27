@@ -11,8 +11,10 @@ import 'game_model.dart';
 /// - السيرفر بس يعرف مكان المحبس: [viewFor] يخفيه عن الفريق الثاني والمتفرجين.
 /// - اللي يطلع قبضاته تختفي واللعبة تكمل. إذا فرغ فريق، الثاني يفوز.
 class MuhaibesModel extends GameModel {
-  MuhaibesModel({required super.players, required super.crazy, required super.seed})
-      : out = List.filled(players, false),
+  /// [level]: يحدد وقت التفكير. 0 سهل (وقت مضاعف تقريباً)، 1 متوسط، 2 صعب (وقت أقصر).
+  MuhaibesModel({required super.players, required super.crazy, required super.seed, int level = 1})
+      : level = level.clamp(0, 2),
+        out = List.filled(players, false),
         opened = List.filled(players * 2, false) {
     holding = rng.nextInt(2);
     _newRound();
@@ -38,11 +40,19 @@ class MuhaibesModel extends GameModel {
         lastTeam = j['lt'] as int,
         lastPts = j['lp'] as int,
         revealAt = (j['ra'] as num).toDouble(),
+        level = (j['lv'] as int?) ?? 1,
         super.restore();
 
   static const target = 15;
   static const hideTime = 20.0;
   static const moveTime = 15.0;
+
+  final int level;
+  double get _k => const [1.7, 1.0, 0.6][level];
+
+  /// وقت التخبية والحركة حسب المستوى
+  double get hideSecs => hideTime * _k;
+  double get moveSecs => moveTime * _k;
   static const revealTime = 3.5;
 
   @override
@@ -138,14 +148,14 @@ class MuhaibesModel extends GameModel {
     leader = _pick(members(guessing), lRot, guessing);
     hRot[holding]++;
     lRot[guessing]++;
-    deadline = time + hideTime;
+    deadline = time + hideSecs;
     emit('round', {'h': hider, 'l': leader});
   }
 
   void _hide(int f) {
     ring = f;
     phase = 'guess';
-    deadline = time + moveTime;
+    deadline = time + moveSecs;
     emit('hidden');
   }
 
@@ -202,7 +212,7 @@ class MuhaibesModel extends GameModel {
     }
     opened[f] = true;
     if (aim == f) aim = -1;
-    deadline = time + moveTime;
+    deadline = time + moveSecs;
     emit('open', {'f': f});
   }
 
@@ -252,7 +262,7 @@ class MuhaibesModel extends GameModel {
     }
     if (phase == 'hide' && player == hider) {
       hider = _pick(members(holding), hRot, holding);
-      deadline = time + hideTime;
+      deadline = time + hideSecs;
     } else if (phase == 'guess') {
       if (ring >= 0 && ownerOf(ring) == player) {
         // المحبس كان بيده: الجولة تنعاد بدون نقاط
@@ -263,7 +273,7 @@ class MuhaibesModel extends GameModel {
       if (player == leader) {
         leader = _pick(members(guessing), lRot, guessing);
         lRot[guessing]++;
-        deadline = time + moveTime;
+        deadline = time + moveSecs;
       }
       if (aim >= 0 && ownerOf(aim) == player) aim = -1;
     }
@@ -313,5 +323,6 @@ class MuhaibesModel extends GameModel {
         'lt': lastTeam,
         'lp': lastPts,
         'ra': revealAt,
+        'lv': level,
       };
 }

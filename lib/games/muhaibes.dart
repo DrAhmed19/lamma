@@ -265,7 +265,7 @@ class _MuhaibesState extends LoopState<MuhaibesGame> {
 
   Widget _statusBox() {
     final timed = m.phase != 'reveal' && !m.over;
-    final total = m.phase == 'hide' ? MuhaibesModel.hideTime : MuhaibesModel.moveTime;
+    final total = m.phase == 'hide' ? m.hideSecs : m.moveSecs;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Column(

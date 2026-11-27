@@ -340,8 +340,9 @@ export class Room {
         continue;
       }
       if (this.botAt[p] === undefined) {
-        const a = JSON.parse(mv).a;
-        const wait = a === "next" ? 400 : a === "draw" ? 450 : (this.botLevel === 2 ? 700 : 1000) + Math.random() * 800;
+        const j = JSON.parse(mv);
+        const a = j.a;
+        const wait = typeof j.w === "number" ? j.w : a === "next" ? 400 : a === "draw" ? 450 : (this.botLevel === 2 ? 700 : 1000) + Math.random() * 800;
         this.botAt[p] = now + wait;
         continue;
       }

@@ -20,9 +20,13 @@ import '../ui/theme.dart';
 /// مجنون: دقيقة وحدة، ذهبية وغراب وأسراب وصناديق قوى وكومبو.
 /// القواعد بـ PigeonModel (نفسها بالسيرفر). هنا بس الرسم واللمس والمؤثرات.
 class PigeonGame extends StatefulWidget {
-  const PigeonGame({super.key, required this.players, this.crazy = false, this.room});
+  const PigeonGame({super.key, required this.players, this.crazy = false, this.room, this.level = -1, this.bots});
   final int players;
   final bool crazy;
+
+  /// على نفس الجهاز: المستوى ومقاعد الكمبيوتر (من شاشة البداية). -1 = القديم
+  final int level;
+  final List<bool>? bots;
   final RoomConn? room;
 
   @override
@@ -479,6 +483,7 @@ class _PigeonState extends LoopState<PigeonGame> {
     final ss = seats(size);
     for (var i = 0; i < ss.length; i++) {
       if (online && i != session.me) continue;
+      if (!online && widget.bots != null && i < widget.bots!.length && widget.bots![i]) continue;
       if (aimStart[i] == null && !frozen(i) && ss[i].zone.contains(e.localPosition)) {
         owners[e.pointer] = i;
         aimStart[i] = e.localPosition;
@@ -529,11 +534,12 @@ class _PigeonState extends LoopState<PigeonGame> {
           final kk = k;
           _session = LocalSession(PigeonModel(
             players: widget.players,
-            crazy: widget.crazy,
+            crazy: widget.level >= 0 ? widget.level >= 1 : widget.crazy,
             seed: DateTime.now().microsecondsSinceEpoch,
             worldW: size.width / kk,
             worldH: size.height / kk,
-          ));
+            level: widget.level,
+          ), bots: widget.bots, level: math.max(0, widget.level));
         }
         if (!ready) return const NetWaiting();
         // أونلاين: الملعب بنفس الشكل عند الكل (بدون مطّ)، والزايد من الشاشة خلفية.

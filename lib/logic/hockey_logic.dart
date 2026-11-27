@@ -4,8 +4,11 @@ import 'game_model.dart';
 
 /// قواعد الهوكي: لاعبين. الطاولة بوحدات: العرض 1 والطول [h] = 2.
 /// اللاعب 0 تحت (y كبير) والـ1 فوق. اللاعب يدز مكان مضربه، والسيرفر يحرك القرص ويحسم.
+///
+/// [level]: 0 سهل (الطاولة العادية)، 1 متوسط (مصدّان بالنص يطلعون ويختفون)،
+/// 2 صعب (المصدّات + القرص يسرّع مع كل ضربة).
 class HockeyModel extends GameModel {
-  HockeyModel({required super.players, required super.crazy, required super.seed}) {
+  HockeyModel({required super.players, required super.crazy, required super.seed, int level = 0}) : level = level.clamp(0, 2) {
     _resetPositions(-1);
   }
 
@@ -27,6 +30,7 @@ class HockeyModel extends GameModel {
         startAt = (j['start'] as num).toDouble(),
         win = j['win'] as int,
         finished = j['fin'] == true,
+        level = (j['lv'] as int?) ?? 0,
         super.restore();
 
   static List<double> _l(dynamic v) => [for (final x in v as List) (x as num).toDouble()];
@@ -45,6 +49,14 @@ class HockeyModel extends GameModel {
   int get tickHz => 30;
   @override
   int get localHz => 60;
+
+  final int level;
+
+  /// المصدّات (المتوسط والصعب): دائرتين بنص الطاولة، تظهر 5 ثواني وتختفي 3 بالتناوب
+  static const bumpR = 0.075;
+  static const bumpers = [(0.27, h / 2), (0.73, h / 2)];
+  static const bumpCycle = 8.0, bumpOnFor = 5.0;
+  bool get bumpOn => level >= 1 && !counting && ((time - startAt) % bumpCycle) < bumpOnFor;
 
   List<double> padX = [0.5, 0.5], padY = [0, 0], padVx = [0, 0], padVy = [0, 0];
   List<bool> hasT = [false, false];
@@ -189,6 +201,24 @@ class HockeyModel extends GameModel {
     puckVx = vx;
     puckVy = vy;
 
+    if (bumpOn) {
+      for (final bp in bumpers) {
+        final dx = puckX - bp.$1, dy = puckY - bp.$2;
+        final dist = math.sqrt(dx * dx + dy * dy);
+        const minD = bumpR + rk;
+        if (dist < minD && dist > 0.0001) {
+          final nx = dx / dist, ny = dy / dist;
+          puckX = bp.$1 + nx * minD;
+          puckY = bp.$2 + ny * minD;
+          final vn = puckVx * nx + puckVy * ny;
+          if (vn < 0) {
+            puckVx -= nx * 1.9 * vn;
+            puckVy -= ny * 1.9 * vn;
+            _wall();
+          }
+        }
+      }
+    }
     for (var p = 0; p < 2; p++) {
       final dx = puckX - padX[p], dy = puckY - padY[p];
       final dist = math.sqrt(dx * dx + dy * dy);
@@ -202,15 +232,21 @@ class HockeyModel extends GameModel {
         if (vn < 0) {
           puckVx -= nx * 1.85 * vn;
           puckVy -= ny * 1.85 * vn;
+          if (level == 2) {
+            // الصعب: القرص يسرّع مع كل ضربة
+            puckVx *= 1.07;
+            puckVy *= 1.07;
+          }
           final impact = -vn;
           if (impact > 0.4) emit('hit', {'i': double.parse(impact.toStringAsFixed(2))});
         }
       }
     }
     final sp = math.sqrt(puckVx * puckVx + puckVy * puckVy);
-    if (sp > maxSpeed) {
-      puckVx = puckVx / sp * maxSpeed;
-      puckVy = puckVy / sp * maxSpeed;
+    final cap = level == 2 ? maxSpeed * 1.2 : maxSpeed;
+    if (sp > cap) {
+      puckVx = puckVx / sp * cap;
+      puckVy = puckVy / sp * cap;
     }
     final damp = math.exp(-0.28 * sdt);
     puckVx *= damp;
@@ -275,5 +311,6 @@ class HockeyModel extends GameModel {
         'start': startAt,
         'win': win,
         'fin': finished,
+        'lv': level,
       };
 }

@@ -15,8 +15,12 @@ import '../ui/theme.dart';
 
 /// شد الحبل: لاعبين، كل واحد يضغط بنصّه.
 class TugGame extends StatefulWidget {
-  const TugGame({super.key, this.room});
+  const TugGame({super.key, this.room, this.level = 0, this.bots});
   final RoomConn? room;
+
+  /// على نفس الجهاز: المستوى ومقاعد الكمبيوتر (من شاشة البداية)
+  final int level;
+  final List<bool>? bots;
 
   @override
   State<TugGame> createState() => _TugState();
@@ -32,7 +36,16 @@ class _Ripple {
 class _TugState extends LoopState<TugGame> {
   late final Session<TugModel> session = widget.room != null
       ? OnlineSession<TugModel>(widget.room!)
-      : LocalSession(TugModel(players: 2, crazy: false, seed: DateTime.now().microsecondsSinceEpoch));
+      : LocalSession(TugModel(players: 2, crazy: false, seed: DateTime.now().microsecondsSinceEpoch, level: widget.level),
+          bots: widget.bots, level: widget.level);
+
+  bool isBot(int p) {
+    final s = session;
+    if (s is LocalSession<TugModel>) return s.isBot(p);
+    return false;
+  }
+
+  double foulAt = -10;
 
   TugModel get m => session.model;
   @override
@@ -81,6 +94,13 @@ class _TugState extends LoopState<TugGame> {
           final y = bottomHalf ? h * (0.55 + 0.4 * _rnd.nextDouble()) : h * (0.05 + 0.4 * _rnd.nextDouble());
           ripples.add(_Ripple(Offset(w * (0.1 + 0.8 * _rnd.nextDouble()), y), C.players[p], time));
           if (!session.online || p == session.me) Fx.tap();
+        case 'stop':
+          Fx.mid();
+        case 'foul':
+          if (!session.online || e['p'] == session.me) {
+            foulAt = time;
+            Fx.hit();
+          }
         case 'win':
           endAt = time;
           Fx.big();
@@ -104,7 +124,7 @@ class _TugState extends LoopState<TugGame> {
     if (!ready || m.over || m.counting || paused) return;
     // على نفس الجهاز: النص اللي ضغطت بيه. أونلاين: كل الشاشة إلك.
     final p = session.online ? session.me : (e.localPosition.dy > size.height / 2 ? 0 : 1);
-    if (p < 0) return;
+    if (p < 0 || isBot(p)) return;
     session.input(p, {'m': 'tap'});
   }
 
@@ -126,6 +146,26 @@ class _TugState extends LoopState<TugGame> {
                 child: CustomPaint(painter: _TugPainter(this)),
               ),
             ),
+            // «توقف!»: لا تضغط (المتوسط والصعب)
+            if (m.level > 0)
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: ValueListenableBuilder<int>(
+                    valueListenable: frame,
+                    builder: (context, _, __) {
+                      final hit = time - foulAt < 0.4;
+                      if (!m.stopping && !hit) return const SizedBox();
+                      return Container(
+                        color: alpha(const Color(0xFFE5303B), m.stopping ? 0.35 : 0.2),
+                        alignment: Alignment.center,
+                        child: m.stopping
+                            ? Text('توقف!', style: display(84, color: Colors.white, shadows: const [Shadow(color: Color(0x66000000), offset: Offset(0, 4), blurRadius: 8)]))
+                            : const SizedBox(),
+                      );
+                    },
+                  ),
+                ),
+              ),
             if (m.counting)
               Positioned.fill(
                 child: Countdown(

@@ -134,9 +134,12 @@ class LocalSession<M extends GameModel> extends Session<M> {
       return;
     }
     for (var p = 0; p < bots!.length; p++) {
-      if (!bots![p] || botMove(model, p, level, _botRng, peek: true) == null) continue;
+      final hint = botMove(model, p, level, _botRng, peek: true);
+      if (!bots![p] || hint == null) continue;
       thinking = p;
-      _botAt = (level == 2 ? 0.55 : 0.8) + _botRng.nextDouble() * 0.7;
+      // 'w' = وقت الانتظار بالملّي ثانية يحدده الكمبيوتر نفسه (الألعاب السريعة)
+      final w = hint['w'];
+      _botAt = w is num ? w / 1000 : (level == 2 ? 0.55 : 0.8) + _botRng.nextDouble() * 0.7;
       return;
     }
   }

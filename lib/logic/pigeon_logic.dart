@@ -89,6 +89,7 @@ class PigeonModel extends GameModel {
     required super.seed,
     this.worldW = 400,
     this.worldH = 800,
+    this.level = -1,
   })  : score = List.filled(players, 0),
         combo = List.filled(players, 0),
         power = List.filled(players, -1),
@@ -132,7 +133,12 @@ class PigeonModel extends GameModel {
         lastTick = j['lt'] as int,
         win = j['win'] as int,
         finished = j['fin'] == true,
+        level = (j['lv'] as int?) ?? -1,
         super.restore();
+
+  /// -1 = القديم (عادي/مجنون). 0 سهل (حمام بس)، 1 متوسط (مجنون: ذهبية وغراب وصناديق)،
+  /// 2 صعب (مجنون + طيور أسرع).
+  final int level;
 
   static List<int> _ints(dynamic v) => [for (final x in v as List) x as int];
   static List<double> _dbls(dynamic v) => [for (final x in v as List) (x as num).toDouble()];
@@ -227,7 +233,7 @@ class PigeonModel extends GameModel {
 
   double speedOf(PBird b) {
     final grow = crazy ? elapsed * 2.2 + total * 4 : total * 10.0;
-    var base = math.min(130 + grow, 300.0);
+    var base = math.min(130 + grow, 300.0) * (level == 2 ? 1.2 : 1.0);
     if (b.small) base *= 1.75;
     return switch (b.kind) {
       kGold => base * 1.35,
@@ -648,5 +654,6 @@ class PigeonModel extends GameModel {
         'lt': lastTick,
         'win': win,
         'fin': finished,
+        'lv': level,
       };
 }

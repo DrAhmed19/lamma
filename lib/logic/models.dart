@@ -5,8 +5,11 @@ import 'connect4_logic.dart';
 import 'domino_bot.dart';
 import 'domino_logic.dart';
 import 'game_model.dart';
+import 'hockey_bot.dart';
 import 'hockey_logic.dart';
+import 'muhaibes_bot.dart';
 import 'muhaibes_logic.dart';
+import 'pigeon_bot.dart';
 import 'pigeon_logic.dart';
 import 'quiz_logic.dart';
 import 'reaction_logic.dart';
@@ -20,10 +23,10 @@ import 'xo_logic.dart';
 const onlineGames = {'xo', 'connect4', 'tug', 'pigeon', 'hockey', 'reaction', 'quiz', 'muhaibes', 'domino', 'whois', 'spy'};
 
 /// ألعاب يلعبها الكمبيوتر (بالغرف وعلى الجهاز)
-const botGames = {'domino', 'xo', 'connect4', 'quiz'};
+const botGames = {'domino', 'xo', 'connect4', 'quiz', 'reaction', 'tug', 'hockey', 'pigeon', 'muhaibes'};
 
 /// ألعاب بيها مستويات (سهل/متوسط/صعب) بدل عادي/مجنون
-const levelGames = {'domino', 'xo', 'connect4', 'quiz'};
+const levelGames = {'domino', 'xo', 'connect4', 'quiz', 'reaction', 'tug', 'hockey', 'pigeon', 'muhaibes'};
 
 /// حركة الكمبيوتر بلعبة [m] للاعب [player] بمستوى [level] (0-2). null = ماكو شي يسويه هسة.
 /// [peek] = بس نسأل "عنده شي يسويه؟" بدون ما يحسب الحركة (رخيص، كل إطار).
@@ -36,7 +39,7 @@ Map<String, dynamic>? botMove(GameModel m, int player, int level, math.Random r,
   if (m is QuizModel) {
     if (!m.started || m.reveal || m.over || m.answers[player] >= 0 || m.out[player]) return null;
     // وقت جوابه ثابت لكل سؤال (الأقوى أسرع)، وبعدها يجاوب صح باحتمال حسب المستوى
-    final lv = m.level.clamp(0, 2);
+    final lv = level.clamp(0, 2);
     final wait = const [6.0, 4.0, 2.5][lv] + ((m.qi * 37 + player * 11) % 30) / 10;
     if (m.time - m.askedAt < wait) return null;
     if (peek) return const {};
@@ -45,6 +48,36 @@ Map<String, dynamic>? botMove(GameModel m, int player, int level, math.Random r,
     var a = c;
     if (!right) a = (c + 1 + r.nextInt(3)) % 4;
     return {'m': 'ans', 'a': a};
+  }
+  if (m is ReactionModel) {
+    if (!m.started || m.over || m.out[player] || m.fouled[player]) return null;
+    final lv = level.clamp(0, 2);
+    final key = (m.nextAt * 1000).round() + player * 13 + m.score[0] * 7;
+    if (m.rs == ReactionModel.go) {
+      final due = const [0.62, 0.42, 0.27][lv] + (key % 20) / 100;
+      if (m.time - m.goAt < due) return null;
+    } else if (m.rs == ReactionModel.decoy) {
+      // الضعيف يقع بالخدعة أحياناً
+      final falls = (key % 100) < const [35, 10, 0][lv];
+      if (!falls || m.time < m.decoyEnd - 0.3) return null;
+    } else {
+      return null;
+    }
+    return const {'m': 'tap', 'w': 0};
+  }
+  if (m is MuhaibesModel) return MuhaibesBot.move(m, player, level, r);
+  if (m is PigeonModel) return PigeonBot.move(m, player, level, r, peek: peek);
+  if (m is HockeyModel) {
+    if (peek) return !m.over && !m.counting ? const {'w': 0} : null;
+    return HockeyBot.move(m, player, level, r);
+  }
+  if (m is TugModel) {
+    if (m.over || m.counting) return null;
+    final rate = const [3.5, 5.5, 8.0][level.clamp(0, 2)];
+    final want = (rate * (m.time - m.startAt) * (0.9 + 0.2 * ((m.time * 3).floor() % 2))).floor();
+    if (m.stopping) return null;
+    if (m.taps[player] >= want) return null;
+    return const {'m': 'tap', 'w': 0};
   }
   if (m is Connect4Model) {
     if (peek) return !m.over && m.turn == player ? const {} : null;
@@ -64,17 +97,17 @@ GameModel createModel(String id, {required int players, required bool crazy, req
     case 'connect4':
       return Connect4Model(players: players, crazy: crazy, seed: seed, level: level < 0 ? 0 : level);
     case 'tug':
-      return TugModel(players: players, crazy: crazy, seed: seed);
+      return TugModel(players: players, crazy: crazy, seed: seed, level: level < 0 ? 0 : level);
     case 'pigeon':
-      return PigeonModel(players: players, crazy: crazy, seed: seed);
+      return PigeonModel(players: players, crazy: level >= 0 ? level >= 1 : crazy, seed: seed, level: level);
     case 'hockey':
-      return HockeyModel(players: players, crazy: crazy, seed: seed);
+      return HockeyModel(players: players, crazy: crazy, seed: seed, level: level < 0 ? 0 : level);
     case 'reaction':
-      return ReactionModel(players: players, crazy: crazy, seed: seed);
+      return ReactionModel(players: players, crazy: crazy, seed: seed, level: level < 0 ? 1 : level);
     case 'quiz':
       return QuizModel(players: players, crazy: crazy, seed: seed, level: level < 0 ? 1 : level);
     case 'muhaibes':
-      return MuhaibesModel(players: players, crazy: crazy, seed: seed);
+      return MuhaibesModel(players: players, crazy: crazy, seed: seed, level: level < 0 ? 1 : level);
     case 'domino':
       return DominoModel(players: players, crazy: crazy, seed: seed, level: level);
     case 'whois':

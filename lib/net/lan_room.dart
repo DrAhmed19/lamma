@@ -133,7 +133,10 @@ class LanRoom {
       final at = _botAt[p];
       if (at == null) {
         final a = mv['a'];
-        final wait = a == 'next'
+        final hw = mv['w'];
+        final wait = hw is num
+            ? hw.toInt()
+            : a == 'next'
             ? 400
             : a == 'draw'
                 ? 450

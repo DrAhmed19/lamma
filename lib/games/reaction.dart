@@ -15,8 +15,12 @@ import '../ui/theme.dart';
 
 /// أسرع إصبع: 2-4 لاعبين. القواعد بـ ReactionModel (نفسها بالسيرفر).
 class ReactionGame extends StatefulWidget {
-  const ReactionGame({super.key, required this.players, this.room});
+  const ReactionGame({super.key, required this.players, this.room, this.level = 1, this.bots});
   final int players;
+
+  /// على نفس الجهاز: المستوى ومقاعد الكمبيوتر (من شاشة البداية)
+  final int level;
+  final List<bool>? bots;
   final RoomConn? room;
 
   @override
@@ -32,7 +36,14 @@ class _Zone {
 class _ReactionState extends LoopState<ReactionGame> {
   late final Session<ReactionModel> session = widget.room != null
       ? OnlineSession<ReactionModel>(widget.room!)
-      : LocalSession(ReactionModel(players: widget.players, crazy: false, seed: DateTime.now().microsecondsSinceEpoch));
+      : LocalSession(ReactionModel(players: widget.players, crazy: false, seed: DateTime.now().microsecondsSinceEpoch, level: widget.level),
+          bots: widget.bots, level: widget.level);
+
+  bool isBot(int p) {
+    final s = session;
+    if (s is LocalSession<ReactionModel>) return s.isBot(p);
+    return false;
+  }
 
   ReactionModel get m => session.model;
   @override
@@ -63,7 +74,7 @@ class _ReactionState extends LoopState<ReactionGame> {
     return [me, for (var i = 0; i < n; i++) if (i != me) i];
   }
 
-  String nameOfPlayer(int p) => online ? session.nameOf(p) : C.playerNames[p];
+  String nameOfPlayer(int p) => online ? session.nameOf(p) : (isBot(p) ? 'الكمبيوتر' : C.playerNames[p]);
 
   List<_Zone> zones(Size s) {
     final w = s.width, h = s.height;
@@ -132,7 +143,7 @@ class _ReactionState extends LoopState<ReactionGame> {
     for (var i = 0; i < zs.length; i++) {
       if (zs[i].rect.contains(e.localPosition)) p = i;
     }
-    if (p < 0) return;
+    if (p < 0 || isBot(p)) return;
     session.input(p, {'m': 'tap'});
   }
 
