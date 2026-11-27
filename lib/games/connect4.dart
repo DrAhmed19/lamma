@@ -15,8 +15,12 @@ import '../ui/theme.dart';
 
 /// أربعة بالصف: لاعبين بالدور. القواعد بـ Connect4Model (نفسها بالسيرفر).
 class Connect4Game extends StatefulWidget {
-  const Connect4Game({super.key, this.room});
+  const Connect4Game({super.key, this.room, this.level = 0, this.bots});
   final RoomConn? room;
+
+  /// على نفس الجهاز: المستوى ومقاعد الكمبيوتر (من شاشة البداية)
+  final int level;
+  final List<bool>? bots;
 
   @override
   State<Connect4Game> createState() => _C4State();
@@ -37,7 +41,21 @@ class _C4State extends LoopState<Connect4Game> {
 
   late final Session<Connect4Model> session = widget.room != null
       ? OnlineSession<Connect4Model>(widget.room!)
-      : LocalSession(Connect4Model(players: 2, crazy: false, seed: DateTime.now().microsecondsSinceEpoch));
+      : LocalSession(Connect4Model(players: 2, crazy: false, seed: DateTime.now().microsecondsSinceEpoch, level: widget.level),
+          bots: widget.bots, level: widget.level);
+
+  /// 0 إسقاط عادي، 1 قنبلة (المتوسط)، 2 سحب من تحت (الصعب)
+  int mode = 0;
+  int thinking = -1;
+  double boomAt = -10;
+  ({int col, int row})? boomPos;
+
+  bool isBot(int p) {
+    final s = session;
+    if (s is LocalSession<Connect4Model>) return s.isBot(p);
+    if (s is OnlineSession<Connect4Model>) return s.room.isBot(p);
+    return false;
+  }
 
   Connect4Model get m => session.model;
   @override
@@ -72,7 +90,17 @@ class _C4State extends LoopState<Connect4Game> {
         case 'drop':
           falls.add(_Fall(e['c'] as int, e['r'] as int, e['p'] as int, -1.2));
           Fx.tap();
+        case 'boom':
+          boomPos = (col: e['c'] as int, row: e['r'] as int);
+          boomAt = time + 0.35;
+          Fx.big();
+          Sfx.play('hit');
+        case 'pop':
+          Fx.mid();
+          Sfx.play('whoosh', volume: 0.5);
         case 'again':
+          mode = 0;
+          boomPos = null;
           falls.clear();
           last = null;
           showOver = false;
@@ -101,6 +129,10 @@ class _C4State extends LoopState<Connect4Game> {
     }
     falls.removeWhere((f) => f.bounces == 99);
     if (!ready) return;
+    final se = session;
+    final t = se is LocalSession<Connect4Model> ? se.thinking : (!m.over && isBot(m.turn) ? m.turn : -1);
+    if (t != thinking) setState(() => thinking = t);
+    if (mode != 0 && (m.over || (mode == 1 && !m.canBomb(m.turn)) || (mode == 2 && m.level != 2))) setState(() => mode = 0);
     // الاحتفال لمّن آخر قطعة توصل مكانها
     if (m.over && falls.isEmpty && !celebrated) {
       celebrated = true;
@@ -124,7 +156,39 @@ class _C4State extends LoopState<Connect4Game> {
     final c = _colAt(e.localPosition);
     if (c < 0 || m.freeRow(c) < 0) return;
     if (session.online && m.turn != session.me) return;
-    session.input(m.turn, {'m': 'drop', 'c': c});
+    if (isBot(m.turn)) return;
+    if (mode == 2) {
+      if (!m.canPop(m.turn, c)) return;
+      session.input(m.turn, {'m': 'pop', 'c': c});
+      setState(() => mode = 0);
+      return;
+    }
+    session.input(m.turn, {'m': 'drop', 'c': c, if (mode == 1) 'b': true});
+    if (mode != 0) setState(() => mode = 0);
+  }
+
+  /// زر القنبلة / السحب للي دوره (مو للكمبيوتر)
+  Widget? _modeButton() {
+    if (m.over || isBot(m.turn) || (session.online && m.turn != session.me)) return null;
+    if (m.level == 1 && m.canBomb(m.turn)) {
+      return ChunkyButton(
+        label: mode == 1 ? 'اختر العمود' : 'قنبلة',
+        icon: Icons.local_fire_department_rounded,
+        color: const Color(0xFFE5583D),
+        filled: mode == 1,
+        onTap: () => setState(() => mode = mode == 1 ? 0 : 1),
+      );
+    }
+    if (m.level == 2) {
+      return ChunkyButton(
+        label: mode == 2 ? 'اختر عمودًا لسحب قطعتك' : 'اسحب من تحت',
+        icon: Icons.south_rounded,
+        color: const Color(0xFF3557D6),
+        filled: mode == 2,
+        onTap: () => setState(() => mode = mode == 2 ? 0 : 2),
+      );
+    }
+    return null;
   }
 
   /// أونلاين آني دائماً تحت
@@ -164,8 +228,16 @@ class _C4State extends LoopState<Connect4Game> {
               left: 0,
               right: 0,
               top: s.height * 0.05,
-              child: Center(child: online ? _badge(top) : RotatedBox(quarterTurns: 2, child: _badge(top))),
+              child: Center(child: online || isBot(top) || isBot(bottom) ? _badge(top) : RotatedBox(quarterTurns: 2, child: _badge(top))),
             ),
+            if (_modeButton() case final btn?)
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: m.turn == bottom ? s.height * 0.14 : null,
+                top: m.turn == bottom ? null : s.height * 0.14,
+                child: Center(child: m.turn == bottom || online ? btn : RotatedBox(quarterTurns: 2, child: btn)),
+              ),
             if (online) NetBanner(session: session, players: 2),
             if (showOver)
               Positioned.fill(
@@ -195,6 +267,7 @@ class _C4State extends LoopState<Connect4Game> {
     if (session.online) {
       label = p == session.me ? (active ? 'دورك' : 'أنت') : session.nameOf(p);
     }
+    if (isBot(p)) label = thinking == p ? 'يفكّر...' : (session.online ? session.nameOf(p) : 'الكمبيوتر');
     return TurnBadge(player: pc[p], active: active, score: m.wins[p], label: label);
   }
 }
@@ -261,6 +334,17 @@ class _C4Painter extends CustomPainter {
       }
     }
 
+    // انفجار القنبلة
+    final bp = s.boomPos;
+    if (bp != null) {
+      final t = clamp01((s.time - s.boomAt) / 0.5);
+      if (t > 0 && t < 1) {
+        final c0 = cc(bp.col, bp.row.toDouble());
+        canvas.drawCircle(c0, cs * (0.5 + 1.6 * t), Paint()..color = alpha(const Color(0xFFFFB627), 0.5 * (1 - t)));
+        canvas.drawCircle(c0, cs * (0.3 + 1.2 * t), Paint()..style = PaintingStyle.stroke..strokeWidth = cs * 0.1..color = alpha(Colors.white, 0.8 * (1 - t)));
+      }
+    }
+
     // آخر حركة
     final l = s.last;
     if (l != null && !m.over) {
@@ -274,6 +358,15 @@ class _C4Painter extends CustomPainter {
       for (final p in w) {
         final c = cc(p % Connect4Model.cols, (p ~/ Connect4Model.cols).toDouble());
         canvas.drawCircle(c, hr * 1.1, Paint()..style = PaintingStyle.stroke..strokeWidth = cs * 0.08..color = alpha(Colors.white, 0.6 + 0.4 * k));
+      }
+    }
+
+    if (s.mode == 2 && !m.over) {
+      final k = 0.5 + 0.5 * math.sin(s.time * 8);
+      for (var c = 0; c < _C4State.cols; c++) {
+        if (m.canPop(m.turn, c)) {
+          canvas.drawCircle(cc(c, (_C4State.rows - 1).toDouble()), hr * 1.12, Paint()..style = PaintingStyle.stroke..strokeWidth = cs * 0.09..color = alpha(Colors.white, 0.5 + 0.5 * k));
+        }
       }
     }
 

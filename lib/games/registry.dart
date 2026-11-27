@@ -238,6 +238,12 @@ final games = <GameInfo>[
     colors: const [Color(0xFFFFB627), Color(0xFF7A4A06)],
     icon: Connect4Icon.new,
     build: (n, _) => const Connect4Game(),
+    levels: const [
+      'أربعة بالصف العادية: اصفّ أربع قطع في خط واحد.',
+      'قنبلة واحدة لكل لاعب: تنزل وتنفجر وتمسح القطع اللي حولها، وتتغير اللوحة كلها!',
+      '«اسحب من تحت»: بدل الإسقاط تگدر تسحب قطعتك من أسفل أي عمود، فتنزل الباقي. حتى الخصم ممكن يفوز بحركتك.',
+    ],
+    play: (level, bots) => Connect4Game(level: level, bots: bots),
     online: (room) => Connect4Game(room: room),
   ),
   GameInfo(

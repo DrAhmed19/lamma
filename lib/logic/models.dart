@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'connect4_bot.dart';
 import 'connect4_logic.dart';
 import 'domino_bot.dart';
 import 'domino_logic.dart';
@@ -19,10 +20,10 @@ import 'xo_logic.dart';
 const onlineGames = {'xo', 'connect4', 'tug', 'pigeon', 'hockey', 'reaction', 'quiz', 'muhaibes', 'domino', 'whois', 'spy'};
 
 /// ألعاب يلعبها الكمبيوتر (بالغرف وعلى الجهاز)
-const botGames = {'domino', 'xo'};
+const botGames = {'domino', 'xo', 'connect4'};
 
 /// ألعاب بيها مستويات (سهل/متوسط/صعب) بدل عادي/مجنون
-const levelGames = {'domino', 'xo'};
+const levelGames = {'domino', 'xo', 'connect4'};
 
 /// حركة الكمبيوتر بلعبة [m] للاعب [player] بمستوى [level] (0-2). null = ماكو شي يسويه هسة.
 /// [peek] = بس نسأل "عنده شي يسويه؟" بدون ما يحسب الحركة (رخيص، كل إطار).
@@ -31,6 +32,10 @@ Map<String, dynamic>? botMove(GameModel m, int player, int level, math.Random r,
     if (m.over) return null;
     if (m.phase == 'round') return m.nextOk[player] ? null : {'a': 'next'};
     return DominoBot.move(m, player, const [1, 3, 4][level.clamp(0, 2)], r);
+  }
+  if (m is Connect4Model) {
+    if (peek) return !m.over && m.turn == player ? const {} : null;
+    return Connect4Bot.move(m, player, r);
   }
   if (m is XoModel) {
     if (peek) return !m.over && m.turn == player ? const {} : null;
@@ -44,7 +49,7 @@ GameModel createModel(String id, {required int players, required bool crazy, req
     case 'xo':
       return XoModel(players: players, crazy: crazy, seed: seed, level: level < 0 ? 0 : level);
     case 'connect4':
-      return Connect4Model(players: players, crazy: crazy, seed: seed);
+      return Connect4Model(players: players, crazy: crazy, seed: seed, level: level < 0 ? 0 : level);
     case 'tug':
       return TugModel(players: players, crazy: crazy, seed: seed);
     case 'pigeon':

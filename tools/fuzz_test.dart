@@ -30,7 +30,7 @@ Map<String, dynamic> randomInput(String id, GameModel m, math.Random r, int p) {
     case 'xo':
       return {'m': 'put', 'i': r.nextInt(81)};
     case 'connect4':
-      return {'m': 'drop', 'c': r.nextInt(7)};
+      { final c = r.nextInt(7); final k = r.nextInt(6); return k == 0 ? {'m': 'pop', 'c': c} : {'m': 'drop', 'c': c, if (k == 1) 'b': true}; }
     case 'tug':
     case 'reaction':
       return {'m': 'tap'};
