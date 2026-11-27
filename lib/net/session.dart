@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import '../logic/models.dart';
+
 import '../core/profile.dart';
 import '../logic/game_model.dart';
 import 'room.dart';
@@ -79,7 +81,17 @@ abstract class Session<M extends GameModel> {
 
 /// على نفس الجهاز: التطبيق يشغّل القواعد بنفسه
 class LocalSession<M extends GameModel> extends Session<M> {
-  LocalSession(this.model);
+  /// [bots]: مقاعد الكمبيوتر على نفس الجهاز (يلعب بـ botMove بمستوى [level] ويا تأخير طبيعي)
+  LocalSession(this.model, {this.bots, this.level = 1});
+
+  final List<bool>? bots;
+  final int level;
+  bool isBot(int p) => bots != null && p >= 0 && p < bots!.length && bots![p];
+
+  /// الكمبيوتر اللي "يفكّر" هسة (-1 = ماكو)
+  int thinking = -1;
+  double _botAt = 0;
+  final _botRng = math.Random();
 
   @override
   final M model;
@@ -107,8 +119,31 @@ class LocalSession<M extends GameModel> extends Session<M> {
   @override
   void again() => model.again();
 
+  void _driveBots(double dt) {
+    if (bots == null || model.over) {
+      thinking = -1;
+      return;
+    }
+    if (thinking >= 0) {
+      _botAt -= dt;
+      if (_botAt > 0) return;
+      final p = thinking;
+      thinking = -1;
+      final mv = botMove(model, p, level, _botRng);
+      if (mv != null) input(p, mv);
+      return;
+    }
+    for (var p = 0; p < bots!.length; p++) {
+      if (!bots![p] || botMove(model, p, level, _botRng, peek: true) == null) continue;
+      thinking = p;
+      _botAt = (level == 2 ? 0.55 : 0.8) + _botRng.nextDouble() * 0.7;
+      return;
+    }
+  }
+
   @override
   void update(double dt) {
+    _driveBots(dt);
     final hz = model.localHz;
     if (hz <= 0) return;
     // تكّات ثابتة (نفس السيرفر) حتى اللعب يصير نفسه بالضبط

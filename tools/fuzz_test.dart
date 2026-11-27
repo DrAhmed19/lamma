@@ -28,7 +28,7 @@ Map<String, dynamic> randomInput(String id, GameModel m, math.Random r, int p) {
   }
   switch (id) {
     case 'xo':
-      return {'m': 'put', 'i': r.nextInt(9)};
+      return {'m': 'put', 'i': r.nextInt(81)};
     case 'connect4':
       return {'m': 'drop', 'c': r.nextInt(7)};
     case 'tug':
@@ -56,19 +56,25 @@ Map<String, dynamic> randomInput(String id, GameModel m, math.Random r, int p) {
   return {};
 }
 
-void run(String id, int n, bool crazy, int seed) {
+void run(String id, int n, bool crazy, int seed, [int level = -1]) {
   final r = math.Random(seed);
-  var m = createModel(id, players: n, crazy: crazy, seed: seed);
+  var m = createModel(id, players: n, crazy: crazy, seed: seed, level: level);
   final hz = m.tickHz > 0 ? m.tickHz : 10;
   final dt = 1 / hz;
   var overs = 0;
-  final where = '$id n=$n crazy=$crazy seed=$seed';
+  final where = '$id n=$n crazy=$crazy level=$level seed=$seed';
   try {
     for (var t = 0; t < hz * 240; t++) {
       // حركات
       for (var k = 0; k < 1 + r.nextInt(3); k++) {
         final p = r.nextInt(n);
         m.input(p, randomInput(id, m, r, p));
+      }
+      // الكمبيوتر يلعب بمقعد عشوائي (حركته لازم تكون مقبولة)
+      if (botGames.contains(id) && r.nextBool()) {
+        final p = r.nextInt(n);
+        final mv = botMove(m, p, level < 0 ? 1 : level, r);
+        if (mv != null) m.input(p, mv);
       }
       // انقطاع ورجوع، وطلوع نهائي نادر
       if (r.nextInt(400) == 0) m.connection(r.nextInt(n), r.nextBool());
@@ -107,6 +113,12 @@ void main() {
         for (var seed = 1; seed <= 3; seed++) {
           run(id, n, crazy, seed * 7919 + n);
           runs++;
+          if (levelGames.contains(id)) {
+            for (var lv = 0; lv < 3; lv++) {
+              run(id, n, crazy, seed * 31 + lv, lv);
+              runs++;
+            }
+          }
         }
       }
     }

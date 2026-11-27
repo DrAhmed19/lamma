@@ -1,8 +1,11 @@
 import 'game_model.dart';
 
-/// قواعد إكس أو
+/// قواعد إكس أو. [level]: 0 سهل (العادية)، 1 متوسط (3 قطع لكل لاعب والأقدم تختفي)،
+/// 2 صعب (إكس أو الكبيرة: 9 لوحات صغيرة، ومكان حركتك يحدد لوحة خصمك).
 class XoModel extends GameModel {
-  XoModel({required super.players, required super.crazy, required super.seed});
+  XoModel({required super.players, required super.crazy, required super.seed, int level = 0})
+      : level = level.clamp(0, 2),
+        board = List.filled(level == 2 ? 81 : 9, -1);
 
   XoModel.restore(super.j)
       : board = [for (final v in j['board'] as List) v as int],
@@ -12,6 +15,10 @@ class XoModel extends GameModel {
         win = j['win'] as int,
         finished = j['fin'] == true,
         wins = [for (final v in j['wins'] as List) v as int],
+        level = (j['lv'] as int?) ?? 0,
+        hist = [for (final h in (j['hist'] as List?) ?? const [[], []]) [for (final v in h as List) v as int]],
+        big = [for (final v in (j['big'] as List?) ?? List.filled(9, -1)) v as int],
+        zone = (j['zone'] as int?) ?? -1,
         super.restore();
 
   static const lines = [
@@ -23,8 +30,37 @@ class XoModel extends GameModel {
   @override
   String get id => 'xo';
 
-  List<int> board = List.filled(9, -1);
+  final int level;
+  List<int> board;
   int turn = 0;
+
+  /// المتوسط: قطع كل لاعب بالترتيب (الأقدم أول)
+  List<List<int>> hist = [[], []];
+
+  /// الصعب: حالة كل لوحة صغيرة (-1 مفتوحة، 0/1 فاز بيها، 2 امتلت تعادل)، واللوحة المفروضة (-1 = أي وحدة)
+  List<int> big = List.filled(9, -1);
+  int zone = -1;
+
+  bool get ultimate => level == 2;
+
+  /// القطعة اللي راح تختفي بالحركة الجاية (المتوسط)، أو -1
+  int get fading => level == 1 && !finished && hist[turn].length >= 3 ? hist[turn].first : -1;
+
+  /// تنلعب هنا؟
+  bool legal(int i) {
+    if (finished || i < 0 || i >= board.length || board[i] >= 0) return false;
+    if (!ultimate) return i != fading;
+    final z = i ~/ 9;
+    return big[z] < 0 && (zone < 0 || zone == z);
+  }
+
+  static int? lineOf(List<int> b, int p, [int off = 0]) {
+    for (var k = 0; k < 8; k++) {
+      final l = lines[k];
+      if (b[off + l[0]] == p && b[off + l[1]] == p && b[off + l[2]] == p) return k;
+    }
+    return null;
+  }
   int starter = 0;
   List<int>? winLine;
   int win = -1;
@@ -42,26 +78,51 @@ class XoModel extends GameModel {
   void input(int player, Map<String, dynamic> d) {
     if (d['m'] != 'put') return;
     final i = d['i'];
-    if (finished || player != turn || i is! int || i < 0 || i > 8 || board[i] >= 0) return;
+    if (player != turn || i is! int || !legal(i)) return;
+    if (level == 1) {
+      final h = hist[turn];
+      if (h.length >= 3) {
+        final old = h.removeAt(0);
+        board[old] = -1;
+        emit('fade', {'i': old, 'p': turn});
+      }
+      h.add(i);
+    }
     board[i] = turn;
     emit('put', {'i': i, 'p': turn});
-    for (final l in lines) {
-      if (board[l[0]] == turn && board[l[1]] == turn && board[l[2]] == turn) {
-        winLine = l;
-        win = turn;
-        wins[turn]++;
-        finished = true;
-        emit('win', {'p': turn});
-        return;
+    if (ultimate) {
+      final z = i ~/ 9;
+      if (lineOf(board, turn, z * 9) != null) {
+        big[z] = turn;
+        emit('zone', {'z': z, 'p': turn});
+      } else if (!board.sublist(z * 9, z * 9 + 9).contains(-1)) {
+        big[z] = 2;
       }
-    }
-    if (!board.contains(-1)) {
-      win = -1;
-      finished = true;
-      emit('draw');
-      return;
+      final k = lineOf(big, turn);
+      if (k != null) return _win(lines[k]);
+      if (!big.contains(-1)) return _draw();
+      final next = i % 9;
+      zone = big[next] < 0 ? next : -1;
+    } else {
+      final k = lineOf(board, turn);
+      if (k != null) return _win(lines[k]);
+      if (!board.contains(-1)) return _draw();
     }
     turn = 1 - turn;
+  }
+
+  void _win(List<int> l) {
+    winLine = l;
+    win = turn;
+    wins[turn]++;
+    finished = true;
+    emit('win', {'p': turn});
+  }
+
+  void _draw() {
+    win = -1;
+    finished = true;
+    emit('draw');
   }
 
   @override
@@ -78,7 +139,10 @@ class XoModel extends GameModel {
     if (!finished) return;
     starter = 1 - starter;
     turn = starter;
-    board = List.filled(9, -1);
+    board = List.filled(board.length, -1);
+    hist = [[], []];
+    big = List.filled(9, -1);
+    zone = -1;
     winLine = null;
     win = -1;
     finished = false;
@@ -94,5 +158,9 @@ class XoModel extends GameModel {
         'win': win,
         'fin': finished,
         'wins': wins,
+        'lv': level,
+        'hist': hist,
+        'big': big,
+        'zone': zone,
       };
 }

@@ -12,23 +12,29 @@ import 'reaction_logic.dart';
 import 'spy_logic.dart';
 import 'tug_logic.dart';
 import 'whois_logic.dart';
+import 'xo_bot.dart';
 import 'xo_logic.dart';
 
 /// كل الألعاب اللي قواعدها صارت على الأساس المشترك (تشتغل أونلاين)
 const onlineGames = {'xo', 'connect4', 'tug', 'pigeon', 'hockey', 'reaction', 'quiz', 'muhaibes', 'domino', 'whois', 'spy'};
 
 /// ألعاب يلعبها الكمبيوتر (بالغرف وعلى الجهاز)
-const botGames = {'domino'};
+const botGames = {'domino', 'xo'};
 
 /// ألعاب بيها مستويات (سهل/متوسط/صعب) بدل عادي/مجنون
-const levelGames = {'domino'};
+const levelGames = {'domino', 'xo'};
 
 /// حركة الكمبيوتر بلعبة [m] للاعب [player] بمستوى [level] (0-2). null = ماكو شي يسويه هسة.
-Map<String, dynamic>? botMove(GameModel m, int player, int level, math.Random r) {
+/// [peek] = بس نسأل "عنده شي يسويه؟" بدون ما يحسب الحركة (رخيص، كل إطار).
+Map<String, dynamic>? botMove(GameModel m, int player, int level, math.Random r, {bool peek = false}) {
   if (m is DominoModel) {
     if (m.over) return null;
     if (m.phase == 'round') return m.nextOk[player] ? null : {'a': 'next'};
     return DominoBot.move(m, player, const [1, 3, 4][level.clamp(0, 2)], r);
+  }
+  if (m is XoModel) {
+    if (peek) return !m.over && m.turn == player ? const {} : null;
+    return XoBot.move(m, player, r);
   }
   return null;
 }
@@ -36,7 +42,7 @@ Map<String, dynamic>? botMove(GameModel m, int player, int level, math.Random r)
 GameModel createModel(String id, {required int players, required bool crazy, required int seed, int level = -1}) {
   switch (id) {
     case 'xo':
-      return XoModel(players: players, crazy: crazy, seed: seed);
+      return XoModel(players: players, crazy: crazy, seed: seed, level: level < 0 ? 0 : level);
     case 'connect4':
       return Connect4Model(players: players, crazy: crazy, seed: seed);
     case 'tug':

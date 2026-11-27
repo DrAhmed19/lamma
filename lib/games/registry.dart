@@ -250,6 +250,12 @@ final games = <GameInfo>[
     colors: const [Color(0xFF8B6CFF), Color(0xFF34207A)],
     icon: XoIcon.new,
     build: (n, _) => const XoGame(),
+    levels: const [
+      'إكس أو العادية: صفّ ثلاث علامات في خط واحد.',
+      'ثلاث قطع فقط لكل لاعب: عندما تضع الرابعة تختفي أقدم قطعة لك (تنبض قبل أن تختفي). لا تعادل!',
+      'إكس أو الكبيرة: 9 لوحات صغيرة. المربع الذي تلعب فيه يحدد اللوحة التي يلعب فيها خصمك. اربح ثلاث لوحات في خط.',
+    ],
+    play: (level, bots) => XoGame(level: level, bots: bots),
     online: (room) => XoGame(room: room),
   ),
 ];
